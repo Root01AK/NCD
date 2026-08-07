@@ -1,0 +1,18 @@
+export const T = {
+  charcoal900: "#242322",
+  charcoal700: "#4A4844",
+  charcoal500: "#7A776F",
+  gold: "#F0B429",
+  goldDeep: "#D89A1A",
+  goldTint: "rgba(240, 180, 41, 0.15)",
+  paper: "#FAF7F0",
+  paperRaised: "#FFFFFF",
+  line: "#E6E4DD",
+  ink: "#121110",
+  blueTint: "#E5F0FF",
+  blueDeep: "#0052CC",
+  greenTint: "#E3FCEF",
+  greenDeep: "#006644",
+  redTint: "#FFEBE6",
+  redDeep: "#DE350B",
+};

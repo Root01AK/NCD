@@ -1,0 +1,80 @@
+{
+    "name": "yiisoft/yii2-app-basic",
+    "description": "Yii 2 Basic Project Template",
+    "keywords": ["yii2", "framework", "basic", "project template"],
+    "homepage": "http://www.yiiframework.com/",
+    "type": "project",
+    "license": "BSD-3-Clause",
+    "support": {
+        "issues": "https://github.com/yiisoft/yii2/issues?state=open",
+        "forum": "http://www.yiiframework.com/forum/",
+        "wiki": "http://www.yiiframework.com/wiki/",
+        "irc": "irc://irc.freenode.net/yii",
+        "source": "https://github.com/yiisoft/yii2"
+    },
+    "minimum-stability": "stable",
+    "require": {
+        "php": ">=5.4.0",
+        "yiisoft/yii2": ">=2.0.5",
+        "yiisoft/yii2-bootstrap": "*",
+        "yiisoft/yii2-swiftmailer": "*",
+        "rmrevin/yii2-fontawesome": "~2.15",
+        "dmstr/yii2-adminlte-asset": "2.*",
+        "drsdre/yii2-wizardwidget": "*",
+        "wbraganca/yii2-dynamicform": "*",
+        "codeonyii/yii2-at-least-validator": "^1.1",
+        "yiisoft/yii2-jui": "^2.0",
+        "kartik-v/yii2-widget-select2": "@dev",
+        "ruskid/yii2-csv-importer": "dev-master",
+        "kartik-v/yii2-grid": "@dev",
+        "kartik-v/yii2-widgets": "*",
+        "moonlandsoft/yii2-phpexcel": "*",
+        "kartik-v/yii2-mpdf": "*",
+        "miserenkov/yii2-timezone-picker": "^0.1",
+        "bizley/jwt": "^4.1"
+    },
+    "require-dev": {
+        "yiisoft/yii2-codeception": "*",
+        "yiisoft/yii2-debug": "*",
+        "yiisoft/yii2-gii": "*",
+        "yiisoft/yii2-faker": "*"
+    },
+    "config": {
+        "process-timeout": 1800,
+        "allow-plugins": {
+            "yiisoft/yii2-composer": true
+        }
+    },
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://asset-packagist.org"
+        }
+    ],
+    "scripts": {
+        "post-create-project-cmd": [
+            "yii\\composer\\Installer::postCreateProject"
+        ]
+    },
+    "extra": {
+        "yii\\composer\\Installer::postCreateProject": {
+            "setPermission": [
+                {
+                    "runtime": "0777",
+                    "web/assets": "0777",
+                    "yii": "0755"
+                }
+            ],
+            "generateCookieValidationKey": [
+                "config/web.php"
+            ]
+        },
+        "asset-installer-paths": {
+            "npm-asset-library": "vendor/npm",
+            "bower-asset-library": "vendor/bower"
+        }
+    },
+    "replace": {
+        "bower-asset/eve": "*"
+    }
+}

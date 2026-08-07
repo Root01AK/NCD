@@ -1,0 +1,19 @@
+
+
+C:\xampp\php\php.ini file
+
+upload_max_filesize=512M
+
+post_max_size=512M
+
+memory_limit=1024M
+
+max_execution_time=50000
+
+
+
+
+C:\xampp\phpMyAdmin\config.inc
+
+$cfg['Servers'][$i]['auth_type'] = 'cookie';
+
