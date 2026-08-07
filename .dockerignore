@@ -1,0 +1,28 @@
+# Git
+.git
+.gitignore
+
+# Node
+ncd/frontend/node_modules
+ncd/node_modules
+
+# Composer
+ncd/composer.phar
+ncd/composer-latest.phar
+
+# Large binary files
+*.rar
+*.exe
+*.zip
+
+# Mac
+.DS_Store
+
+# PHP runtime artifacts
+ncd/runtime/
+ncd/web/assets/
+
+# IDE
+.idea
+.vscode
+nbproject
