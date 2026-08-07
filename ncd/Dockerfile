@@ -7,7 +7,7 @@ WORKDIR /app/frontend
 
 # Install deps first (layer cache)
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci --prefer-offline
+RUN npm ci
 
 # Copy source & build
 COPY frontend/ ./
@@ -16,9 +16,11 @@ RUN npm run build
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 2: PHP + Nginx production image
 # ─────────────────────────────────────────────────────────────────────────────
-FROM php:8.2-fpm-alpine
+# Pin to Alpine 3.19 for reproducible package availability
+FROM php:8.2-fpm-alpine3.19
 
 # Install system packages and PHP extensions
+# Note: 'icudata' does NOT exist in Alpine - use icu-data-full instead
 RUN apk add --no-cache \
         nginx \
         supervisor \
@@ -31,7 +33,7 @@ RUN apk add --no-cache \
         oniguruma-dev \
         icu-dev \
         icu-libs \
-        icudata \
+        icu-data-full \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) pdo_mysql gd zip mbstring intl bcmath \
     && rm -rf /tmp/pear
