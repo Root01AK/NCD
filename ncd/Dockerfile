@@ -45,12 +45,17 @@ WORKDIR /var/www/html
 
 # ── PHP dependencies (cached separately from app code) ──────────────────────
 COPY composer.json composer.lock ./
-RUN composer install \
+# --ignore-platform-reqs: lock file may have been generated on a different PHP version
+# --no-scripts: skip post-install scripts (Yii2 installer needs full app context, runs later)
+# COMPOSER_MEMORY_LIMIT=-1: prevents OOM kills inside the container
+RUN COMPOSER_MEMORY_LIMIT=-1 composer install \
         --no-dev \
         --optimize-autoloader \
         --no-interaction \
         --no-progress \
-        --prefer-dist
+        --prefer-dist \
+        --ignore-platform-reqs \
+        --no-scripts
 
 # ── Application source ───────────────────────────────────────────────────────
 COPY . .
