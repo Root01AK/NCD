@@ -1,0 +1,33 @@
+# Git
+.git
+.gitignore
+
+# Node
+frontend/node_modules
+node_modules
+
+# Composer
+composer.phar
+composer-latest.phar
+
+# Large binary files
+*.rar
+*.exe
+*.zip
+
+# Mac
+.DS_Store
+
+# PHP development/test artifacts
+runtime/
+web/assets/
+tests/
+
+# IDE
+.idea
+.vscode
+nbproject
+
+# Local dev configs
+phpunit.xml
+phpunit.phar
