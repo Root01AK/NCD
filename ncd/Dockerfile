@@ -34,6 +34,7 @@ RUN apk add --no-cache \
         icu-dev \
         icu-libs \
         icu-data-full \
+        mariadb-client \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) pdo_mysql gd zip mbstring intl bcmath \
     && rm -rf /tmp/pear
