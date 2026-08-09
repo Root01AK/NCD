@@ -169,6 +169,8 @@ export function UserManagement({ notify }) {
       const payload = {
         username: formData.username,
         users_name: formData.username,
+        full_name: formData.username,
+        loc_code: 'DH',
         password: formData.password,
         role: formData.role,
         user_role: formData.role === 'admin' ? 1 : 2,
@@ -199,7 +201,7 @@ export function UserManagement({ notify }) {
       setFormData({ username: "", password: "", role: "staff_nurse", email: "", mobile: "", status: "1", privileges: getDefaultModulesForRole("staff_nurse") });
       fetchUsers();
     } catch (e) {
-      notify("error", "Error", "Failed to save user.");
+      notify("error", "Error", e.message || "Failed to save user.");
     }
   };
 

@@ -74,10 +74,35 @@ class UsersController extends Controller
         $model = new Users();
         $model->attributes = $payload;
 
-        // Basic default setup for user
-        $model->record_date = date('Y-m-d H:i:s');
+        // Basic default setup for user required attributes
+        $model->record_date = time();
+        if (empty($model->users_name) && !empty($payload['username'])) {
+            $model->users_name = $payload['username'];
+        }
+        if (empty($model->full_name)) {
+            $model->full_name = !empty($payload['full_name']) ? $payload['full_name'] : $model->users_name;
+        }
+        if (empty($model->loc_code)) {
+            $model->loc_code = !empty($payload['loc_code']) ? $payload['loc_code'] : 'DH';
+        }
+        if (empty($model->user_role) && isset($payload['user_role'])) {
+            $model->user_role = $payload['user_role'];
+        }
+        if (empty($model->user_role)) {
+            $model->user_role = 2; // Default to DEO
+        }
+        if (empty($model->status)) {
+            $model->status = '1';
+        }
+        if (empty($model->create_time)) {
+            $model->create_time = time();
+        }
+        if (empty($model->update_time)) {
+            $model->update_time = time();
+        }
+
         if (!empty($payload['password'])) {
-            $model->password = md5($payload['password']); // Using md5 because the original system seems to use basic hashing or raw passwords, but in a real system use Yii::$app->security->generatePasswordHash()
+            $model->password = md5($payload['password']);
         }
 
         if ($model->save()) {
@@ -91,9 +116,16 @@ class UsersController extends Controller
         }
 
         Yii::$app->response->statusCode = 400;
+        $errors = $model->getErrors();
+        $firstError = 'Failed to save user.';
+        if (!empty($errors)) {
+            $firstKey = array_key_first($errors);
+            $firstError = $errors[$firstKey][0] ?? 'Failed to save user.';
+        }
         return [
             'status' => 'error',
-            'errors' => $model->getErrors()
+            'message' => $firstError,
+            'errors' => $errors
         ];
     }
 
@@ -111,10 +143,21 @@ class UsersController extends Controller
         if (!empty($payload['password'])) {
             $payload['password'] = md5($payload['password']);
         } else {
-            unset($payload['password']); // don't override with empty
+            unset($payload['password']);
         }
 
         $model->attributes = $payload;
+
+        if (empty($model->users_name) && !empty($payload['username'])) {
+            $model->users_name = $payload['username'];
+        }
+        if (empty($model->full_name)) {
+            $model->full_name = !empty($payload['full_name']) ? $payload['full_name'] : $model->users_name;
+        }
+        if (empty($model->loc_code)) {
+            $model->loc_code = 'DH';
+        }
+        $model->update_time = time();
 
         if ($model->save()) {
             $data = $model->toArray();
@@ -127,9 +170,16 @@ class UsersController extends Controller
         }
 
         Yii::$app->response->statusCode = 400;
+        $errors = $model->getErrors();
+        $firstError = 'Failed to save user.';
+        if (!empty($errors)) {
+            $firstKey = array_key_first($errors);
+            $firstError = $errors[$firstKey][0] ?? 'Failed to save user.';
+        }
         return [
             'status' => 'error',
-            'errors' => $model->getErrors()
+            'message' => $firstError,
+            'errors' => $errors
         ];
     }
 
