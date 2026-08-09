@@ -4,8 +4,6 @@ services:
       context: ./ncd
       dockerfile: Dockerfile
     image: ncd-app:latest
-    ports:
-      - "8080:80"
     expose:
       - "80"
     environment:
