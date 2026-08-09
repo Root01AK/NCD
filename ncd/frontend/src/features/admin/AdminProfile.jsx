@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import { UserCircle2, Mail, Lock, ShieldCheck, CheckCircle2, Server } from "lucide-react";
+import { UserCircle2, Mail, Lock, Unlock, Layers, ShieldCheck, CheckCircle2, Server } from "lucide-react";
 
-export function AdminProfile({ notify, user }) {
+export function AdminProfile({ notify, user, phase1Unlocked, togglePhase1Lock }) {
   const [formData, setFormData] = useState({
     full_name: user?.full_name || "System Administrator",
     email: user?.email || "admin@icc.com",
@@ -227,6 +227,47 @@ export function AdminProfile({ notify, user }) {
             </div>
           </div>
 
+        </div>
+
+        {/* Phase I Dataset Access Lock Control Card */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs">
+          <div className="flex items-center justify-between pb-3 mb-4 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <Server size={18} className="text-gray-700" />
+              <h3 className="text-sm font-bold text-gray-900">
+                Phase I Baseline Dataset Access Lock System
+              </h3>
+            </div>
+            <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${phase1Unlocked ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-slate-100 text-slate-700 border border-slate-300'}`}>
+              {phase1Unlocked ? 'Unlocked & Visible' : 'Locked & Hidden'}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between flex-wrap gap-4 text-xs">
+            <div className="max-w-xl">
+              <p className="font-semibold text-gray-800">
+                Phase I Historical Data Visibility
+              </p>
+              <p className="text-gray-500 mt-0.5 leading-relaxed">
+                By default, Phase I data is locked and hidden from dropdown selectors across the system. Unlock this setting to allow administrators to switch to and review Phase I historical baseline records.
+              </p>
+            </div>
+
+            {togglePhase1Lock && (
+              <button
+                type="button"
+                onClick={togglePhase1Lock}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-2 cursor-pointer border ${
+                  phase1Unlocked 
+                    ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100' 
+                    : 'bg-slate-900 text-white border-slate-800 hover:bg-black'
+                }`}
+              >
+                {phase1Unlocked ? <Unlock size={14} className="text-amber-600" /> : <Lock size={14} className="text-amber-400" />}
+                <span>{phase1Unlocked ? "Lock Phase I Baseline Data" : "Unlock Phase I Baseline Data"}</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Global SMTP Configuration (Compact Row) */}

@@ -268,7 +268,7 @@ export function UserManagement({ notify }) {
       </header>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto p-8 space-y-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-6">
         
         {loading ? (
           <div className="flex justify-center p-16">
@@ -281,7 +281,7 @@ export function UserManagement({ notify }) {
         ) : (
           /* Clean Professional Table Layout */
           <div className="bg-white rounded-2xl border border-gray-200 shadow-2xs overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/50 flex items-center justify-between">
+            <div className="px-4 sm:px-6 py-4 border-b border-gray-200 bg-gray-50/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
               <span className="text-xs font-bold uppercase tracking-wider text-gray-500">
                 System Accounts ({filteredUsers.length})
               </span>
@@ -290,7 +290,8 @@ export function UserManagement({ notify }) {
               </span>
             </div>
 
-            <table className="w-full text-left border-collapse">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[700px]">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                   <th className="py-3 px-6">User Account</th>
@@ -402,6 +403,7 @@ export function UserManagement({ notify }) {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>

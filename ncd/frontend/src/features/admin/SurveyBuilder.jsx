@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Plus, Trash2, ArrowUp, ArrowDown, GripVertical, Settings2, FileText, CheckSquare, AlignLeft, Hash, UploadCloud, Loader2, ChevronDown, ChevronUp, CircleDot, Table, FolderClosed, Save } from "lucide-react";
+import { Plus, Trash2, ArrowUp, ArrowDown, GripVertical, Settings2, FileText, CheckSquare, AlignLeft, Hash, UploadCloud, Loader2, ChevronDown, ChevronUp, CircleDot, Table, FolderClosed, Save, ChevronLeft } from "lucide-react";
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 
@@ -140,14 +140,12 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
     const newQ = {
       id: newId,
       type: typeId,
-      title: "",
+      title: typeId === "section_header" ? "Section Header Title" : "New Question Title",
       required: false,
-      options: typeId === "dropdown" || typeId === "single_choice" || typeId === "multi_choice" ? ["Option 1", "Option 2"] : [],
-      skipRule: { dependsOn: "", value: "", action: "show" },
-      rows: typeId === "matrix" ? ["Row 1", "Row 2"] : [],
-      columns: typeId === "matrix" ? ["Col 1", "Col 2"] : [],
+      options: typeId === "single_choice" || typeId === "multi_choice" || typeId === "dropdown" ? ["Option 1", "Option 2"] : [],
+      skipRule: { dependsOn: "", value: "", action: "show" }
     };
-    setQuestions([...questions, newQ]);
+    setQuestions(prev => [...prev, newQ]);
     setExpandedIds(prev => ({ ...prev, [newId]: true }));
   };
 
@@ -236,44 +234,50 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
   return (
     <div className="flex h-full bg-[#F7F6F2]">
       {/* Canvas */}
-      <div className="flex-1 overflow-y-auto p-8 pb-32">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-8 pb-36">
         <div className="max-w-6xl mx-auto space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-            <div className="flex-1">
+          
+          {/* Top Bar with Back Button */}
+          {onBack && (
+            <button 
+              onClick={onBack}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-white border border-slate-200 text-slate-700 shadow-2xs hover:bg-slate-50 transition-all cursor-pointer mb-2"
+            >
+              <ChevronLeft size={16} /> Back to Surveys
+            </button>
+          )}
+
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div className="flex-1 min-w-0">
               <input
                 type="text"
                 value={surveyTitle}
                 onChange={(e) => setSurveyTitle(e.target.value)}
                 placeholder="Enter Survey Title..."
-                className="text-2xl font-bold bg-transparent outline-none border-b border-dashed border-slate-300 hover:border-slate-400 focus:border-slate-900 w-full pb-1"
+                className="text-lg sm:text-2xl font-bold bg-transparent outline-none border-b border-dashed border-slate-300 hover:border-slate-400 focus:border-slate-900 w-full pb-1 leading-tight break-words max-w-full"
                 style={{ fontFamily: "'Space Grotesk', sans-serif", color: T.ink }}
               />
-              <p style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 13, color: T.charcoal500, marginTop: 4 }}>Create sections, build skip logic rules, and define question grids.</p>
+              <p style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 12, color: T.charcoal500, marginTop: 4 }}>
+                Create sections, build skip logic rules, and define question grids.
+              </p>
             </div>
-            <div className="flex items-center gap-3 flex-wrap">
+
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
               <button 
                 onClick={expandAll}
-                className="px-4 py-2 rounded-full text-xs font-bold bg-white border hover:bg-slate-50 transition-colors"
+                className="px-3 sm:px-4 py-1.5 text-xs font-bold bg-white border rounded-full hover:bg-slate-50 transition-colors"
                 style={{ borderColor: T.line, color: T.charcoal700 }}
               >
                 Expand All
               </button>
               <button 
                 onClick={collapseAll}
-                className="px-4 py-2 rounded-full text-xs font-bold bg-white border hover:bg-slate-50 transition-colors"
+                className="px-3 sm:px-4 py-1.5 text-xs font-bold bg-white border rounded-full hover:bg-slate-50 transition-colors"
                 style={{ borderColor: T.line, color: T.charcoal700 }}
               >
                 Collapse All
               </button>
-              {onBack && (
-                <button 
-                  onClick={onBack}
-                  className="px-5 py-2.5 rounded-full text-sm font-medium shadow-sm transition-transform bg-white border hover:bg-slate-50"
-                  style={{ borderColor: T.line, color: T.charcoal700, fontFamily: "'IBM Plex Sans', sans-serif" }}
-                >
-                  Back
-                </button>
-              )}
+              
               <input 
                 type="file" 
                 accept=".docx,.pdf,.md,.txt" 
@@ -284,18 +288,19 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
               <button 
                 onClick={() => fileInputRef.current?.click()}
                 disabled={importing}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium shadow-sm transition-transform bg-white border disabled:opacity-50"
-                style={{ borderColor: T.line, color: T.ink, fontFamily: "'IBM Plex Sans', sans-serif" }}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-medium shadow-2xs transition-transform bg-white border border-slate-200 disabled:opacity-50"
+                style={{ color: T.ink, fontFamily: "'IBM Plex Sans', sans-serif" }}
               >
-                {importing ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16} />}
-                Import
+                {importing ? <Loader2 size={15} className="animate-spin" /> : <UploadCloud size={15} />}
+                <span>Import</span>
               </button>
+
               <button 
                 onClick={handleSave}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium shadow-sm transition-transform bg-slate-900 text-white"
+                className="flex items-center gap-1.5 px-4.5 py-1.5 rounded-full text-xs sm:text-sm font-medium shadow-2xs transition-transform bg-slate-900 text-white cursor-pointer"
                 style={{ fontFamily: "'IBM Plex Sans', sans-serif" }}
               >
-                <Save size={16} /> Save Schema
+                <Save size={15} /> <span>Save Schema</span>
               </button>
             </div>
           </div>
@@ -518,22 +523,24 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
         </div>
       </div>
 
-      {/* Floating Toolbar */}
-      <div className="fixed bottom-10 left-1/2 -translate-x-1/2 ml-32 z-50">
-        <div className="flex items-center gap-2 px-5 py-3.5 rounded-full shadow-lg backdrop-blur-xl bg-white/95 border border-slate-200">
-          <span style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 11, fontWeight: 750, color: T.charcoal500, marginRight: 8 }}>ADD ITEM:</span>
-          <div className="flex gap-1.5 flex-wrap">
+      {/* Floating Toolbar (Mobile-friendly Bottom Bar) */}
+      <div className="fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[95vw] sm:max-w-none">
+        <div className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2.5 sm:py-3.5 rounded-2xl sm:rounded-full shadow-xl backdrop-blur-xl bg-white/95 border border-slate-200 overflow-x-auto max-w-full no-scrollbar">
+          <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-slate-400 shrink-0 mr-1 font-mono">
+            ADD:
+          </span>
+          <div className="flex items-center gap-1.5 shrink-0 flex-nowrap sm:flex-wrap">
             {Q_TYPES.map(t => {
               const Icon = t.icon;
               return (
                 <button 
                   key={t.id}
                   onClick={() => addQuestion(t.id)}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full hover:bg-slate-100 transition-colors border border-transparent hover:border-slate-200"
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full hover:bg-slate-100 transition-colors border border-slate-200/60 bg-slate-50/50 hover:border-slate-300 text-xs font-semibold shrink-0 cursor-pointer"
                   title={t.label}
                 >
-                  <Icon size={13} color={T.ink} />
-                  <span style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 11, color: T.ink, fontWeight: 600 }}>{t.label}</span>
+                  <Icon size={13} className="text-slate-800 shrink-0" />
+                  <span className="text-[11px] text-slate-800 font-semibold whitespace-nowrap">{t.label}</span>
                 </button>
               )
             })}

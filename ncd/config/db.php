@@ -13,6 +13,6 @@ return [
     'charset' => 'utf8', 
     'tablePrefix' => 'cms_',
     'attributes' => [
-        PDO::MYSQL_ATTR_INIT_COMMAND => "SET sql_mode = ''"
+        1002 => "SET sql_mode = ''" // 1002 is MYSQL_ATTR_INIT_COMMAND, avoids PHP 8.5 deprecation warning
     ]
 ];

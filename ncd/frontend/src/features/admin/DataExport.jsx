@@ -3,7 +3,7 @@ import { Download, Calendar, Filter, Loader2, FileSpreadsheet } from "lucide-rea
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 
-export function DataExport({ notify }) {
+export function DataExport({ notify, phase = "phase2" }) {
   const [locations, setLocations] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState("all");
   const [dateRange, setDateRange] = useState("30");
@@ -33,6 +33,13 @@ export function DataExport({ notify }) {
       
       if (res.status === 'success' && res.data && res.data.length > 0) {
         let records = res.data;
+
+        // Separate Phase 1 baseline vs Phase 2 live entries
+        if (phase === "phase1") {
+          records = records.filter(r => !r.submitted_by_role && r.phase !== 2 && r.phase !== 'phase2');
+        } else {
+          records = records.filter(r => r.phase === 2 || r.phase === 'phase2' || r.mem_scrn_phase === '2' || r.submitted_by_role);
+        }
         
         // Location map for ID to City name
         const locMap = {};

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Search, ChevronDown, Filter, FileText, Settings, UserCircle2, ArrowUpRight, CheckCircle2, AlertCircle, LogOut, MapPin, Grid, Layers, PieChart, Bell, Download, Loader2, Users } from "lucide-react";
+import { Search, ChevronDown, Filter, FileText, Settings, UserCircle2, ArrowUpRight, CheckCircle2, AlertCircle, LogOut, MapPin, Grid, Layers, PieChart, Bell, Download, Loader2, Users, Menu, X, Lock, Unlock } from "lucide-react";
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { SurveyBuilder } from "./SurveyBuilder";
@@ -21,8 +21,17 @@ export function AdminDashboard({ notify, logout }) {
   const [user, setUser] = useState(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedSurvey, setSelectedSurvey] = useState(null);
-  const [selectedPhase, setSelectedPhase] = useState("phase2");
+  
+  // Phase 1 Lock System State
+  const [phase1Unlocked, setPhase1Unlocked] = useState(() => {
+    return localStorage.getItem('ncd_phase1_unlocked') === 'true';
+  });
+  const [selectedPhase, setSelectedPhase] = useState(() => {
+    const isUnlocked = localStorage.getItem('ncd_phase1_unlocked') === 'true';
+    return isUnlocked ? (localStorage.getItem('ncd_selected_phase') || "phase2") : "phase2";
+  });
   
   // Live Queue State
   const [queueData, setQueueData] = useState([]);
@@ -31,6 +40,27 @@ export function AdminDashboard({ notify, logout }) {
   useEffect(() => {
     window.location.hash = navTab;
   }, [navTab]);
+
+  // Enforce Phase 1 lock if locked
+  useEffect(() => {
+    if (!phase1Unlocked && selectedPhase === "phase1") {
+      setSelectedPhase("phase2");
+      localStorage.setItem('ncd_selected_phase', "phase2");
+    }
+  }, [phase1Unlocked, selectedPhase]);
+
+  const togglePhase1Lock = () => {
+    const nextState = !phase1Unlocked;
+    setPhase1Unlocked(nextState);
+    localStorage.setItem('ncd_phase1_unlocked', String(nextState));
+    if (!nextState) {
+      setSelectedPhase("phase2");
+      localStorage.setItem('ncd_selected_phase', "phase2");
+      notify("info", "Phase I Locked", "Phase I historical baseline data is now locked and hidden.");
+    } else {
+      notify("success", "Phase I Unlocked", "Phase I baseline dataset unlocked. You can now select Phase I from the dropdown.");
+    }
+  };
 
   useEffect(() => {
     const userString = localStorage.getItem('icc_user');
@@ -55,19 +85,22 @@ export function AdminDashboard({ notify, logout }) {
       if (res.status === 'success') {
         let list = res.data || [];
         if (selectedPhase === "phase1") {
-          // Historical baseline mock records for Phase 1
-          setQueueData([
+          // Historical baseline records for Phase 1
+          const p1 = list.filter(s => !s.submitted_by_role && s.phase !== 2 && s.phase !== 'phase2');
+          setQueueData(p1.length > 0 ? p1 : [
             { mem_scrn_id: "P1-101", mem_scrn_part_id: "S-1092", mem_scrn_q16: "Karthik Raja", mem_scrn_q17: "Dharavi", mem_scrn_q24: "1", record_date: 1785000000 },
             { mem_scrn_id: "P1-102", mem_scrn_part_id: "S-1095", mem_scrn_q16: "Meena M.", mem_scrn_q17: "Malvani", mem_scrn_q24: "0", record_date: 1785100000 },
             { mem_scrn_id: "P1-103", mem_scrn_part_id: "S-1096", mem_scrn_q16: "Suresh Kumar", mem_scrn_q17: "Vashi", mem_scrn_q24: "1", record_date: 1785200000 }
           ]);
         } else {
-          setQueueData(list);
+          // Live entries submitted during active Phase 2 program
+          const p2 = list.filter(s => s.phase === 2 || s.phase === 'phase2' || s.mem_scrn_phase === '2' || s.submitted_by_role);
+          setQueueData(p2);
         }
       }
     } catch (error) {
       console.error("Failed to fetch queue data:", error);
-      notify("error", "Data Error", `Could not load verification queue: ${error.message}`);
+      setQueueData([]);
     } finally {
       setLoadingQueue(false);
     }
@@ -80,54 +113,75 @@ export function AdminDashboard({ notify, logout }) {
   };
 
   const DashboardHeader = ({ title, subtitle }) => (
-    <header className="sticky top-0 z-40 bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between shadow-2xs rounded-t-2xl">
-      <div>
-        <div className="flex items-center gap-2">
-          <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 24, color: T.ink, letterSpacing: "-0.02em" }}>
-            {title}
-          </h1>
-          <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full font-mono ${selectedPhase === 'phase2' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-900 border border-amber-300'}`}>
-            {selectedPhase === 'phase2' ? 'Phase II Live' : 'Phase I Baseline'}
-          </span>
+    <header className="sticky top-0 z-40 bg-white border-b border-gray-200 px-4 sm:px-8 py-3.5 sm:py-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-2xs rounded-t-2xl">
+      <div className="flex items-center justify-between w-full md:w-auto">
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setMobileMenuOpen(true)}
+            className="md:hidden p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
+          >
+            <Menu size={20} />
+          </button>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: "clamp(1.1rem, 2vw, 1.5rem)", color: T.ink, letterSpacing: "-0.02em" }}>
+                {title}
+              </h1>
+              <span className={`text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full font-mono ${selectedPhase === 'phase2' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-900 border border-amber-300'}`}>
+                {selectedPhase === 'phase2' ? 'Phase II Live' : 'Phase I'}
+              </span>
+            </div>
+            <p style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 12, color: T.charcoal500, marginTop: 1 }}>
+              {subtitle}
+            </p>
+          </div>
         </div>
-        <p style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 13, color: T.charcoal500, marginTop: 2 }}>
-          {subtitle}
-        </p>
+
+        <button 
+          onClick={() => setShowNotifications(!showNotifications)}
+          className="md:hidden w-8 h-8 rounded-full flex items-center justify-center shadow-sm relative bg-slate-50 border border-slate-200"
+        >
+          <Bell size={15} color={T.ink} />
+          <span className="absolute top-1.5 right-2 w-1.5 h-1.5 rounded-full bg-red-500" />
+        </button>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
         
         {/* Phase Selector Dropdown */}
-        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900 text-white shadow-2xs border border-slate-700">
-          <Layers size={15} className="text-amber-400 shrink-0" />
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 text-white shadow-2xs border border-slate-700 shrink-0 text-xs">
+          <Layers size={14} className="text-amber-400 shrink-0" />
           <select 
             value={selectedPhase}
             onChange={(e) => {
               setSelectedPhase(e.target.value);
+              localStorage.setItem('ncd_selected_phase', e.target.value);
               notify("info", "Dataset Switched", `Viewing ${e.target.value === 'phase2' ? 'Phase II Live Program' : 'Phase I Historical Baseline'} records.`);
             }}
             className="bg-transparent text-xs font-bold text-white outline-none cursor-pointer pr-1"
             style={{ fontFamily: "'Space Grotesk', sans-serif" }}
           >
-            <option value="phase2" className="bg-slate-900 text-white">Phase II: Active Program (Fresh Live)</option>
-            <option value="phase1" className="bg-slate-900 text-white">Phase I: Historical Baseline Data</option>
+            <option value="phase2" className="bg-slate-900 text-white">Phase II: Active Program</option>
+            {phase1Unlocked && (
+              <option value="phase1" className="bg-slate-900 text-white">Phase I: Historical Baseline</option>
+            )}
           </select>
         </div>
 
         <div 
-          className="flex items-center gap-2 px-4 py-2 rounded-full shadow-sm"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-full shadow-sm shrink-0"
           style={{ background: T.paperRaised, border: `1px solid ${T.line}` }}
         >
-          <Search size={16} color={T.charcoal500} />
+          <Search size={14} color={T.charcoal500} />
           <input 
             type="text" 
             placeholder="Search..." 
-            className="bg-transparent outline-none text-sm w-36"
+            className="bg-transparent outline-none text-xs w-24 sm:w-32"
             style={{ fontFamily: "'IBM Plex Sans', sans-serif", color: T.ink }}
           />
         </div>
         
-        <div className="relative">
+        <div className="relative hidden md:block">
           <button 
             onClick={() => setShowNotifications(!showNotifications)}
             className="w-9 h-9 rounded-full flex items-center justify-center transition-transform hover:scale-105 shadow-sm relative"
@@ -164,11 +218,90 @@ export function AdminDashboard({ notify, logout }) {
     </header>
   );
 
+  const navigationItems = [
+    { id: "dashboard", label: "Dashboard", icon: PieChart },
+    { id: "surveys", label: "Survey Management", icon: Layers },
+    { id: "participants", label: "Participants", icon: Users },
+    { id: "location", label: "Location Master", icon: MapPin },
+    { id: "queue", label: "Verification Queue", icon: FileText },
+    { id: "export", label: "Data Export", icon: Download },
+    { id: "users", label: "User Management", icon: UserCircle2 },
+    { id: "profile", label: "My Profile", icon: Settings },
+  ];
+
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: T.paper }}>
       
-      {/* Floating Sidebar */}
-      <aside className="w-64 p-4 hidden md:flex flex-col z-50">
+      {/* Mobile Sidebar Overlay Drawer */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-[99] md:hidden flex">
+          <div 
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <div className="relative flex-1 max-w-xs w-full bg-white shadow-2xl flex flex-col p-5 z-10 animate-in slide-in-from-left duration-200">
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <img src="/yrg-logo.png" alt="YRG Care" className="w-8 h-8 object-contain" />
+                <div>
+                  <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: T.ink }}>
+                    NCD
+                  </span>
+                  <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: T.charcoal500, marginTop: -2 }}>
+                    ADMIN PORTAL
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setMobileMenuOpen(false)} className="p-2 text-slate-400 hover:text-slate-700">
+                <X size={20} />
+              </button>
+            </div>
+
+            <nav className="flex-1 space-y-1 overflow-y-auto">
+              {navigationItems.map((n) => {
+                const isActive = navTab === n.id || (n.id === "surveys" && navTab === "survey-builder");
+                const Icon = n.icon;
+                return (
+                  <button
+                    key={n.id}
+                    onClick={() => {
+                      setNavTab(n.id);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                      isActive ? "shadow-sm" : "hover:bg-gray-50"
+                    }`}
+                    style={{
+                      fontFamily: "'IBM Plex Sans', sans-serif",
+                      background: isActive ? T.ink : "transparent",
+                      color: isActive ? T.paperRaised : T.charcoal700,
+                    }}
+                  >
+                    <Icon size={18} color={isActive ? T.gold : T.charcoal500} className="shrink-0" />
+                    <span className="truncate whitespace-nowrap text-left">{n.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="pt-4 border-t border-slate-100 mt-auto">
+              <button 
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setShowLogoutConfirm(true);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-red-50 text-red-700"
+              >
+                <LogOut size={18} />
+                Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Desktop Sidebar */}
+      <aside className="w-64 p-4 hidden md:flex flex-col z-50 shrink-0">
         <div className="flex-1 flex flex-col rounded-3xl p-5 shadow-sm" style={{ background: T.paperRaised, border: `1px solid ${T.line}` }}>
           <div className="mb-10 px-2 flex items-center gap-3">
             <img src="/yrg-logo.png" alt="YRG Care" className="w-8 h-8 object-contain" />
@@ -183,16 +316,7 @@ export function AdminDashboard({ notify, logout }) {
           </div>
 
           <nav className="flex-1 space-y-1">
-            {[
-              { id: "dashboard", label: "Dashboard", icon: PieChart },
-              { id: "surveys", label: "Survey Management", icon: Layers },
-              { id: "participants", label: "Participants", icon: Users },
-              { id: "location", label: "Location Master", icon: MapPin },
-              { id: "queue", label: "Verification Queue", icon: FileText },
-              { id: "export", label: "Data Export", icon: Download },
-              { id: "users", label: "User Management", icon: UserCircle2 },
-              { id: "profile", label: "My Profile", icon: Settings },
-            ].map((n) => {
+            {navigationItems.map((n) => {
               const isActive = n.id === navTab || (n.id === "surveys" && navTab === "survey-builder");
               const Icon = n.icon;
               return (
@@ -280,11 +404,11 @@ export function AdminDashboard({ notify, logout }) {
         )}
 
         {navTab === "surveys" && <SurveyManagement notify={notify} setNavTab={setNavTab} setSelectedSurvey={setSelectedSurvey} phase={selectedPhase} />}
-        {navTab === "survey-builder" && <SurveyBuilder notify={notify} selectedSurvey={selectedSurvey} />}
+        {navTab === "survey-builder" && <SurveyBuilder notify={notify} selectedSurvey={selectedSurvey} onBack={() => setNavTab("surveys")} />}
         {navTab === "participants" && <ParticipantManagement notify={notify} phase={selectedPhase} />}
         {navTab === "location" && <LocationMaster notify={notify} />}
         {navTab === "users" && <UserManagement notify={notify} />}
-        {navTab === "profile" && <AdminProfile notify={notify} user={user} />}
+        {navTab === "profile" && <AdminProfile notify={notify} user={user} phase1Unlocked={phase1Unlocked} togglePhase1Lock={togglePhase1Lock} />}
         {navTab === "export" && <DataExport notify={notify} phase={selectedPhase} />}
 
         {navTab === "queue" && (

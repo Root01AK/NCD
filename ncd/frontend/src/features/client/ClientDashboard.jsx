@@ -149,43 +149,86 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
     }, 1200);
   };
 
-  // Static completed records mock for assigned center
-  const completedRecords = [
-    { participant_id: "NCD-MUM-84920", fullName: "Rajesh Sharma", age: 48, gender: "Male", date: "06-AUG-2026", location: user.assigned_location || "Dharavi", status: "Synced to Admin", risk: "Standard" },
-    { participant_id: "NCD-MUM-84921", fullName: "Ananya Patil", age: 42, gender: "Female", date: "06-AUG-2026", location: user.assigned_location || "Dharavi", status: "Synced to Admin", risk: "Standard" },
-    { participant_id: "NCD-MUM-84922", fullName: "Suresh Pawar", age: 55, gender: "Male", date: "07-AUG-2026", location: user.assigned_location || "Dharavi", status: "Synced to Admin", risk: "High Risk Flagged" },
-    { participant_id: "NCD-MUM-84925", fullName: "Meena M. Iyer", age: 39, gender: "Female", date: "07-AUG-2026", location: user.assigned_location || "Dharavi", status: "Synced to Admin", risk: "Standard" },
-    { participant_id: "NCD-MUM-84928", fullName: "Karthik Raja", age: 51, gender: "Male", date: "07-AUG-2026", location: user.assigned_location || "Dharavi", status: "Synced to Admin", risk: "Standard" }
-  ];
+  // Completed Phase II records for assigned center (fresh & clean)
+  const [completedRecords, setCompletedRecords] = useState([]);
+
+  useEffect(() => {
+    // Fetch live submitted Phase II records for assigned center
+    api.get("/api/v1/dashboard/screeninglist").then(res => {
+      if (res.status === 'success' && Array.isArray(res.data)) {
+        // Filter strictly Phase 2 live entries submitted during active Phase II program
+        const phase2List = res.data.filter(p => p.phase === 2 || p.phase === 'phase2' || p.mem_scrn_phase === '2' || p.submitted_by_role);
+        
+        const mapped = phase2List.map(p => ({
+          participant_id: p.mem_scrn_part_id || (p.mem_scrn_id ? `NCD-MUM-${p.mem_scrn_id}` : `NCD-MUM-P2`),
+          fullName: p.mem_scrn_q16 || "Participant Record",
+          age: p.mem_scrn_q1 || "45",
+          gender: p.mem_scrn_q2 === "1" ? "Male" : "Female",
+          date: p.record_date ? new Date(p.record_date * 1000).toLocaleDateString() : new Date().toLocaleDateString(),
+          location: p.mem_scrn_q17 || user.assigned_location || "Dharavi",
+          status: "Synced to Admin",
+          risk: p.mem_scrn_q24 == 1 ? "High Risk Flagged" : "Standard Risk"
+        }));
+        setCompletedRecords(mapped);
+      }
+    }).catch(e => console.error("Error loading completed records", e));
+  }, []);
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#F8FAFC] font-sans text-slate-900 overflow-hidden" style={{ fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif" }}>
       
       {/* Redesigned Header in Light Theme */}
-      <header className="flex items-center justify-between px-8 py-3.5 bg-white border-b border-slate-200 shrink-0 shadow-2xs">
-        <div className="flex items-center gap-3">
-          <img src="/yrg-logo.png" alt="YRG Care" className="w-9 h-9 object-contain" />
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 font-mono flex items-center gap-1">
-                <Shield size={11} className="text-amber-500" /> {workstationTitle}
-              </span>
-              {/* Operator Specific Assigned Location Pill */}
-              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200 font-mono shadow-2xs">
-                <MapPin size={12} className="text-amber-600" /> Center: {user.assigned_location || "Dharavi"}
-              </span>
+      <header className="flex flex-col md:flex-row items-stretch md:items-center justify-between px-4 sm:px-8 py-3 sm:py-3.5 bg-white border-b border-slate-200 shrink-0 shadow-2xs gap-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img src="/yrg-logo.png" alt="YRG Care" className="w-8 sm:w-9 h-8 sm:h-9 object-contain" />
+            <div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-slate-500 font-mono flex items-center gap-1">
+                  <Shield size={11} className="text-amber-500" /> {workstationTitle}
+                </span>
+                {/* Operator Specific Assigned Location Pill */}
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200 font-mono shadow-2xs">
+                  <MapPin size={11} className="text-amber-600" /> Center: {user.assigned_location || "Dharavi"}
+                </span>
+              </div>
+              <p className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
+                {user.username}
+              </p>
             </div>
-            <p className="text-lg font-bold text-slate-900 leading-tight">
-              {user.username}
-            </p>
+          </div>
+
+          <div className="flex md:hidden items-center gap-2">
+            <button
+              onClick={() => setOnline(!online)}
+              className="p-2 rounded-full text-xs font-semibold shadow-2xs border cursor-pointer"
+              style={{
+                background: online ? '#ecfdf5' : '#fef2f2',
+                color: online ? '#065f46' : '#991b1b',
+                borderColor: online ? '#a7f3d0' : '#fecaca'
+              }}
+              title={online ? "Online" : "Offline"}
+            >
+              {online ? <Wifi size={14} /> : <WifiOff size={14} />}
+            </button>
+            <button
+              onClick={() => {
+                notify("info", "Logging out...");
+                setTimeout(logout, 600);
+              }}
+              className="p-2 rounded-full text-slate-700 bg-white border border-slate-200 cursor-pointer"
+              title="Logout"
+            >
+              <LogOut size={14} className="text-slate-500" />
+            </button>
           </div>
         </div>
 
         {/* Navigation Bar / Tabs */}
-        <div className="flex items-center gap-1 bg-slate-100/80 border border-slate-200 rounded-full p-1 shadow-2xs shrink-0">
+        <div className="flex items-center gap-1 bg-slate-100/80 border border-slate-200 rounded-full p-1 shadow-2xs shrink-0 overflow-x-auto max-w-full no-scrollbar">
           {[
             { id: "dashboard", label: "Dashboard", icon: Home },
-            { id: "completed", label: "Completed Records", icon: ClipboardCheck, badge: 18 },
+            { id: "completed", label: "Completed Records", icon: ClipboardCheck, badge: completedRecords.length },
             { id: "sync", label: "Sync Queue", icon: FolderSync, badge: syncQueue.length },
             { id: "profile", label: "Profile", icon: UserCircle2 }
           ].map((n) => {
@@ -195,7 +238,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
               <button 
                 key={n.id} 
                 onClick={() => setCurrentTab(n.id)}
-                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full transition-all text-xs font-bold cursor-pointer ${isActive ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'}`}
+                className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full transition-all text-xs font-bold cursor-pointer shrink-0 whitespace-nowrap ${isActive ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'}`}
               >
                 <Icon size={14} className={isActive ? 'text-amber-400' : 'text-slate-400'} />
                 <span>{n.label}</span>
@@ -209,8 +252,8 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
           })}
         </div>
 
-        {/* Actions & Network Status */}
-        <div className="flex items-center gap-3">
+        {/* Desktop Actions & Network Status */}
+        <div className="hidden md:flex items-center gap-3">
           <button
             onClick={() => setOnline(!online)}
             className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold shadow-2xs transition-all cursor-pointer"
@@ -253,7 +296,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                 </div>
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Center Total Completions</p>
-                  <p className="text-2xl font-black text-slate-900">18 Records</p>
+                  <p className="text-2xl font-black text-slate-900">{completedRecords.length} Records</p>
                 </div>
               </div>
 
@@ -263,7 +306,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                 </div>
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Synced to Admin Queue</p>
-                  <p className="text-2xl font-black text-slate-900">18 Synced</p>
+                  <p className="text-2xl font-black text-slate-900">{completedRecords.length} Synced</p>
                 </div>
               </div>
 

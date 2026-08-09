@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { User, Lock, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { T } from "../../lib/theme";
+import { Mark } from "../../components/ui/Mark";
 
 export function Login({ goLanding, notify, onLoginSuccess }) {
   const [role, setRole] = useState("admin");
@@ -63,14 +64,10 @@ export function Login({ goLanding, notify, onLoginSuccess }) {
       {/* Glassmorphic floating login card */}
       <div className="relative z-10 w-full max-w-[420px] bg-white/70 backdrop-blur-xl rounded-3xl p-8 sm:p-10 shadow-xl border border-white">
         
-        <div className="flex justify-center mb-8">
-          <div className="flex flex-col items-center gap-3">
-            <img src="/yrg-logo.png" alt="YRG Care" className="w-12 h-12 object-contain" />
-            <div className="flex items-baseline gap-1">
-              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 24, color: T.ink, letterSpacing: "-0.02em" }}>
-                icc<span style={{ color: T.gold }}>+</span>
-              </span>
-            </div>
+        <div className="flex justify-center mb-6">
+          <div className="flex flex-col items-center gap-2.5">
+            <img src="/yrg-logo.png" alt="YRG Care" className="w-11 h-11 object-contain" />
+            <Mark size={24} />
           </div>
         </div>
 

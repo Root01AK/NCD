@@ -28,49 +28,66 @@ export function ParticipantManagement({ notify, phase = "phase2" }) {
   const fetchParticipants = async () => {
     setLoading(true);
     try {
-      if (phase === "phase1") {
-        setParticipants([
-          { participant_id: "S-1092", fullName: "Karthik Raja", age: "48", gender: "Male", location: "Dharavi", bp_sys: "135", bp_dia: "88", weight: "72", risk: "Standard" },
-          { participant_id: "S-1095", fullName: "Meena M.", age: "42", gender: "Female", location: "Malvani", bp_sys: "120", bp_dia: "80", weight: "61", risk: "Standard" },
-          { participant_id: "S-1096", fullName: "Suresh Kumar", age: "55", gender: "Male", location: "Vashi", bp_sys: "148", bp_dia: "95", weight: "78", risk: "High Risk" }
-        ]);
-        return;
-      }
-
       const res = await api.get("/api/v1/dashboard/screeninglist");
-      if (res.status === 'success') {
-        const mapped = (res.data || []).map(p => {
+      if (res.status === 'success' && Array.isArray(res.data)) {
+        let rawList = res.data;
+
+        if (phase === "phase1") {
+          // Phase 1 Baseline Data
+          const p1Raw = rawList.filter(p => !p.submitted_by_role && p.phase !== 2 && p.phase !== 'phase2');
+          const mappedP1 = (p1Raw.length > 0 ? p1Raw : [
+            { mem_scrn_id: "1092", mem_scrn_part_id: "S-1092", mem_scrn_q16: "Karthik Raja", mem_scrn_q1: "48", mem_scrn_q2: "1", mem_scrn_q17: "Dharavi", mem_scrn_q24: "0" },
+            { mem_scrn_id: "1095", mem_scrn_part_id: "S-1095", mem_scrn_q16: "Meena M.", mem_scrn_q1: "42", mem_scrn_q2: "2", mem_scrn_q17: "Malvani", mem_scrn_q24: "0" },
+            { mem_scrn_id: "1096", mem_scrn_part_id: "S-1096", mem_scrn_q16: "Suresh Kumar", mem_scrn_q1: "55", mem_scrn_q2: "1", mem_scrn_q17: "Vashi", mem_scrn_q24: "1" }
+          ]).map((p, idx) => ({
+            local_id: p.mem_scrn_id || idx,
+            participant_id: p.mem_scrn_part_id || (p.mem_scrn_id ? `NCD-P1-${p.mem_scrn_id}` : `S-${1090 + idx}`),
+            fullName: p.mem_scrn_q16 || `Participant ${p.mem_scrn_id || idx + 1}`,
+            age: p.mem_scrn_q1 || "45",
+            gender: p.mem_scrn_q2 === "1" ? "Male" : p.mem_scrn_q2 === "2" ? "Female" : "Male",
+            location: p.mem_scrn_q17 || "Dharavi",
+            bp_sys: p.mem_scrn_q3 || "130",
+            bp_dia: p.mem_scrn_q4 || "85",
+            weight: p.mem_scrn_q5 || "70",
+            risk: p.mem_scrn_q24 == 1 ? "High Risk" : "Standard Risk",
+            audit_trail: [
+              { role: "Phase I Baseline", action: "Historical Baseline Entry", user: "System Importer", timestamp: "Historical Record", status: "Archived Baseline" }
+            ]
+          }));
+          setParticipants(mappedP1);
+          return;
+        }
+
+        // Phase 2 Live Active Program (Filters ONLY entries submitted during Phase II)
+        const p2Raw = rawList.filter(p => p.phase === 2 || p.phase === 'phase2' || p.mem_scrn_phase === '2' || p.submitted_by_role);
+        const mappedP2 = p2Raw.map(p => {
           let extra = {};
           if (p.mem_scrn_q30) {
             try { extra = JSON.parse(p.mem_scrn_q30); } catch(e) {}
           }
+          const pId = p.mem_scrn_part_id || extra.participant_id || (p.mem_scrn_id ? `NCD-MUM-${p.mem_scrn_id}` : `NCD-MUM-P2`);
           return {
             ...extra,
             local_id: p.mem_scrn_id,
-            participant_id: p.mem_scrn_part_id || extra.participant_id || `NCD-MUM-${p.mem_scrn_id}`,
-            fullName: p.mem_scrn_q16 || extra.fullName || "Rajesh Sharma",
-            age: p.mem_scrn_q1 || extra.age || "48",
+            participant_id: pId,
+            fullName: p.mem_scrn_q16 || extra.fullName || "Live Participant Entry",
+            age: p.mem_scrn_q1 || extra.age || "45",
             gender: p.mem_scrn_q2 === "1" ? "Male" : p.mem_scrn_q2 === "2" ? "Female" : extra.gender || "Male",
             location: p.mem_scrn_q17 || extra.location || "Dharavi",
-            bp_sys: p.mem_scrn_q3 || extra.bp_systolic || "135",
-            bp_dia: p.mem_scrn_q4 || extra.bp_diastolic || "88",
-            weight: p.mem_scrn_q5 || extra.weight_kg || "72",
-            risk: extra.overall_risk_rating || "Moderate Risk",
-            // Who Did What Audit Trail Mock
+            bp_sys: p.mem_scrn_q3 || extra.bp_systolic || "120",
+            bp_dia: p.mem_scrn_q4 || extra.bp_diastolic || "80",
+            weight: p.mem_scrn_q5 || extra.weight_kg || "68",
+            risk: extra.overall_risk_rating || (p.mem_scrn_q24 == 1 ? "High Risk" : "Moderate Risk"),
             audit_trail: [
-              { role: "Field Supervisor", action: "Demographics & Community Perception", user: "DEO", timestamp: "06-AUG-2026 10:15 AM", status: "Completed" },
-              { role: "Staff Nurse", action: "Medical History, Vitals & POC Tests", user: "Staff Nurse (Clinical)", timestamp: "06-AUG-2026 11:30 AM", status: "Completed" },
-              { role: "Doctor", action: "Clinical Exams & Risk Categorisation", user: "Doctor (Clinical Exams)", timestamp: "06-AUG-2026 02:45 PM", status: "Completed" },
-              { role: "Counselor", action: "Mental Health & Health Counseling", user: "Counselor (Mental Health)", timestamp: "07-AUG-2026 09:15 AM", status: "Completed" },
-              { role: "Case Coordinator", action: "Linkages & Follow-up Tracking", user: "Case Coordinator", timestamp: "07-AUG-2026 10:00 AM", status: "Completed" }
+              { role: p.submitted_by_role || "Field Operator", action: "Live Clinical Module", user: p.submitted_by_user || "DEO", timestamp: p.submitted_at ? new Date(p.submitted_at).toLocaleString() : "Just Now", status: "Completed" }
             ]
           };
         });
-        setParticipants(mapped);
+        setParticipants(mappedP2);
       }
     } catch (e) {
       console.error(e);
-      notify("error", "Error", "Failed to load participants.");
+      setParticipants([]);
     } finally {
       setLoading(false);
     }
@@ -194,7 +211,7 @@ export function ParticipantManagement({ notify, phase = "phase2" }) {
       <div className="flex-1 flex overflow-hidden">
         
         {/* Participants List */}
-        <div className="flex-1 overflow-y-auto p-8 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-4">
           {loading ? (
             <div className="flex justify-center p-12">
               <Loader2 className="animate-spin text-gray-400" size={32} />
@@ -211,7 +228,7 @@ export function ParticipantManagement({ notify, phase = "phase2" }) {
                   <div 
                     key={p.local_id || p.participant_id}
                     onClick={() => setSelectedParticipant(p)}
-                    className={`rounded-3xl p-5 border bg-white flex justify-between items-center transition-all cursor-pointer hover:border-slate-400 ${selectedParticipant?.participant_id === p.participant_id ? 'ring-2 ring-amber-500' : ''}`}
+                    className={`rounded-3xl p-4 sm:p-5 border bg-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 transition-all cursor-pointer hover:border-slate-400 ${selectedParticipant?.participant_id === p.participant_id ? 'ring-2 ring-amber-500' : ''}`}
                     style={{ borderColor: T.line }}
                   >
                     <div className="flex items-center gap-4">

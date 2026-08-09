@@ -203,37 +203,37 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     <div className="min-h-screen flex flex-col w-screen bg-[#F8FAFC] font-sans text-slate-900 overflow-hidden" style={{ fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif" }}>
       
       {/* Top Fixed Header */}
-      <header className="flex items-center justify-between px-8 py-3.5 bg-white border-b border-slate-200 shrink-0 shadow-2xs">
+      <header className="flex flex-col md:flex-row items-stretch md:items-center justify-between px-4 sm:px-8 py-3 sm:py-3.5 bg-white border-b border-slate-200 shrink-0 shadow-2xs gap-3">
         <div className="flex items-center gap-3">
-          <button onClick={onCancel} className="rounded-full p-2 hover:bg-slate-100 transition-colors border border-slate-200">
+          <button onClick={onCancel} className="rounded-full p-2 hover:bg-slate-100 transition-colors border border-slate-200 shrink-0">
             <ChevronLeft size={18} className="text-slate-700" />
           </button>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded bg-amber-100 text-amber-900 font-mono">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-mono">
                 {participant?.sur_code || "NCD-MUM-2026"}
               </span>
               <span className="text-xs font-bold text-slate-500 font-mono">{data.user_role} Entry</span>
             </div>
-            <h1 className="text-lg font-bold text-slate-900 leading-tight">
+            <h1 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
               {participant?.sur_title || "MUMBAI’S NCD SURVEY — PHASE II"}
             </h1>
           </div>
         </div>
 
         {/* Assigned Location Pill & Exit Button */}
-        <div className="flex items-center gap-3">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200 font-mono shadow-2xs">
-            <MapPin size={13} className="text-amber-600" /> Location: {data.location || "Dharavi"} Center
+        <div className="flex items-center justify-between md:justify-end gap-2 sm:gap-3 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200 font-mono shadow-2xs">
+            <MapPin size={12} className="text-amber-600" /> Center: {data.location || "Dharavi"}
           </span>
 
-          <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
+          <span className="hidden sm:inline-block text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
             Operator: <strong>{data.user_name}</strong>
           </span>
 
           <button 
             onClick={onCancel}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-all cursor-pointer shadow-2xs"
+            className="flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-all cursor-pointer shadow-2xs"
           >
             <span>Exit Survey</span>
           </button>

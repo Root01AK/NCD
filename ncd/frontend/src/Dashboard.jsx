@@ -37,7 +37,7 @@ export default function Dashboard({ token, user, onLogout }) {
       <header className="glass-panel" style={{ padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <div style={{ width: '40px', height: '40px', background: 'var(--accent)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontWeight: 'bold', color: '#fff' }}>ICC</span>
+            <span style={{ fontWeight: 'bold', color: '#fff' }}>NCD</span>
           </div>
           <div>
             <h1 style={{ fontSize: '1.25rem', margin: 0 }}>Admin Dashboard</h1>
