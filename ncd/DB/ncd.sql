@@ -1338,7 +1338,9 @@ CREATE TABLE `cms_users` (
 
 INSERT INTO `cms_users` (`usr_id`, `users_name`, `password`, `auth_key`, `password_reset_token`, `full_name`, `email`, `status`, `create_time`, `create_user`, `update_time`, `update_user`, `user_type`, `record_date`, `loc_code`, `signedin_loc`, `state_code`, `user_role`) VALUES
 (1, 'Admin', '09c99a8ee810a156b60f1aa6ff1f3424', 'TEsvrTcu9hDQUk7_NJDPUolyA7Fu0zFU', '', 'Santhanam Anand', 'anand@yrgcare.org', '1', 1745646415, 2, 1745646415, 2, 0, 1745605800, 'DH', 'DH', 'MH', 1),
-(2, 'Administrator', 'ebfaf968ba8e04d258014462075c8128', 'TEsvrTcu9hDQUk7_NJDPUolyA7Fu0zFU', '', 'Santhanam Anand', 'anand@yrgcare.org', '1', 1745646415, 2, 1745646415, 2, 0, 1745605800, 'DH', 'DH', 'MH', 1);
+(2, 'Administrator', 'ebfaf968ba8e04d258014462075c8128', 'TEsvrTcu9hDQUk7_NJDPUolyA7Fu0zFU', '', 'Santhanam Anand', 'anand@yrgcare.org', '1', 1745646415, 2, 1745646415, 2, 0, 1745605800, 'DH', 'DH', 'MH', 1),
+(3, 'admin_user', '09c99a8ee810a156b60f1aa6ff1f3424', 'TEsvrTcu9hDQUk7_NJDPUolyA7Fu0zFU', '', 'Admin User', 'admin@yrgcare.org', '1', 1745646415, 2, 1745646415, 2, 0, 1745605800, 'DH', 'DH', 'MH', 1),
+(4, 'DEO', '565780a42b10168393c52e4ec35a9686', 'TEsvrTcu9hDQUk7_NJDPUolyA7Fu0zFU', '', 'Field Supervisor DEO', 'deo@yrgcare.org', '1', 1745646415, 2, 1745646415, 2, 0, 1745605800, 'DH', 'DH', 'MH', 2);
 
 -- --------------------------------------------------------
 

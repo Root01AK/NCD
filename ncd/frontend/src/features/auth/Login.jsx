@@ -86,13 +86,17 @@ export function Login({ goLanding, notify, onLoginSuccess }) {
           <div className="flex justify-center mb-8">
             <div className="flex rounded-full p-1.5 shadow-sm border border-slate-200" style={{ background: '#f8fafc' }}>
               {[
-                { id: "admin", label: "Admin" },
-                { id: "deo", label: "Data entry" },
+                { id: "admin", label: "Admin", user: "admin_user", pass: "admin123" },
+                { id: "deo", label: "Data entry", user: "DEO", pass: "DEO" },
               ].map((r) => (
                 <button
                   type="button"
                   key={r.id}
-                  onClick={() => setRole(r.id)}
+                  onClick={() => {
+                    setRole(r.id);
+                    setUsername(r.user);
+                    setPassword(r.pass);
+                  }}
                   className="rounded-full px-5 py-2 text-sm font-semibold transition-all"
                   style={{
                     fontFamily: "'IBM Plex Sans', sans-serif",
