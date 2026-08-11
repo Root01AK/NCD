@@ -209,10 +209,16 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
       return;
     }
     try {
+      const jsonQs = JSON.stringify(questions);
+      localStorage.setItem('ncd_active_survey_questions', jsonQs);
+      
       if (selectedSurvey) {
+        if (selectedSurvey.sur_id) {
+          localStorage.setItem(`ncd_survey_${selectedSurvey.sur_id}`, jsonQs);
+        }
         await api.put(`/api/v1/surveymaster/update/${selectedSurvey.sur_id}`, {
           sur_title: surveyTitle,
-          sur_url: JSON.stringify(questions)
+          sur_url: jsonQs
         });
         notify("success", "Survey Saved", "The survey schema has been updated successfully.");
       } else {
@@ -220,7 +226,7 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
         await api.post("/api/v1/surveymaster/create", {
           sur_title: surveyTitle,
           sur_code: `S-${Date.now().toString().slice(-4)}`,
-          sur_url: JSON.stringify(questions)
+          sur_url: jsonQs
         });
         notify("success", "Survey Created", "New survey created successfully.");
       }

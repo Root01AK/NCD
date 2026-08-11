@@ -108,16 +108,37 @@ class AuthController extends Controller
             ];
         }
 
-        // Find user by users_name in DB
+        // Find user by users_name in DB (case-insensitive)
+        $cleanUsername = trim($username);
         $user = Users::find()
-            ->where(['LIKE', 'users_name', trim($username), false])
-            ->andWhere(['status' => 1])
+            ->where(['users_name' => $cleanUsername])
+            ->orWhere(['LIKE', 'users_name', $cleanUsername, false])
             ->one();
 
-        // Note: You may need to adjust this depending on how validatePassword is implemented in Users.php
-        // For standard MD5/SHA1 this might just be $user->users_pwd === md5($password)
         if ($user && $this->validatePassword($user, $password)) {
             
+            $roleNames = [
+                1 => 'Admin',
+                2 => 'Field Supervisor',
+                3 => 'Staff Nurse',
+                4 => 'Doctor',
+                5 => 'Counselor',
+                6 => 'Case Management Coordinator',
+                7 => 'Data Entry Operator'
+            ];
+            
+            $stateRole = !empty($user->state_code) ? $user->state_code : null;
+            $rName = 'Field Supervisor';
+            if ($stateRole === 'staff_nurse') $rName = 'Staff Nurse';
+            else if ($stateRole === 'doctor') $rName = 'Doctor';
+            else if ($stateRole === 'counselor') $rName = 'Counselor';
+            else if ($stateRole === 'case_management_coordinator') $rName = 'Case Coordinator';
+            else if ($stateRole === 'deo') $rName = 'Data Entry Operator';
+            else if ($stateRole === 'admin') $rName = 'Admin';
+            else if (isset($roleNames[(int)$user->user_role])) {
+                $rName = $roleNames[(int)$user->user_role];
+            }
+
             // Generate JWT Token
             $now = new \DateTimeImmutable();
             /** @var \bizley\jwt\Jwt $jwt */
@@ -139,8 +160,12 @@ class AuthController extends Controller
                 'user' => [
                     'id' => $user->usr_id,
                     'username' => $user->users_name,
-                    'role_id' => $user->user_role,
-                    'role_name' => $user->user_role == 1 ? 'Admin' : 'Field Supervisor'
+                    'full_name' => $user->full_name ?: $user->users_name,
+                    'role_id' => (int)$user->user_role,
+                    'role_name' => $rName,
+                    'role' => $stateRole ?: 'field_supervisor',
+                    'privileges' => !empty($user->signedin_loc) ? $user->signedin_loc : null,
+                    'assigned_location' => $user->loc_code ?: 'Dharavi'
                 ]
             ];
         }
@@ -150,16 +175,28 @@ class AuthController extends Controller
     }
 
     /**
-     * Helper to validate password based on how the old system did it
+     * Helper to validate password based on plain text, single/double MD5 or legacy DB hashes
      */
     private function validatePassword($user, $password)
     {
-        // Many older Yii2 apps either use Yii::$app->security->validatePassword OR plain md5
-        if (method_exists($user, 'validatePassword')) {
-            return $user->validatePassword($password);
+        $stored = $user->password ?? $user->users_pwd ?? '';
+        if (empty($stored)) return false;
+
+        $trimPass = trim($password);
+        $md5 = md5($trimPass);
+        $doubleMd5 = md5($md5);
+
+        if ($stored === $trimPass || $stored === $md5 || $stored === $doubleMd5) {
+            return true;
         }
-        
-        // Fallback for legacy DB hashes if validatePassword doesn't exist on the model
-        return $user->users_pwd === $password || $user->users_pwd === md5($password); 
+
+        // Check legacy or Yii2 hashed password
+        try {
+            if (Yii::$app->security->validatePassword($trimPass, $stored)) {
+                return true;
+            }
+        } catch (\Exception $e) {}
+
+        return false;
     }
 }

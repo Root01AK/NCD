@@ -35,9 +35,10 @@ export const getDefaultModulesForRole = (roleKey) => {
     case "case_management_coordinator":
       return [14];
     case "admin":
+      return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
     case "deo":
     default:
-      return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+      return [1, 16];
   }
 };
 
@@ -49,6 +50,26 @@ export const ROLE_CONFIGS = {
   doctor: { label: "Doctor", badgeBg: "#faf5ff", badgeColor: "#6b21a8" },
   case_management_coordinator: { label: "Case Coordinator", badgeBg: "#eef2ff", badgeColor: "#3730a3" },
   deo: { label: "Data Entry Operator", badgeBg: "#f1f5f9", badgeColor: "#334155" }
+};
+
+export const ROLE_NUMERIC_MAP = {
+  admin: 1,
+  field_supervisor: 2,
+  staff_nurse: 3,
+  doctor: 4,
+  counselor: 5,
+  case_management_coordinator: 6,
+  deo: 7
+};
+
+export const ROLE_KEY_MAP = {
+  1: "admin",
+  2: "field_supervisor",
+  3: "staff_nurse",
+  4: "doctor",
+  5: "counselor",
+  6: "case_management_coordinator",
+  7: "deo"
 };
 
 export function UserManagement({ notify }) {
@@ -83,18 +104,19 @@ export function UserManagement({ notify }) {
       if (res.status === 'success') {
         const rawUsers = res.data || [];
         const processed = rawUsers.map(u => {
-          const role = u.role || (u.user_role === 1 ? 'admin' : (u.user_role === 2 ? 'deo' : 'deo'));
-          let privileges = u.privileges;
+          const uRoleId = parseInt(u.user_role) || 2;
+          const roleKey = u.role || u.state_code || ROLE_KEY_MAP[uRoleId] || 'field_supervisor';
+          let privileges = u.privileges || u.signedin_loc;
           if (typeof privileges === 'string') {
             try { privileges = JSON.parse(privileges); } catch (e) { privileges = null; }
           }
           if (!Array.isArray(privileges)) {
-            privileges = getDefaultModulesForRole(role);
+            privileges = getDefaultModulesForRole(roleKey);
           }
           return {
             ...u,
             username: u.username || u.users_name || "",
-            role,
+            role: roleKey,
             privileges
           };
         });
@@ -160,48 +182,63 @@ export function UserManagement({ notify }) {
   };
 
   const handleSave = async () => {
-    if (!formData.username) {
-      notify("error", "Incomplete", "Username is required.");
+    const cleanUsername = (formData.username || "").trim();
+    const cleanPassword = (formData.password || "").trim();
+
+    if (!cleanUsername) {
+      notify("error", "Validation Error", "Username is required.");
+      return;
+    }
+
+    if (!editingId && !cleanPassword) {
+      notify("error", "Validation Error", "Password is required for new user accounts.");
       return;
     }
 
     try {
+      const numericRole = ROLE_NUMERIC_MAP[formData.role] || 7;
       const payload = {
-        username: formData.username,
-        users_name: formData.username,
-        full_name: formData.username,
+        username: cleanUsername,
+        users_name: cleanUsername,
+        full_name: cleanUsername,
         loc_code: 'DH',
-        password: formData.password,
+        password: cleanPassword,
         role: formData.role,
-        user_role: formData.role === 'admin' ? 1 : 2,
-        email: formData.email,
-        mobile: formData.mobile,
-        status: formData.status,
-        privileges: JSON.stringify(formData.privileges || [])
+        user_role: numericRole,
+        email: (formData.email || "").trim(),
+        mobile: (formData.mobile || "").trim(),
+        status: formData.status || "1",
+        privileges: formData.privileges || []
       };
 
       if (editingId) {
         const res = await api.put(`/api/v1/users/update?id=${editingId}`, payload);
         if (res.status === 'success') {
-          notify("success", "Updated", "User updated successfully.");
+          notify("success", "User Updated", `Account '${cleanUsername}' updated successfully.`);
+          setShowForm(false);
+          setEditingId(null);
+          setFormData({ username: "", password: "", role: "staff_nurse", email: "", mobile: "", status: "1", privileges: getDefaultModulesForRole("staff_nurse") });
+          fetchUsers();
+        } else {
+          const errMsg = res.message || (res.errors ? Object.values(res.errors).flat().join(", ") : "Failed to update user.");
+          notify("error", "Update Failed", errMsg);
         }
       } else {
-        if (!formData.password) {
-          notify("error", "Incomplete", "Password is required for new users.");
-          return;
-        }
         const res = await api.post("/api/v1/users/create", payload);
         if (res.status === 'success') {
-          notify("success", "Created", "New user provisioned.");
+          notify("success", "User Provisioned", `User '${cleanUsername}' created successfully. You can now log in with username '${cleanUsername}' and password '${cleanPassword}'.`);
+          setShowForm(false);
+          setEditingId(null);
+          setFormData({ username: "", password: "", role: "staff_nurse", email: "", mobile: "", status: "1", privileges: getDefaultModulesForRole("staff_nurse") });
+          fetchUsers();
+        } else {
+          const errMsg = res.message || (res.errors ? Object.values(res.errors).flat().join(", ") : "Failed to create user.");
+          notify("error", "Creation Failed", errMsg);
         }
       }
-      
-      setShowForm(false);
-      setEditingId(null);
-      setFormData({ username: "", password: "", role: "staff_nurse", email: "", mobile: "", status: "1", privileges: getDefaultModulesForRole("staff_nurse") });
-      fetchUsers();
     } catch (e) {
-      notify("error", "Error", e.message || "Failed to save user.");
+      console.error(e);
+      notify("error", "Error", e.message || "Failed to save user account.");
     }
   };
 
@@ -550,7 +587,6 @@ export function UserManagement({ notify }) {
                     return (
                       <label 
                         key={mod.id}
-                        onClick={() => togglePrivilege(mod.id)}
                         className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer select-none transition-colors ${
                           isChecked ? "bg-white border-gray-400 shadow-2xs" : "bg-gray-50 border-gray-200 text-gray-500 hover:bg-white"
                         }`}
@@ -558,7 +594,7 @@ export function UserManagement({ notify }) {
                         <input 
                           type="checkbox"
                           checked={isChecked}
-                          onChange={() => {}} // handled by label onClick
+                          onChange={() => togglePrivilege(mod.id)}
                           className="rounded text-gray-900 focus:ring-0 cursor-pointer"
                         />
                         <span className="text-xs text-gray-800 font-medium truncate">

@@ -4,6 +4,25 @@ import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { getQueue, deleteFromQueue } from "../../lib/db";
 
+export const SECTION_NAMES = {
+  1: "Demographics (Sec 1)",
+  2: "Medical History (Sec 2)",
+  3: "Tobacco Use (Sec 3)",
+  4: "Alcohol Use (Sec 4)",
+  5: "Other Substance Use (Sec 5)",
+  6: "Diet & Physical Activity (Sec 6)",
+  7: "Symptom Screening (Sec 7)",
+  8: "Mental Health (Sec 8)",
+  9: "Anthropometry (Sec 9)",
+  10: "Vitals (Sec 10)",
+  11: "POC Tests (Sec 11)",
+  12: "Clinical Exams (Sec 12)",
+  13: "Risk Categorisation (Sec 13)",
+  14: "Linkages & Follow-up (Sec 14)",
+  15: "Health Counseling (Sec 15)",
+  16: "Community Perception (Sec 16)"
+};
+
 export function ClientDashboard({ notify, openSurvey, logout }) {
   const [online, setOnline] = useState(navigator.onLine);
   const [currentTab, setCurrentTab] = useState("dashboard"); // dashboard, completed, sync, verified, profile
@@ -16,38 +35,27 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
   const userString = localStorage.getItem('ncd_user') || localStorage.getItem('icc_user');
   const user = userString ? JSON.parse(userString) : { username: 'DEO', role_name: 'Field Supervisor', role_id: 2, assigned_location: 'Dharavi' };
 
-  // Operational Role Configuration
-  const roleNameLower = (user.role_name || "Field Supervisor").toLowerCase();
-  const roleConfig = (
-    roleNameLower.includes("nurse") ? {
-      workstation: "Staff Nurse Clinical Workstation",
-      surveyTitle: "MUMBAI’S NCD SURVEY — CLINICAL VITALS & POC TESTS",
-      privileges: "Medical History (Sec 2), Vitals (Sec 10) & POC Tests (Sec 11)",
-      btnText: "Open Clinical Vitals Form"
-    } : roleNameLower.includes("doctor") ? {
-      workstation: "Doctor Clinical Workstation",
-      surveyTitle: "MUMBAI’S NCD SURVEY — CLINICAL EXAMINATIONS & RISK CATEGORISATION",
-      privileges: "Clinical Exams (Sec 12) & Risk Categorisation (Sec 13)",
-      btnText: "Open Clinical Exams Form"
-    } : roleNameLower.includes("counselor") ? {
-      workstation: "Counselor Health Workstation",
-      surveyTitle: "MUMBAI’S NCD SURVEY — MENTAL HEALTH & COUNSELING",
-      privileges: "Mental Health (Sec 8) & Health Counseling (Sec 15)",
-      btnText: "Open Counseling Form"
-    } : roleNameLower.includes("coordinator") ? {
-      workstation: "Case Management Coordinator Workstation",
-      surveyTitle: "MUMBAI’S NCD SURVEY — LINKAGES & FOLLOW-UP TRACKING",
-      privileges: "Linkages & Follow-up Tracking (Sec 14)",
-      btnText: "Open Follow-up Tracking"
-    } : {
-      workstation: "Field Supervisor Workstation",
-      surveyTitle: "MUMBAI’S NCD SURVEY — INITIAL DEMOGRAPHICS",
-      privileges: "Demographics (Sec 1) & Community Perception (Sec 16)",
-      btnText: "Start Initial Screening"
-    }
-  );
+  // Dynamic user privilege configuration
+  let userPrivileges = user.privileges;
+  if (typeof userPrivileges === 'string') {
+    try { userPrivileges = JSON.parse(userPrivileges); } catch (e) { userPrivileges = null; }
+  }
+  if (!Array.isArray(userPrivileges) || userPrivileges.length === 0) {
+    const rLower = (user.role_name || "").toLowerCase();
+    userPrivileges = rLower.includes("nurse") ? [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+      : rLower.includes("doctor") ? [12, 13]
+      : rLower.includes("counselor") ? [8, 15]
+      : rLower.includes("coordinator") ? [14]
+      : rLower.includes("admin") ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+      : [1, 16];
+  }
 
-  const workstationTitle = roleConfig.workstation;
+  const privilegesText = userPrivileges.length === 16 
+    ? "Full Access (All 16 Sections Enabled)"
+    : userPrivileges.map(id => SECTION_NAMES[id] || `Section ${id}`).join(", ");
+
+  const workstationTitle = `${user.role_name || "Data Entry"} Workstation`;
+  const surveyTitle = `MUMBAI’S NCD SURVEY — ${(user.role_name || "SCREENING").toUpperCase()} PROGRAM`;
 
   // Load offline queue & status
   useEffect(() => {
@@ -212,10 +220,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
               {online ? <Wifi size={14} /> : <WifiOff size={14} />}
             </button>
             <button
-              onClick={() => {
-                notify("info", "Logging out...");
-                setTimeout(logout, 600);
-              }}
+              onClick={logout}
               className="p-2 rounded-full text-slate-700 bg-white border border-slate-200 cursor-pointer"
               title="Logout"
             >
@@ -268,10 +273,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
           </button>
           
           <button
-            onClick={() => {
-              notify("info", "Logging out...");
-              setTimeout(logout, 600);
-            }}
+            onClick={logout}
             className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 transition-all shadow-2xs cursor-pointer"
           >
             <LogOut size={13} className="text-slate-500" />
@@ -334,7 +336,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                   <p className="text-xs text-slate-500 font-medium">Click to initiate participant screening & Demographics recording.</p>
                 </div>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <UserCheck size={13} /> Privileges: {roleConfig.privileges}
+                  <UserCheck size={13} /> Privileges: {privilegesText}
                 </span>
               </div>
 
@@ -361,7 +363,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                         </div>
 
                         <h3 className="text-xl font-bold text-slate-900 group-hover:text-amber-800 transition-colors leading-snug">
-                          {survey.sur_title || roleConfig.surveyTitle}
+                          {survey.sur_title || surveyTitle}
                         </h3>
                         <p className="text-xs text-slate-500 mt-1 font-medium">
                           Non-Communicable Disease Screening for {user.assigned_location || "Dharavi"} Center.
@@ -370,7 +372,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
 
                       <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-800">
                         <span className="flex items-center gap-1.5 text-amber-800 font-bold">
-                          {roleConfig.btnText}
+                          Start Assigned Screening Form
                         </span>
                         <div className="w-9 h-9 rounded-full bg-slate-100 group-hover:bg-slate-900 group-hover:text-white flex items-center justify-center transition-colors shadow-2xs">
                           <ArrowRight size={16} />

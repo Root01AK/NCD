@@ -83,6 +83,30 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   });
 
   const [submitting, setSubmitting] = useState(false);
+  const [customQuestions, setCustomQuestions] = useState([]);
+
+  useEffect(() => {
+    // Parse custom survey questions if available from Admin Survey Builder
+    let loadedQs = null;
+    if (participant && participant.sur_url) {
+      try {
+        const parsed = JSON.parse(participant.sur_url);
+        if (Array.isArray(parsed) && parsed.length > 0) loadedQs = parsed;
+      } catch (e) {}
+    }
+    if (!loadedQs) {
+      const activeStr = localStorage.getItem('ncd_active_survey_questions');
+      if (activeStr) {
+        try {
+          const parsed = JSON.parse(activeStr);
+          if (Array.isArray(parsed) && parsed.length > 0) loadedQs = parsed;
+        } catch (e) {}
+      }
+    }
+    if (loadedQs) {
+      setCustomQuestions(loadedQs);
+    }
+  }, [participant]);
 
   useEffect(() => {
     const userString = localStorage.getItem('ncd_user') || localStorage.getItem('icc_user');
@@ -102,20 +126,62 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     // Fetch active backend list
     api.get("/api/v1/dashboard/screeninglist").then(res => {
       if (res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
-        const mapped = res.data.map(r => ({
-          id: r.mem_scrn_part_id || r.id || `NCD-MUM-${r.mem_scrn_id}`,
-          name: r.mem_scrn_q16 || 'Participant',
-          age: r.mem_scrn_q1 || 45,
-          gender: r.mem_scrn_q2 == "1" ? "Male" : "Female",
-          location: r.mem_scrn_q17 || "Dharavi",
-          status: "Demographics Completed",
-          bp: "130/84",
-          glucose: "135"
-        }));
+        const mapped = res.data.map(r => {
+          let rawPayload = {};
+          if (r.mem_scrn_q30) {
+            try { rawPayload = JSON.parse(r.mem_scrn_q30); } catch (e) {}
+          }
+          return {
+            id: r.mem_scrn_part_id || r.id || `NCD-MUM-${r.mem_scrn_id}`,
+            name: rawPayload.fullName || r.mem_scrn_q16 || 'Participant',
+            age: rawPayload.age || r.mem_scrn_q1 || 45,
+            gender: rawPayload.gender || (r.mem_scrn_q2 == "1" ? "Male" : "Female"),
+            location: rawPayload.location || r.mem_scrn_q17 || "Dharavi",
+            status: "Demographics Completed",
+            bp: rawPayload.bp_systolic ? `${rawPayload.bp_systolic}/${rawPayload.bp_diastolic}` : "130/84",
+            glucose: rawPayload.random_blood_glucose || "135",
+            rawPayload
+          };
+        });
         setAvailableParticipants(mapped);
       }
     }).catch(e => console.error("Failed to load participant list", e));
   }, []);
+
+  const loggedInUserStr = localStorage.getItem('ncd_user') || localStorage.getItem('icc_user');
+  const loggedInUser = loggedInUserStr ? JSON.parse(loggedInUserStr) : null;
+  
+  let userPrivileges = loggedInUser?.privileges;
+  if (typeof userPrivileges === 'string') {
+    try { userPrivileges = JSON.parse(userPrivileges); } catch (e) { userPrivileges = null; }
+  }
+  if (!Array.isArray(userPrivileges) || userPrivileges.length === 0) {
+    const rLower = (data.user_role || "").toLowerCase();
+    userPrivileges = rLower.includes("nurse") ? [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+      : rLower.includes("doctor") ? [12, 13]
+      : rLower.includes("counselor") ? [8, 15]
+      : rLower.includes("coordinator") ? [14]
+      : rLower.includes("admin") ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+      : [1, 16];
+  }
+
+  const hasPrivilege = (modId) => userPrivileges.includes(modId);
+  const isExistingParticipant = Boolean(data.participant_id && availableParticipants.some(p => p.id === data.participant_id));
+  
+  let secTracker = 1;
+  const activeCustomQuestions = (customQuestions || []).filter(q => {
+    if (q.type === 'section_header' || (q.title && q.title.toLowerCase().startsWith('section '))) {
+      const match = q.title.match(/Section\s*(\d+)/i);
+      if (match) secTracker = parseInt(match[1]);
+      else if (q.section) secTracker = parseInt(q.section);
+    }
+    const secId = q.section ? parseInt(q.section) : secTracker;
+    if (secId === 16 && !isExistingParticipant) {
+      return false; // Hide Section 16 during initial creation
+    }
+    return hasPrivilege(secId);
+  });
+  const hasCustomQuestions = activeCustomQuestions.length > 0;
 
   const roleNameLower = (data.user_role || "Field Supervisor").toLowerCase();
   const isSupervisor = roleNameLower.includes("supervisor") || roleNameLower.includes("field");
@@ -125,6 +191,18 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   const isCoordinator = roleNameLower.includes("coordinator");
 
   const set = (k) => (v) => setData((d) => ({ ...d, [k]: v }));
+
+  const updateCustomField = (q, val) => {
+    setData(d => {
+      const next = { ...d, [q.id]: val, [`custom_${q.id}`]: val };
+      const titleLower = (q.title || "").toLowerCase();
+      if (titleLower.includes("name") || titleLower.includes("full name")) next.fullName = val;
+      if (titleLower.includes("age")) next.age = val;
+      if (titleLower.includes("gender")) next.gender = val;
+      if (titleLower.includes("site") || titleLower.includes("location")) next.location = val;
+      return next;
+    });
+  };
 
   const handleDateChange = (e) => {
     const rawVal = e.target.value;
@@ -143,6 +221,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     if (found) {
       setData(d => ({
         ...d,
+        ...(found.rawPayload || {}),
         participant_id: found.id,
         fullName: found.name,
         age: String(found.age),
@@ -394,10 +473,14 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
               <div className="border-b border-slate-100 pb-4 flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900">
-                    {data.user_role} Clinical Entry Form
+                    {isSupervisor ? "Field Supervisor Screening & Demographics Form" : `${data.user_role} Clinical Entry Form`}
                   </h2>
                   <p className="text-xs text-slate-500 mt-1 font-medium">
-                    Participant: <strong>{data.fullName || "Rajesh Sharma"}</strong> ({data.participant_id}) • Age: {data.age || "48"} • {data.gender}
+                    {data.fullName ? (
+                      <>Participant: <strong>{data.fullName}</strong> ({data.participant_id}) {data.age ? `• Age: ${data.age}` : ''} {data.gender ? `• ${data.gender}` : ''}</>
+                    ) : (
+                      <>Initiating Participant Screening ({data.participant_id})</>
+                    )}
                   </p>
                 </div>
                 <span className="text-xs font-bold px-3 py-1 rounded-full bg-slate-900 text-white font-mono">
@@ -405,245 +488,136 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                 </span>
               </div>
 
-              {/* ---------------------------------------------------- */}
-              {/* FIELD SUPERVISOR: DEMOGRAPHICS (SECTION 1) */}
-              {/* ---------------------------------------------------- */}
-              {isSupervisor && (
-                <div className="space-y-6">
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 font-mono">Full Name *</label>
-                      <input type="text" value={data.fullName} onChange={(e) => set("fullName")(e.target.value)} placeholder="e.g. Rajesh Sharma" className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold outline-none" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 font-mono">Age (Years) *</label>
-                      <input type="number" value={data.age} onChange={(e) => set("age")(e.target.value)} placeholder="e.g. 45" className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold outline-none" />
-                    </div>
-                  </div>
+              {/* Dynamic Survey Builder Questions Renderer */}
+              {(() => {
+                const isExistingParticipant = Boolean(data.participant_id && availableParticipants.some(p => p.id === data.participant_id));
+                let currentSecId = 1;
+                const filteredCustomQuestions = (customQuestions || []).filter(q => {
+                  if (q.type === 'section_header' || (q.title && q.title.toLowerCase().startsWith('section '))) {
+                    const match = q.title.match(/Section\s*(\d+)/i);
+                    if (match) currentSecId = parseInt(match[1]);
+                    else if (q.section) currentSecId = parseInt(q.section);
+                  }
+                  const secId = q.section ? parseInt(q.section) : currentSecId;
+                  if (secId === 16 && !isExistingParticipant) {
+                    return false; // Hide Section 16 during initial creation
+                  }
+                  return hasPrivilege(secId);
+                });
 
-                  <div className="grid md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 font-mono">Gender</label>
-                      <select value={data.gender} onChange={(e) => set("gender")(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold outline-none">
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Transgender">Transgender</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 font-mono">Education</label>
-                      <select value={data.education} onChange={(e) => set("education")(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold outline-none">
-                        <option value="Illiterate">Illiterate</option>
-                        <option value="Primary School">Primary School</option>
-                        <option value="High School">High School</option>
-                        <option value="Graduate & Above">Graduate & Above</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 font-mono">Housing Type</label>
-                      <select value={data.housing_type} onChange={(e) => set("housing_type")(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold outline-none">
-                        <option value="Pucca House">Pucca House</option>
-                        <option value="Semi-Pucca">Semi-Pucca</option>
-                        <option value="Slum / Kutcha">Slum / Kutcha</option>
-                      </select>
-                    </div>
-                  </div>
+                if (filteredCustomQuestions.length === 0) return null;
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 font-mono">Section 16: Community Perception Notes</label>
-                    <textarea rows={3} value={data.community_perception} onChange={(e) => set("community_perception")(e.target.value)} placeholder="Supervisor observations..." className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs outline-none" />
-                  </div>
-                </div>
-              )}
+                return (
+                  <div className="space-y-5 p-5 rounded-2xl bg-amber-50/50 border border-amber-200 shadow-2xs">
+                    <div className="text-xs font-bold text-amber-900 uppercase tracking-wider font-mono border-b border-amber-200/80 pb-2 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <FileText size={14} className="text-amber-700" /> Admin Custom Survey Questions ({filteredCustomQuestions.length} Questions)
+                      </span>
+                      <span className="text-[10px] bg-amber-200/70 text-amber-950 px-2 py-0.5 rounded font-mono font-bold">LIVE ADMIN SYNC</span>
+                    </div>
+                    {filteredCustomQuestions.map((q, idx) => {
+                      const qType = q.type || 'short_text';
+                      const opts = Array.isArray(q.options) ? q.options : [];
+                      
+                      if (qType === 'section_header') {
+                        return (
+                          <div key={q.id || idx} className="pt-3 pb-1 border-b border-amber-200">
+                            <h3 className="text-sm font-black text-amber-950 tracking-tight uppercase font-mono">{q.title}</h3>
+                          </div>
+                        );
+                      }
 
-              {/* ---------------------------------------------------- */}
-              {/* STAFF NURSE: VITALS, LIFESTYLE & POC TESTS (SEC 2-11) */}
-              {/* ---------------------------------------------------- */}
-              {isNurse && (
-                <div className="space-y-6">
-                  {/* Medical History */}
-                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono mb-2 flex items-center gap-1.5">
-                      <Stethoscope size={14} className="text-amber-600" /> Section 2: Medical History
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs font-semibold text-slate-700">
-                      {["Hypertension", "Diabetes", "Heart Disease", "Stroke", "Asthma/COPD", "Cancer"].map(cond => (
-                        <label key={cond} className="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-lg border border-slate-200">
-                          <input type="checkbox" defaultChecked={cond === "Hypertension"} className="rounded text-amber-600 focus:ring-amber-500" />
-                          <span>{cond}</span>
+                    return (
+                      <div key={q.id || idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                        <label className="block text-xs font-bold text-slate-900">
+                          {idx + 1}. {q.title} {q.required && <span className="text-red-500">*</span>}
                         </label>
-                      ))}
-                    </div>
-                  </div>
+                        
+                        {(qType === 'short_text') && (
+                          <input 
+                            type="text" 
+                            placeholder="Enter text response..." 
+                            value={data[`custom_${q.id}`] || data[q.id] || ''} 
+                            onChange={(e) => updateCustomField(q, e.target.value)} 
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:border-amber-500" 
+                          />
+                        )}
 
-                  {/* Vitals & Anthropometry */}
-                  <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200 space-y-3">
-                    <h3 className="text-xs font-bold text-amber-900 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                      <HeartPulse size={14} className="text-amber-700" /> Section 9 & 10: Anthropometry & Vitals
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">Height (cm)</label>
-                        <input type="number" value={data.height_cm} onChange={(e) => set("height_cm")(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">Weight (kg)</label>
-                        <input type="number" value={data.weight_kg} onChange={(e) => set("weight_kg")(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">BP Systolic</label>
-                        <input type="number" value={data.bp_systolic} onChange={(e) => set("bp_systolic")(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">BP Diastolic</label>
-                        <input type="number" value={data.bp_diastolic} onChange={(e) => set("bp_diastolic")(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
-                      </div>
-                    </div>
-                  </div>
+                        {(qType === 'number') && (
+                          <input 
+                            type="number" 
+                            placeholder="Enter numerical value..." 
+                            value={data[`custom_${q.id}`] || data[q.id] || ''} 
+                            onChange={(e) => updateCustomField(q, e.target.value)} 
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:border-amber-500" 
+                          />
+                        )}
 
-                  {/* Point of Care Tests */}
-                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                      <Activity size={14} className="text-amber-600" /> Section 11: Point-of-Care (POC) Lab Tests
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">Random Blood Glucose (mg/dL)</label>
-                        <input type="number" value={data.random_blood_glucose} onChange={(e) => set("random_blood_glucose")(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">HbA1c (%)</label>
-                        <input type="text" value={data.hba1c} onChange={(e) => set("hba1c")(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">Total Cholesterol (mg/dL)</label>
-                        <input type="number" value={data.total_cholesterol} onChange={(e) => set("total_cholesterol")(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+                        {(qType === 'dropdown') && (
+                          <select 
+                            value={data[`custom_${q.id}`] || data[q.id] || ''} 
+                            onChange={(e) => updateCustomField(q, e.target.value)} 
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 outline-none bg-white cursor-pointer focus:border-amber-500"
+                          >
+                            <option value="">-- Select Option --</option>
+                            {opts.map((opt, oIdx) => (
+                              <option key={oIdx} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                        )}
 
-              {/* ---------------------------------------------------- */}
-              {/* DOCTOR: CLINICAL EXAMINATIONS & RISK (SEC 12-13) */}
-              {/* ---------------------------------------------------- */}
-              {isDoctor && (
-                <div className="space-y-6">
-                  {/* Summary Bar */}
-                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between text-xs font-mono font-bold text-amber-900">
-                    <span>Vitals Summary: BP {data.bp_systolic}/{data.bp_diastolic} mmHg</span>
-                    <span>•</span>
-                    <span>Glucose: {data.random_blood_glucose} mg/dL</span>
-                    <span>•</span>
-                    <span>BMI: {data.bmi}</span>
-                  </div>
+                        {(qType === 'single_choice' || qType === 'radio') && (
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {opts.map((opt, oIdx) => {
+                              const isSel = (data[`custom_${q.id}`] || data[q.id]) === opt;
+                              return (
+                                <label 
+                                  key={oIdx} 
+                                  onClick={() => updateCustomField(q, opt)} 
+                                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-bold cursor-pointer transition-colors ${isSel ? 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'}`}
+                                >
+                                  <input type="radio" checked={isSel} onChange={() => {}} className="text-amber-600 focus:ring-0 cursor-pointer" />
+                                  <span>{opt}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
 
-                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
-                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                      <Stethoscope size={14} className="text-amber-600" /> Section 12: Clinical Examinations
-                    </h3>
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">10-Year CVD Risk Category</label>
-                        <select value={data.cvd_risk_assessment} onChange={(e) => set("cvd_risk_assessment")(e.target.value)} className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none">
-                          <option value="Low (<10%)">Low (&lt;10%)</option>
-                          <option value="Moderate (10-20%)">Moderate (10-20%)</option>
-                          <option value="High (>20%)">High (&gt;20%)</option>
-                        </select>
+                        {(qType === 'multi_choice' || qType === 'checkbox') && (
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {opts.map((opt, oIdx) => {
+                              const curVal = data[`custom_${q.id}`] || data[q.id];
+                              const curArr = Array.isArray(curVal) ? curVal : [];
+                              const isChecked = curArr.includes(opt);
+                              const toggleOpt = () => {
+                                if (isChecked) {
+                                  updateCustomField(q, curArr.filter(x => x !== opt));
+                                } else {
+                                  updateCustomField(q, [...curArr, opt]);
+                                }
+                              };
+                              return (
+                                <label 
+                                  key={oIdx} 
+                                  onClick={toggleOpt} 
+                                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-bold cursor-pointer transition-colors ${isChecked ? 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'}`}
+                                >
+                                  <input type="checkbox" checked={isChecked} onChange={() => {}} className="rounded text-amber-600 focus:ring-0 cursor-pointer" />
+                                  <span>{opt}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">Retinopathy Screening</label>
-                        <select value={data.retinopathy_exam} onChange={(e) => set("retinopathy_exam")(e.target.value)} className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none">
-                          <option value="Normal">Normal</option>
-                          <option value="Mild Retinopathy">Mild Retinopathy</option>
-                          <option value="Severe / Immediate Referral">Severe / Immediate Referral</option>
-                        </select>
-                      </div>
-                    </div>
+                    );
+                    })}
                   </div>
+                );
+              })()}
 
-                  <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-4">
-                    <h3 className="text-xs font-bold text-emerald-900 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                      <AlertCircle size={14} className="text-emerald-700" /> Section 13: Risk Categorisation & Referral
-                    </h3>
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">Overall Doctor Risk Categorisation</label>
-                        <select value={data.overall_risk_rating} onChange={(e) => set("overall_risk_rating")(e.target.value)} className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none">
-                          <option value="Low Risk">Low Risk</option>
-                          <option value="Moderate Risk">Moderate Risk</option>
-                          <option value="High Risk (Priority Referral)">High Risk (Priority Referral)</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">Referral Hospital / Center Name</label>
-                        <input type="text" value={data.referral_hospital} onChange={(e) => set("referral_hospital")(e.target.value)} placeholder="e.g. KEM Hospital" className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
-              {/* ---------------------------------------------------- */}
-              {/* COUNSELOR: MENTAL HEALTH & HEALTH COUNSELING (SEC 8, 15) */}
-              {/* ---------------------------------------------------- */}
-              {isCounselor && (
-                <div className="space-y-6">
-                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
-                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                      <Brain size={14} className="text-amber-600" /> Section 8: Mental Health Screening
-                    </h3>
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">PHQ-9 Depression Screening Score</label>
-                        <input type="text" value={data.phq9_depression_score} onChange={(e) => set("phq9_depression_score")(e.target.value)} className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">GAD-7 Anxiety Screening Score</label>
-                        <input type="text" value={data.gad7_anxiety_score} onChange={(e) => set("gad7_anxiety_score")(e.target.value)} className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200 space-y-3">
-                    <h3 className="text-xs font-bold text-amber-900 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                      <UserCheck size={14} className="text-amber-700" /> Section 15: Health Counseling & Behavioral Therapy Notes
-                    </h3>
-                    <textarea rows={4} value={data.health_counseling_notes} onChange={(e) => set("health_counseling_notes")(e.target.value)} placeholder="Counseling recommendations..." className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs outline-none" />
-                  </div>
-                </div>
-              )}
-
-              {/* ---------------------------------------------------- */}
-              {/* CASE COORDINATOR: LINKAGES & FOLLOW-UP (SEC 14) */}
-              {/* ---------------------------------------------------- */}
-              {isCoordinator && (
-                <div className="space-y-6">
-                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
-                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                      <Link2 size={14} className="text-amber-600" /> Section 14: Linkages and Follow-up Tracking
-                    </h3>
-                    <div className="grid md:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">Referral Confirmation Date</label>
-                        <input type="text" value={data.referral_confirmation_date} onChange={(e) => set("referral_confirmation_date")(e.target.value)} className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">OPD Appointment Date</label>
-                        <input type="text" value={data.opd_appointment_date} onChange={(e) => set("opd_appointment_date")(e.target.value)} className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">Treatment Adherence Status</label>
-                        <select value={data.treatment_adherence_status} onChange={(e) => set("treatment_adherence_status")(e.target.value)} className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none">
-                          <option value="Regular Adherence">Regular Adherence</option>
-                          <option value="Partial Adherence">Partial Adherence</option>
-                          <option value="Non-Adherent (Lost to Follow-up)">Non-Adherent (Lost to Follow-up)</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Submit Button */}
               <div className="pt-6 border-t border-slate-100 flex items-center justify-between">

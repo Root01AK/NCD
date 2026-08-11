@@ -53,11 +53,14 @@ class UsersController extends Controller
         // For admin panel we return all users
         $users = Users::find()->orderBy(['usr_id' => SORT_ASC])->asArray()->all();
         
-        // Hide passwords
+        // Expose role & privileges fields
         foreach($users as &$user) {
             unset($user['password']);
             unset($user['auth_key']);
             unset($user['password_reset_token']);
+            
+            $user['role'] = !empty($user['state_code']) ? $user['state_code'] : null;
+            $user['privileges'] = !empty($user['signedin_loc']) ? $user['signedin_loc'] : null;
         }
         
         return [
@@ -74,26 +77,34 @@ class UsersController extends Controller
         $model = new Users();
         $model->attributes = $payload;
 
-        // Basic default setup for user required attributes
         $model->record_date = time();
-        if (empty($model->users_name) && !empty($payload['username'])) {
-            $model->users_name = $payload['username'];
+        if (!empty($payload['username'])) {
+            $model->users_name = trim($payload['username']);
+        }
+        if (!empty($payload['users_name'])) {
+            $model->users_name = trim($payload['users_name']);
         }
         if (empty($model->full_name)) {
-            $model->full_name = !empty($payload['full_name']) ? $payload['full_name'] : $model->users_name;
+            $model->full_name = !empty($payload['full_name']) ? trim($payload['full_name']) : $model->users_name;
         }
         if (empty($model->loc_code)) {
             $model->loc_code = !empty($payload['loc_code']) ? $payload['loc_code'] : 'DH';
         }
-        if (empty($model->user_role) && isset($payload['user_role'])) {
-            $model->user_role = $payload['user_role'];
+
+        // Store role string in state_code and privileges in signedin_loc
+        if (!empty($payload['role'])) {
+            $model->state_code = $payload['role'];
         }
-        if (empty($model->user_role)) {
-            $model->user_role = 2; // Default to DEO
+        if (isset($payload['privileges'])) {
+            $model->signedin_loc = is_array($payload['privileges']) ? json_encode($payload['privileges']) : $payload['privileges'];
         }
-        if (empty($model->status)) {
-            $model->status = '1';
+        if (isset($payload['user_role'])) {
+            $model->user_role = (int)$payload['user_role'];
+        } else {
+            $model->user_role = 7;
         }
+
+        $model->status = '1';
         if (empty($model->create_time)) {
             $model->create_time = time();
         }
@@ -102,12 +113,14 @@ class UsersController extends Controller
         }
 
         if (!empty($payload['password'])) {
-            $model->password = md5($payload['password']);
+            $model->password = trim($payload['password']);
         }
 
         if ($model->save()) {
             $data = $model->toArray();
             unset($data['password']);
+            $data['role'] = $model->state_code;
+            $data['privileges'] = $model->signedin_loc;
             return [
                 'status' => 'success',
                 'message' => 'User created successfully',
@@ -140,9 +153,7 @@ class UsersController extends Controller
         $request = Yii::$app->request;
         $payload = $request->getBodyParams();
         
-        if (!empty($payload['password'])) {
-            $payload['password'] = md5($payload['password']);
-        } else {
+        if (empty($payload['password'])) {
             unset($payload['password']);
         }
 
@@ -157,11 +168,25 @@ class UsersController extends Controller
         if (empty($model->loc_code)) {
             $model->loc_code = 'DH';
         }
+
+        // Update role string in state_code and privileges in signedin_loc
+        if (!empty($payload['role'])) {
+            $model->state_code = $payload['role'];
+        }
+        if (isset($payload['privileges'])) {
+            $model->signedin_loc = is_array($payload['privileges']) ? json_encode($payload['privileges']) : $payload['privileges'];
+        }
+        if (isset($payload['user_role'])) {
+            $model->user_role = (int)$payload['user_role'];
+        }
+
         $model->update_time = time();
 
         if ($model->save()) {
             $data = $model->toArray();
             unset($data['password']);
+            $data['role'] = $model->state_code;
+            $data['privileges'] = $model->signedin_loc;
             return [
                 'status' => 'success',
                 'message' => 'User updated successfully',

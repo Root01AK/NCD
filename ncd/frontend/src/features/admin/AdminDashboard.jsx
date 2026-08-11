@@ -108,8 +108,7 @@ export function AdminDashboard({ notify, logout }) {
 
   const handleLogoutConfirm = () => {
     setShowLogoutConfirm(false);
-    notify("info", "Logging out...", "Terminating your session.");
-    setTimeout(logout, 800);
+    logout();
   };
 
   const DashboardHeader = ({ title, subtitle }) => (
@@ -422,7 +421,7 @@ export function AdminDashboard({ notify, logout }) {
                     <tr style={{ background: T.paper, borderBottom: `1px solid ${T.line}` }}>
                       <th className="px-6 py-4 text-xs font-medium" style={{ fontFamily: "'IBM Plex Mono', monospace", color: T.charcoal500 }}>PARTICIPANT ID</th>
                       <th className="px-6 py-4 text-xs font-medium" style={{ fontFamily: "'IBM Plex Mono', monospace", color: T.charcoal500 }}>LOCATION</th>
-                      <th className="px-6 py-4 text-xs font-medium" style={{ fontFamily: "'IBM Plex Mono', monospace", color: T.charcoal500 }}>SCREENING DATE</th>
+                      <th className="px-6 py-4 text-xs font-medium" style={{ fontFamily: "'IBM Plex Mono', monospace", color: T.charcoal500 }}>LIFECYCLE STAGE</th>
                       <th className="px-6 py-4 text-xs font-medium" style={{ fontFamily: "'IBM Plex Mono', monospace", color: T.charcoal500 }}>RISK FLAG</th>
                       <th className="px-6 py-4 text-xs font-medium text-right" style={{ fontFamily: "'IBM Plex Mono', monospace", color: T.charcoal500 }}>ACTION</th>
                     </tr>
@@ -442,42 +441,71 @@ export function AdminDashboard({ notify, logout }) {
                         </td>
                       </tr>
                     ) : (
-                      queueData.map((r, i) => (
-                        <tr 
-                          key={i} 
-                          className="hover:bg-gray-50 transition-colors"
-                          style={{ borderBottom: i === queueData.length - 1 ? "none" : `1px solid ${T.line}` }}
-                        >
-                          <td className="px-6 py-4 text-sm font-bold" style={{ fontFamily: "'IBM Plex Mono', monospace", color: T.goldDeep }}>
-                            {r.mem_scrn_part_id || r.participant_id || 'Unknown'}
-                          </td>
-                          <td className="px-6 py-4 text-sm font-medium" style={{ fontFamily: "'IBM Plex Sans', sans-serif", color: T.charcoal700 }}>
-                            {r.mem_scrn_q17 || r.location || 'Dharavi'}
-                          </td>
-                          <td className="px-6 py-4 text-sm" style={{ fontFamily: "'IBM Plex Sans', sans-serif", color: T.charcoal700 }}>
-                            {r.record_date ? (typeof r.record_date === 'number' ? new Date(r.record_date * 1000).toLocaleDateString() : new Date(r.record_date).toLocaleDateString()) : new Date().toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4">
-                            {r.mem_scrn_q24 == 1 ? (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium" style={{ background: T.redTint, color: T.redDeep }}>
-                                <span className="w-1.5 h-1.5 rounded-full bg-current"></span> High Risk
+                      queueData.map((r, i) => {
+                        let payload = {};
+                        if (r.mem_scrn_q30) {
+                          try { payload = JSON.parse(r.mem_scrn_q30); } catch (e) {}
+                        }
+                        
+                        let stageLabel = "1/6 Demographics Initiated";
+                        let stageStyle = "bg-slate-100 text-slate-800 border-slate-300";
+                        if (payload.community_perception) {
+                          stageLabel = "6/6 Fully Screened & Finalized";
+                          stageStyle = "bg-emerald-100 text-emerald-800 border-emerald-300";
+                        } else if (payload.health_counseling_notes || payload.phq9_depression_score) {
+                          stageLabel = "5/6 Counseling Completed";
+                          stageStyle = "bg-purple-100 text-purple-800 border-purple-300";
+                        } else if (payload.referral_confirmation_date || payload.treatment_adherence_status) {
+                          stageLabel = "4/6 Referral Linkages Set";
+                          stageStyle = "bg-indigo-100 text-indigo-800 border-indigo-300";
+                        } else if (payload.overall_risk_rating || payload.cvd_risk_assessment) {
+                          stageLabel = "3/6 Doctor Exam Completed";
+                          stageStyle = "bg-blue-100 text-blue-800 border-blue-300";
+                        } else if (payload.bp_systolic || payload.random_blood_glucose || payload.height_cm) {
+                          stageLabel = "2/6 Nurse Vitals & Labs";
+                          stageStyle = "bg-amber-100 text-amber-800 border-amber-300";
+                        }
+
+                        return (
+                          <tr 
+                            key={i} 
+                            className="hover:bg-gray-50 transition-colors"
+                            style={{ borderBottom: i === queueData.length - 1 ? "none" : `1px solid ${T.line}` }}
+                          >
+                            <td className="px-6 py-4 text-sm font-bold" style={{ fontFamily: "'IBM Plex Mono', monospace", color: T.goldDeep }}>
+                              {r.mem_scrn_part_id || r.participant_id || 'Unknown'}
+                            </td>
+                            <td className="px-6 py-4 text-sm font-medium" style={{ fontFamily: "'IBM Plex Sans', sans-serif", color: T.charcoal700 }}>
+                              {r.mem_scrn_q17 || r.location || 'Dharavi'}
+                            </td>
+                            <td className="px-6 py-4 text-xs font-semibold">
+                              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border ${stageStyle}`}>
+                                <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+                                {stageLabel}
                               </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium" style={{ background: T.paper, border: `1px solid ${T.line}`, color: T.charcoal500 }}>
-                                <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Standard Risk
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <button 
-                              className="px-4 py-1.5 rounded-full text-xs font-medium transition-colors hover:bg-gray-100"
-                              style={{ fontFamily: "'IBM Plex Sans', sans-serif", border: `1px solid ${T.line}`, color: T.ink }}
-                            >
-                              View Details
-                            </button>
-                          </td>
-                        </tr>
-                      ))
+                            </td>
+                            <td className="px-6 py-4">
+                              {r.mem_scrn_q24 == 1 ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium" style={{ background: T.redTint, color: T.redDeep }}>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-current"></span> High Risk
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium" style={{ background: T.paper, border: `1px solid ${T.line}`, color: T.charcoal500 }}>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Standard Risk
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <button 
+                                className="px-4 py-1.5 rounded-full text-xs font-medium transition-colors hover:bg-gray-100 cursor-pointer"
+                                style={{ fontFamily: "'IBM Plex Sans', sans-serif", border: `1px solid ${T.line}`, color: T.ink }}
+                              >
+                                View Details
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>

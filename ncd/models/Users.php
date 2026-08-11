@@ -27,7 +27,7 @@ use yii\helpers\ArrayHelper;
  * @property integer $update_user
  * @property integer $user_type
  */
-class Users extends \yii\db\ActiveRecord  implements IdentityInterface
+class Users extends ActiveRecord implements IdentityInterface
 {
     const STATUS_ACTIVE = 1;
     /**
@@ -45,7 +45,7 @@ class Users extends \yii\db\ActiveRecord  implements IdentityInterface
     {
         return [
             [
-                'class' => TimestampBehavior::className(),
+                'class' => TimestampBehavior::class,
                 'createdAtAttribute' => 'create_time',
                 'updatedAtAttribute' => 'update_time',
                 'value' => date('U'),
@@ -106,22 +106,22 @@ class Users extends \yii\db\ActiveRecord  implements IdentityInterface
 
     public function beforeSave($insert)
     {
-        if(parent::beforeSave($insert))
-        {
-            if($this->password != "")
-                $this->setPassword($this->password);
-            
-            if($this->auth_key == "")
-            {
-                $this->generateAuthKey();
+        if (parent::beforeSave($insert)) {
+            // Only hash password if provided as plain text (not already a 32-char hex MD5 hash)
+            if (!empty($this->password)) {
+                if ($insert || $this->isAttributeChanged('password')) {
+                    if (!preg_match('/^[a-f0-9]{32}$/i', $this->password)) {
+                        $this->setPassword($this->password);
+                    }
+                }
             }
-            else
-            {
-                if($this->password == "")
-                    unset($this->password);
+            
+            if (empty($this->auth_key)) {
+                $this->generateAuthKey();
             }
             return true;
         }
+        return false;
     }
 
     /**

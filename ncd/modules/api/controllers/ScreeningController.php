@@ -83,22 +83,56 @@ class ScreeningController extends Controller
             $db = Yii::$app->db;
             $tableName = 'cms_screening';
             
-            // Automatically append metadata
-            $payload['record_date'] = strtotime(date('Y-m-d H:i:s'));
-            
-            // Assume the participant ID is passed in the payload
-            if (empty($payload['mem_scrn_part_id'])) {
-                 // Generate a new participant ID if new
-                 $payload['mem_scrn_part_id'] = 'S-' . rand(1000, 9999);
-            }
+            $partId = $payload['mem_scrn_part_id'] ?? ('NCD-MUM-' . rand(1000, 9999));
+            $payload['mem_scrn_part_id'] = $partId;
+            $payload['record_date'] = time();
 
-            // Insert into Database
-            $db->createCommand()->insert($tableName, $payload)->execute();
+            // Check if participant record already exists in database
+            $existing = (new \yii\db\Query())
+                ->from($tableName)
+                ->where(['mem_scrn_part_id' => $partId])
+                ->one();
+
+            if ($existing) {
+                // Merge existing JSON payload with incoming section payload
+                $oldJson = !empty($existing['mem_scrn_q30']) ? json_decode($existing['mem_scrn_q30'], true) : [];
+                if (!is_array($oldJson)) $oldJson = [];
+                
+                $merged = array_merge($oldJson, $payload);
+                $merged['mem_scrn_q30'] = json_encode($merged);
+                
+                // Keep core columns populated
+                $updateCols = [
+                    'mem_scrn_q16' => $merged['fullName'] ?? $merged['mem_scrn_q16'] ?? $existing['mem_scrn_q16'],
+                    'mem_scrn_q1' => (int)($merged['age'] ?? $merged['mem_scrn_q1'] ?? $existing['mem_scrn_q1']),
+                    'mem_scrn_q2' => ($merged['gender'] === 'Male' || $merged['mem_scrn_q2'] == '1') ? '1' : '2',
+                    'mem_scrn_q17' => $merged['location'] ?? $merged['mem_scrn_q17'] ?? $existing['mem_scrn_q17'],
+                    'mem_scrn_q30' => $merged['mem_scrn_q30'],
+                    'update_time' => time()
+                ];
+
+                $db->createCommand()->update($tableName, $updateCols, ['mem_scrn_part_id' => $partId])->execute();
+            } else {
+                // Insert new participant initial screening (Field Supervisor Section 1)
+                $payload['mem_scrn_q30'] = json_encode($payload);
+                $insertCols = [
+                    'mem_scrn_part_id' => $partId,
+                    'mem_scrn_q16' => $payload['fullName'] ?? $payload['mem_scrn_q16'] ?? 'Participant',
+                    'mem_scrn_q1' => (int)($payload['age'] ?? $payload['mem_scrn_q1'] ?? 45),
+                    'mem_scrn_q2' => ($payload['gender'] === 'Male' || $payload['mem_scrn_q2'] == '1') ? '1' : '2',
+                    'mem_scrn_q17' => $payload['location'] ?? $payload['mem_scrn_q17'] ?? 'Dharavi',
+                    'mem_scrn_q30' => $payload['mem_scrn_q30'],
+                    'record_date' => time(),
+                    'status' => '1'
+                ];
+
+                $db->createCommand()->insert($tableName, $insertCols)->execute();
+            }
 
             return [
                 'status' => 'success',
-                'message' => 'Screening submitted successfully',
-                'record_id' => $payload['mem_scrn_part_id']
+                'message' => 'Screening section saved successfully',
+                'participant_id' => $partId
             ];
 
         } catch (\Exception $e) {

@@ -66,11 +66,11 @@ class DashboardController extends Controller
     public function actionScreeninglist()
     {
         try {
-            $query = (new \yii\db\Query())->from('{{%screening}}')->orderBy(["mem_scrn_part_id" => SORT_ASC]);
+            $query = (new \yii\db\Query())->from('{{%screening}}')->orderBy(["mem_scrn_part_id" => SORT_DESC]);
             $screenings = $query->all();
         } catch (\Exception $e) {
             try {
-                $query = (new \yii\db\Query())->from('{{%dg}}')->orderBy(["dg_id" => SORT_ASC]);
+                $query = (new \yii\db\Query())->from('{{%dg}}')->orderBy(["dg_id" => SORT_DESC]);
                 $screenings = $query->all();
             } catch (\Exception $ex) {
                 $screenings = [];
