@@ -61,6 +61,7 @@ class UsersController extends Controller
             
             $user['role'] = !empty($user['state_code']) ? $user['state_code'] : null;
             $user['privileges'] = !empty($user['signedin_loc']) ? $user['signedin_loc'] : null;
+            $user['location'] = !empty($user['loc_code']) ? $user['loc_code'] : 'Dharavi';
         }
         
         return [
@@ -87,8 +88,12 @@ class UsersController extends Controller
         if (empty($model->full_name)) {
             $model->full_name = !empty($payload['full_name']) ? trim($payload['full_name']) : $model->users_name;
         }
-        if (empty($model->loc_code)) {
-            $model->loc_code = !empty($payload['loc_code']) ? $payload['loc_code'] : 'DH';
+        if (!empty($payload['location'])) {
+            $model->loc_code = trim($payload['location']);
+        } elseif (!empty($payload['loc_code'])) {
+            $model->loc_code = trim($payload['loc_code']);
+        } else {
+            $model->loc_code = 'Dharavi';
         }
 
         // Store role string in state_code and privileges in signedin_loc
@@ -165,8 +170,10 @@ class UsersController extends Controller
         if (empty($model->full_name)) {
             $model->full_name = !empty($payload['full_name']) ? $payload['full_name'] : $model->users_name;
         }
-        if (empty($model->loc_code)) {
-            $model->loc_code = 'DH';
+        if (!empty($payload['location'])) {
+            $model->loc_code = trim($payload['location']);
+        } elseif (!empty($payload['loc_code'])) {
+            $model->loc_code = trim($payload['loc_code']);
         }
 
         // Update role string in state_code and privileges in signedin_loc

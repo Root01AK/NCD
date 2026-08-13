@@ -3,6 +3,7 @@ import { Wifi, WifiOff, FileText, ArrowRight, LogOut, Loader2, Home, FolderSync,
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { getQueue, deleteFromQueue } from "../../lib/db";
+import { Mark } from "../../components/ui/Mark";
 
 export const SECTION_NAMES = {
   1: "Demographics (Sec 1)",
@@ -31,9 +32,20 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
   const [syncQueue, setSyncQueue] = useState([]);
   const [syncing, setSyncing] = useState(false);
 
-  // Load active user & role details
-  const userString = localStorage.getItem('ncd_user') || localStorage.getItem('icc_user');
-  const user = userString ? JSON.parse(userString) : { username: 'DEO', role_name: 'Field Supervisor', role_id: 2, assigned_location: 'Dharavi' };
+  // Load active user & role details safely
+  const getUserSafely = () => {
+    try {
+      const userString = localStorage.getItem('ncd_user') || localStorage.getItem('icc_user');
+      if (!userString || userString === 'undefined' || userString === 'null') return null;
+      const parsed = JSON.parse(userString);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const parsedUser = getUserSafely();
+  const user = parsedUser || { username: 'DEO', role_name: 'Field Supervisor', role_id: 2, assigned_location: 'Dharavi' };
 
   // Dynamic user privilege configuration
   let userPrivileges = user.privileges;
@@ -41,7 +53,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
     try { userPrivileges = JSON.parse(userPrivileges); } catch (e) { userPrivileges = null; }
   }
   if (!Array.isArray(userPrivileges) || userPrivileges.length === 0) {
-    const rLower = (user.role_name || "").toLowerCase();
+    const rLower = String(user?.role_name || "").toLowerCase();
     userPrivileges = rLower.includes("nurse") ? [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
       : rLower.includes("doctor") ? [12, 13]
       : rLower.includes("counselor") ? [8, 15]
@@ -95,7 +107,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
           {
             sur_id: 1,
             sur_code: "NCD-MUM-2026",
-            sur_title: roleConfig.surveyTitle,
+            sur_title: "MUMBAI’S NCD SURVEY — PHASE II",
             location: user.assigned_location || "Dharavi",
             assigned_role: user.role_name || "Field Supervisor"
           }
@@ -107,7 +119,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
         {
           sur_id: 1,
           sur_code: "NCD-MUM-2026",
-          sur_title: roleConfig.surveyTitle,
+          sur_title: "MUMBAI’S NCD SURVEY — PHASE II",
           location: user.assigned_location || "Dharavi",
           assigned_role: user.role_name || "Field Supervisor"
         }
@@ -185,55 +197,30 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
   return (
     <div className="flex flex-col h-screen w-screen bg-[#F8FAFC] font-sans text-slate-900 overflow-hidden" style={{ fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif" }}>
       
-      {/* Redesigned Header in Light Theme */}
-      <header className="flex flex-col md:flex-row items-stretch md:items-center justify-between px-4 sm:px-8 py-3 sm:py-3.5 bg-white border-b border-slate-200 shrink-0 shadow-2xs gap-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/yrg-logo.png" alt="YRG Care" className="w-8 sm:w-9 h-8 sm:h-9 object-contain" />
-            <div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-slate-500 font-mono flex items-center gap-1">
-                  <Shield size={11} className="text-amber-500" /> {workstationTitle}
-                </span>
-                {/* Operator Specific Assigned Location Pill */}
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200 font-mono shadow-2xs">
-                  <MapPin size={11} className="text-amber-600" /> Center: {user.assigned_location || "Dharavi"}
-                </span>
-              </div>
-              <p className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
-                {user.username}
-              </p>
-            </div>
-          </div>
+      {/* Sleek, Modern, Uncluttered DEO Portal Header */}
+      <header className="sticky top-0 z-40 bg-white border-b border-slate-200 px-4 sm:px-8 py-3 flex items-center justify-between shadow-2xs gap-4 shrink-0">
+        
+        {/* Left: YRG Logo + Mark + Clean Role & Center Badge */}
+        <div className="flex items-center gap-3">
+          <img src="/yrg-logo.png" alt="YRG Care" className="w-8 h-8 object-contain shrink-0" />
+          <div className="h-5 w-px bg-slate-200" />
+          <Mark size={20} showSub={false} />
 
-          <div className="flex md:hidden items-center gap-2">
-            <button
-              onClick={() => setOnline(!online)}
-              className="p-2 rounded-full text-xs font-semibold shadow-2xs border cursor-pointer"
-              style={{
-                background: online ? '#ecfdf5' : '#fef2f2',
-                color: online ? '#065f46' : '#991b1b',
-                borderColor: online ? '#a7f3d0' : '#fecaca'
-              }}
-              title={online ? "Online" : "Offline"}
-            >
-              {online ? <Wifi size={14} /> : <WifiOff size={14} />}
-            </button>
-            <button
-              onClick={logout}
-              className="p-2 rounded-full text-slate-700 bg-white border border-slate-200 cursor-pointer"
-              title="Logout"
-            >
-              <LogOut size={14} className="text-slate-500" />
-            </button>
+          <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-slate-200">
+            <span className="text-xs font-extrabold text-slate-900 font-mono tracking-tight">
+              {user.role_name || "DEO Portal"}
+            </span>
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200 font-mono shadow-2xs">
+              <MapPin size={11} className="text-amber-600 shrink-0" /> {user.assigned_location || "Dharavi"}
+            </span>
           </div>
         </div>
 
-        {/* Navigation Bar / Tabs */}
-        <div className="flex items-center gap-1 bg-slate-100/80 border border-slate-200 rounded-full p-1 shadow-2xs shrink-0 overflow-x-auto max-w-full no-scrollbar">
+        {/* Center: Navigation Bar / Elevated Tabs */}
+        <div className="flex items-center gap-1 bg-slate-100/90 border border-slate-200/80 rounded-full p-1 shadow-inner overflow-x-auto max-w-full no-scrollbar">
           {[
             { id: "dashboard", label: "Dashboard", icon: Home },
-            { id: "completed", label: "Completed Records", icon: ClipboardCheck, badge: completedRecords.length },
+            { id: "completed", label: "Completed", icon: ClipboardCheck, badge: completedRecords.length },
             { id: "sync", label: "Sync Queue", icon: FolderSync, badge: syncQueue.length },
             { id: "profile", label: "Profile", icon: UserCircle2 }
           ].map((n) => {
@@ -243,12 +230,14 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
               <button 
                 key={n.id} 
                 onClick={() => setCurrentTab(n.id)}
-                className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full transition-all text-xs font-bold cursor-pointer shrink-0 whitespace-nowrap ${isActive ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'}`}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full transition-all text-xs font-black cursor-pointer shrink-0 whitespace-nowrap ${
+                  isActive ? 'bg-[#f5d40b] text-[#4a4a4c] font-black shadow-2xs border border-[#e5c40a]' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                }`}
               >
-                <Icon size={14} className={isActive ? 'text-amber-400' : 'text-slate-400'} />
+                <Icon size={14} className={isActive ? 'text-[#4a4a4c]' : 'text-slate-400'} />
                 <span>{n.label}</span>
                 {n.badge > 0 && (
-                  <span className={`inline-flex items-center justify-center text-[9px] font-black rounded-full px-1.5 py-0.5 ml-1 min-w-[16px] h-4 ${n.id === 'sync' ? 'bg-amber-500 text-slate-950' : 'bg-slate-200 text-slate-800'}`}>
+                  <span className={`inline-flex items-center justify-center text-[9px] font-black rounded-full px-1.5 py-0.5 ml-1 min-w-[16px] h-4 ${isActive ? 'bg-[#4a4a4c] text-[#f5d40b]' : 'bg-[#f5d40b]/20 text-[#4a4a4c] border border-[#f5d40b]'}`}>
                     {n.badge}
                   </span>
                 )}
@@ -257,27 +246,37 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
           })}
         </div>
 
-        {/* Desktop Actions & Network Status */}
-        <div className="hidden md:flex items-center gap-3">
+        {/* Right: Network Status + User Avatar & Logout */}
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setOnline(!online)}
-            className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold shadow-2xs transition-all cursor-pointer"
+            className="hidden sm:flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold transition-all cursor-pointer shadow-2xs border"
             style={{
               background: online ? '#ecfdf5' : '#fef2f2',
               color: online ? '#065f46' : '#991b1b',
-              border: `1px solid ${online ? '#a7f3d0' : '#fecaca'}`
+              borderColor: online ? '#a7f3d0' : '#fecaca'
             }}
+            title={online ? "Live Online Sync Active" : "Offline Storage Mode"}
           >
             {online ? <Wifi size={13} /> : <WifiOff size={13} />}
-            <span>{online ? "Online (Live Sync)" : "Offline Mode"}</span>
+            <span className="font-mono text-[11px]">{online ? "Online" : "Offline"}</span>
           </button>
+
+          <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+            <div className="w-8 h-8 rounded-full bg-[#f5d40b]/20 text-[#4a4a4c] border border-[#f5d40b] font-black flex items-center justify-center text-xs shadow-2xs font-mono">
+              {String(user?.username || "DEO").substring(0, 2).toUpperCase()}
+            </div>
+            <span className="hidden lg:inline text-xs font-bold text-slate-800 font-mono">
+              {user.username}
+            </span>
+          </div>
           
           <button
             onClick={logout}
-            className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 transition-all shadow-2xs cursor-pointer"
+            className="p-2 rounded-full text-slate-600 hover:text-red-700 bg-slate-50 hover:bg-red-50 border border-slate-200 transition-colors shadow-2xs cursor-pointer ml-1"
+            title="Logout"
           >
-            <LogOut size={13} className="text-slate-500" />
-            <span>Logout</span>
+            <LogOut size={14} />
           </button>
         </div>
       </header>
@@ -396,7 +395,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                 <p className="text-xs text-slate-500 mt-0.5 font-medium">Completed participant screenings recorded for {user.assigned_location || "Dharavi"} Center.</p>
               </div>
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-900 text-white font-mono shadow-2xs">
-                Total Completed: 18 Records
+                Total Completed: {completedRecords.length} {completedRecords.length === 1 ? 'Record' : 'Records'}
               </span>
             </div>
 
@@ -414,25 +413,33 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {completedRecords.map((r, i) => (
-                    <tr key={i} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="px-6 py-4 font-mono font-bold text-slate-900">{r.participant_id}</td>
-                      <td className="px-6 py-4 font-bold text-slate-800">{r.fullName}</td>
-                      <td className="px-6 py-4 text-slate-600">{r.age} yrs • {r.gender}</td>
-                      <td className="px-6 py-4 font-mono text-slate-500">{r.date}</td>
-                      <td className="px-6 py-4 text-slate-700">{r.location}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${r.risk.includes('High') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
-                          {r.risk}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-[11px]">
-                          <CheckCircle2 size={12} /> {r.status}
-                        </span>
+                  {completedRecords.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-mono font-medium">
+                        No completed screening records found for {user.assigned_location || "Dharavi"} Center yet.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    completedRecords.map((r, i) => (
+                      <tr key={i} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="px-6 py-4 font-mono font-bold text-slate-900">{r.participant_id}</td>
+                        <td className="px-6 py-4 font-bold text-slate-800">{r.fullName}</td>
+                        <td className="px-6 py-4 text-slate-600">{r.age} yrs • {r.gender}</td>
+                        <td className="px-6 py-4 font-mono text-slate-500">{r.date}</td>
+                        <td className="px-6 py-4 text-slate-700">{r.location}</td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${r.risk.includes('High') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
+                            {r.risk}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-[11px]">
+                            <CheckCircle2 size={12} /> {r.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -468,8 +475,10 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                 {syncQueue.map((item, index) => (
                   <div key={index} className="bg-white rounded-2xl p-4 border border-slate-200 flex justify-between items-center shadow-2xs">
                     <div>
-                      <p className="font-bold text-slate-800 text-sm">{item.fullName || "Unnamed Participant"}</p>
-                      <p className="text-[11px] text-slate-400 font-mono mt-0.5">ID: {item.participant_id} • Age: {item.age} • Center: {item.location || user.assigned_location || 'Dharavi'}</p>
+                      <p className="font-bold text-slate-800 text-sm font-mono">
+                        {(item.fullName && item.fullName !== "Unnamed Participant") ? item.fullName : (item.participant_id || item.mem_scrn_part_id || "Participant")}
+                      </p>
+                      <p className="text-[11px] text-slate-400 font-mono mt-0.5">ID: {item.participant_id || 'N/A'} {item.age ? `• Age: ${item.age}` : ''} • Center: {item.location || user.assigned_location || 'Dharavi'}</p>
                     </div>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
                       Pending Sync
@@ -513,19 +522,15 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
 
       </div>
 
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 px-8 py-3.5 flex items-center justify-between text-xs text-slate-500 font-medium shrink-0 z-40">
+      {/* Simple Clean Footer */}
+      <footer className="bg-white border-t border-slate-200 px-6 sm:px-8 py-3 flex items-center justify-between text-xs text-slate-500 font-medium shrink-0 z-40">
         <div className="flex items-center gap-2">
           <img src="/yrg-logo.png" alt="YRG Care" className="w-5 h-5 object-contain" />
-          <span>YRGMERF &copy; 2026 • NCD Healthcare Screening Platform v2.4</span>
+          <span>YRGMERF &copy; {new Date().getFullYear()} • NCD Platform</span>
         </div>
-        <div className="flex items-center gap-4 font-mono text-[11px] text-slate-400">
-          <span>Operator: {user.username}</span>
-          <span>•</span>
-          <span>Center: {user.assigned_location || "Dharavi"}</span>
-          <span>•</span>
-          <span>Confidential Clinical System</span>
-        </div>
+        <span className="font-mono text-[11px] text-slate-400">
+          Confidential Clinical System
+        </span>
       </footer>
 
     </div>

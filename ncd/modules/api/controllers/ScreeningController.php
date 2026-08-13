@@ -143,4 +143,36 @@ class ScreeningController extends Controller
             ];
         }
     }
+
+    /**
+     * POST /api/v1/screening/delete
+     * Permanently deletes a screening record from cms_screening database table.
+     */
+    public function actionDelete()
+    {
+        $request = Yii::$app->request;
+        $payload = $request->getBodyParams();
+        $partId = $payload['mem_scrn_part_id'] ?? $payload['participant_id'] ?? null;
+        $id = $payload['mem_scrn_id'] ?? null;
+
+        if (!$partId && !$id) {
+            Yii::$app->response->statusCode = 400;
+            return ['status' => 'error', 'message' => 'Participant ID required'];
+        }
+
+        try {
+            $db = Yii::$app->db;
+            if ($id) {
+                $db->createCommand()->delete('cms_screening', ['mem_scrn_id' => $id])->execute();
+            }
+            if ($partId) {
+                $db->createCommand()->delete('cms_screening', ['mem_scrn_part_id' => $partId])->execute();
+            }
+
+            return ['status' => 'success', 'message' => 'Participant screening record deleted successfully'];
+        } catch (\Exception $e) {
+            Yii::$app->response->statusCode = 500;
+            return ['status' => 'error', 'message' => 'Failed to delete record: ' . $e->getMessage()];
+        }
+    }
 }

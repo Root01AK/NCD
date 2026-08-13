@@ -32,7 +32,8 @@ export function AdminDashboard({ notify, logout }) {
     const isUnlocked = localStorage.getItem('ncd_phase1_unlocked') === 'true';
     return isUnlocked ? (localStorage.getItem('ncd_selected_phase') || "phase2") : "phase2";
   });
-  
+  const [selectedAdminLocation, setSelectedAdminLocation] = useState("All");
+
   // Live Queue State
   const [queueData, setQueueData] = useState([]);
   const [loadingQueue, setLoadingQueue] = useState(false);
@@ -164,6 +165,25 @@ export function AdminDashboard({ notify, logout }) {
             {phase1Unlocked && (
               <option value="phase1" className="bg-slate-900 text-white">Phase I: Historical Baseline</option>
             )}
+          </select>
+        </div>
+
+        {/* Location Selector Dropdown */}
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-slate-800 shadow-2xs border border-slate-300 shrink-0 text-xs font-bold">
+          <MapPin size={14} className="text-amber-600 shrink-0" />
+          <select 
+            value={selectedAdminLocation}
+            onChange={(e) => {
+              setSelectedAdminLocation(e.target.value);
+              notify("info", "Location Filtered", `Filtered system view to ${e.target.value}.`);
+            }}
+            className="bg-transparent text-xs font-bold text-slate-900 outline-none cursor-pointer"
+          >
+            <option value="All">All Centers / Locations</option>
+            <option value="Dharavi">Dharavi</option>
+            <option value="Malvani">Malvani</option>
+            <option value="Vashi">Vashi</option>
+            <option value="Others">Others</option>
           </select>
         </div>
 
@@ -404,7 +424,7 @@ export function AdminDashboard({ notify, logout }) {
 
         {navTab === "surveys" && <SurveyManagement notify={notify} setNavTab={setNavTab} setSelectedSurvey={setSelectedSurvey} phase={selectedPhase} />}
         {navTab === "survey-builder" && <SurveyBuilder notify={notify} selectedSurvey={selectedSurvey} onBack={() => setNavTab("surveys")} />}
-        {navTab === "participants" && <ParticipantManagement notify={notify} phase={selectedPhase} />}
+        {navTab === "participants" && <ParticipantManagement notify={notify} phase={selectedPhase} initialLocation={selectedAdminLocation} />}
         {navTab === "location" && <LocationMaster notify={notify} />}
         {navTab === "users" && <UserManagement notify={notify} />}
         {navTab === "profile" && <AdminProfile notify={notify} user={user} phase1Unlocked={phase1Unlocked} togglePhase1Lock={togglePhase1Lock} />}

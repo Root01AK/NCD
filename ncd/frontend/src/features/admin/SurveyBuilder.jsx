@@ -169,23 +169,48 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
     setQuestions(questions.map(q => {
       if (q.id === qId) {
         const currentOptions = Array.isArray(q.options) ? q.options : [];
-        return { ...q, options: [...currentOptions, `Option ${currentOptions.length + 1}`] };
+        const nextCode = String(currentOptions.length + 1);
+        return { ...q, options: [...currentOptions, { label: `Option ${nextCode}`, code: nextCode }] };
       }
       return q;
     }));
   };
 
-  const updateOption = (qId, optIdx, val) => {
+  const updateOptionLabel = (qId, optIdx, val) => {
     setQuestions(questions.map(q => {
       if (q.id === qId) {
         const currentOptions = Array.isArray(q.options) ? q.options : [];
         const newOpts = [...currentOptions];
-        newOpts[optIdx] = val;
+        const existing = newOpts[optIdx];
+        if (typeof existing === 'object' && existing !== null) {
+          newOpts[optIdx] = { ...existing, label: val };
+        } else {
+          newOpts[optIdx] = { label: val, code: String(optIdx + 1) };
+        }
         return { ...q, options: newOpts };
       }
       return q;
     }));
   };
+
+  const updateOptionCode = (qId, optIdx, val) => {
+    setQuestions(questions.map(q => {
+      if (q.id === qId) {
+        const currentOptions = Array.isArray(q.options) ? q.options : [];
+        const newOpts = [...currentOptions];
+        const existing = newOpts[optIdx];
+        if (typeof existing === 'object' && existing !== null) {
+          newOpts[optIdx] = { ...existing, code: val };
+        } else {
+          newOpts[optIdx] = { label: String(existing || ''), code: val };
+        }
+        return { ...q, options: newOpts };
+      }
+      return q;
+    }));
+  };
+
+  const updateOption = updateOptionLabel;
 
   const removeOption = (qId, optIdx) => {
     setQuestions(questions.map(q => {
@@ -432,24 +457,43 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
 
                         {/* Standard choice options (Dropdown, Radio, Checkbox) */}
                         {(q.type === "single_choice" || q.type === "multi_choice" || q.type === "dropdown") && (
-                          <div className="space-y-2 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
-                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 font-mono">Choices / Options</p>
-                            {(q.options || []).map((opt, oIdx) => (
-                              <div key={oIdx} className="flex items-center gap-2">
-                                {q.type === "single_choice" ? <div className="w-3 h-3 rounded-full border border-gray-400 shrink-0" /> : <div className="w-3 h-3 rounded border border-gray-400 shrink-0" />}
-                                <input 
-                                  type="text" 
-                                  value={opt}
-                                  onChange={(e) => updateOption(q.id, oIdx, e.target.value)}
-                                  className="flex-1 outline-none text-xs bg-white px-2 py-1 rounded border border-slate-200"
-                                  style={{ fontFamily: "'IBM Plex Sans', sans-serif", color: T.charcoal900 }}
-                                />
-                                <button onClick={() => removeOption(q.id, oIdx)} className="p-1 text-gray-400 hover:text-red-500"><Trash2 size={13} /></button>
-                              </div>
-                            ))}
+                          <div className="space-y-2.5 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono">Choices / Options & Option Codes</p>
+                              <span className="text-[10px] text-amber-700 font-mono font-bold">Codebook ID (1, 2, 11, 16...)</span>
+                            </div>
+                            {(q.options || []).map((opt, oIdx) => {
+                              const labelVal = typeof opt === 'object' && opt !== null ? opt.label : String(opt);
+                              const codeVal = typeof opt === 'object' && opt !== null ? (opt.code ?? String(oIdx + 1)) : String(oIdx + 1);
+
+                              return (
+                                <div key={oIdx} className="flex items-center gap-2">
+                                  {q.type === "single_choice" ? <div className="w-3 h-3 rounded-full border border-gray-400 shrink-0" /> : <div className="w-3 h-3 rounded border border-gray-400 shrink-0" />}
+                                  <input 
+                                    type="text" 
+                                    placeholder="Option text..." 
+                                    value={labelVal}
+                                    onChange={(e) => updateOptionLabel(q.id, oIdx, e.target.value)}
+                                    className="flex-1 outline-none text-xs bg-white px-2.5 py-1.5 rounded-xl border border-slate-200"
+                                    style={{ fontFamily: "'IBM Plex Sans', sans-serif", color: T.charcoal900 }}
+                                  />
+                                  <div className="flex items-center gap-1 bg-amber-50/90 px-2 py-1 rounded-xl border border-amber-200 shrink-0">
+                                    <span className="text-[10px] font-bold text-amber-900 font-mono">Code:</span>
+                                    <input 
+                                      type="text" 
+                                      placeholder={String(oIdx + 1)} 
+                                      value={codeVal}
+                                      onChange={(e) => updateOptionCode(q.id, oIdx, e.target.value)}
+                                      className="w-12 text-xs font-mono font-bold text-amber-950 bg-white px-1 py-0.5 rounded border border-amber-300 outline-none text-center"
+                                    />
+                                  </div>
+                                  <button onClick={() => removeOption(q.id, oIdx)} className="p-1 text-gray-400 hover:text-red-500"><Trash2 size={13} /></button>
+                                </div>
+                              );
+                            })}
                             <button 
                               onClick={() => addOption(q.id)}
-                              className="flex items-center gap-1.5 text-xs font-semibold hover:opacity-85 transition-opacity mt-2 text-sky-600"
+                              className="flex items-center gap-1.5 text-xs font-semibold hover:opacity-85 transition-opacity mt-2 text-sky-600 cursor-pointer"
                               style={{ fontFamily: "'IBM Plex Sans', sans-serif" }}
                             >
                               <Plus size={13} /> Add Option

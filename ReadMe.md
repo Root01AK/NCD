@@ -35,3 +35,10 @@ Once the Field Supervisor completed the Demographics section, in Staff Nurse log
 
 
 Workflow process Field Supervisor Start the survey where that is when a participant is create which will reflect in admin panel (we will store the entire data their), here the Field Supervisorhas access to Demographics section, here the workflow is once the Field Supervisor initiate the process and complete the Demographics section it will move two the queue in the Staff Nurse portal, where the staff nurse continue the survey from thier from the assigned section of them in the order and it move to the Doctor at section 12 & 13. & Case Management Coordinator section 14 & counselor 15 section and Field Supervisor login and in Queue it will have the participant -id which the Field Supervisor intiated and complete the section 16 this is lifecycle process please let me know if you have any doubts.
+
+
+cd /Users/kirubakaran/Desktop/NCD/ncd
+php -S 127.0.0.1:8080 -t web
+
+
+In Q9 Code 16 is exclusive. If ticked, no other box may be selected. and in Q9 If code 11 is not ticked, skip to Q11.If Q11 is 2 or 3 skip to Q13, and create a code book for every options, for every options it comes 1,2,3,4,5,6,7,8,9, so on. and in admin panel setup a proper code for every options.

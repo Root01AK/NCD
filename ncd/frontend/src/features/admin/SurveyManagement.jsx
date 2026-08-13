@@ -7,6 +7,7 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey }) {
   const [surveys, setSurveys] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [viewingCodebookSurvey, setViewingCodebookSurvey] = useState(null);
 
   useEffect(() => {
     fetchSurveys();
@@ -168,11 +169,19 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey }) {
                   
                   <div className="flex gap-2">
                     <button 
+                      onClick={() => setViewingCodebookSurvey(s)}
+                      className="px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs font-mono"
+                      title="View Option Codebook"
+                    >
+                      <FileText size={13} className="text-amber-600" />
+                      <span>Codebook</span>
+                    </button>
+                    <button 
                       onClick={() => {
                         setSelectedSurvey(s);
                         setNavTab("survey-builder");
                       }}
-                      className="p-2 rounded-full hover:bg-gray-50 transition-colors border"
+                      className="p-2 rounded-full hover:bg-gray-50 transition-colors border cursor-pointer"
                       style={{ borderColor: T.line, color: T.charcoal700 }}
                       title="Edit Schema"
                     >
@@ -180,7 +189,7 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey }) {
                     </button>
                     <button 
                       onClick={() => setNavTab("dashboard")}
-                      className="p-2 rounded-full hover:bg-gray-50 transition-colors border"
+                      className="p-2 rounded-full hover:bg-gray-50 transition-colors border cursor-pointer"
                       style={{ borderColor: T.line, color: T.charcoal700 }}
                       title="View Responses"
                     >
@@ -188,7 +197,7 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey }) {
                     </button>
                     <button 
                       onClick={() => handleDuplicate(s)}
-                      className="p-2 rounded-full hover:bg-gray-50 transition-colors border"
+                      className="p-2 rounded-full hover:bg-gray-50 transition-colors border cursor-pointer"
                       style={{ borderColor: T.line, color: T.charcoal700 }}
                       title="Duplicate Survey"
                     >
@@ -196,7 +205,7 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey }) {
                     </button>
                     <button 
                       onClick={() => handleDelete(s)}
-                      className="p-2 rounded-full hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-colors border"
+                      className="p-2 rounded-full hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-colors border cursor-pointer"
                       style={{ borderColor: T.line, color: T.charcoal700 }}
                       title="Delete Survey"
                     >
@@ -206,6 +215,86 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey }) {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Option Codebook Modal */}
+        {viewingCodebookSurvey && (
+          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-amber-50/50">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-slate-900">{viewingCodebookSurvey.sur_title}</h2>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 text-amber-900 font-mono">Survey Option Codebook</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5 font-mono">Numeric response codes (1, 2, 3, 11, 16...) for field data validation.</p>
+                </div>
+                <button 
+                  onClick={() => setViewingCodebookSurvey(null)}
+                  className="p-2 rounded-full hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto space-y-4 flex-1">
+                {(() => {
+                  let schemaQs = [];
+                  if (viewingCodebookSurvey.sur_url) {
+                    try {
+                      schemaQs = JSON.parse(viewingCodebookSurvey.sur_url);
+                    } catch (e) {}
+                  }
+                  if (!Array.isArray(schemaQs) || schemaQs.length === 0) {
+                    return (
+                      <div className="text-center py-12 text-slate-400 font-mono text-xs">
+                        No custom schema JSON found for this survey form.
+                      </div>
+                    );
+                  }
+
+                  return schemaQs.map((q, idx) => {
+                    const opts = Array.isArray(q.options) ? q.options : [];
+                    return (
+                      <div key={idx} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold text-slate-900 font-mono">{q.title || `Question ${idx + 1}`}</h4>
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700 uppercase">{q.type}</span>
+                        </div>
+                        {opts.length === 0 ? (
+                          <p className="text-[11px] text-slate-400 italic">Direct Text / Number response field (No option codes)</p>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                            {opts.map((opt, oIdx) => {
+                              const labelVal = typeof opt === 'object' && opt !== null ? opt.label : String(opt);
+                              const codeVal = typeof opt === 'object' && opt !== null ? (opt.code ?? String(oIdx + 1)) : String(oIdx + 1);
+                              return (
+                                <div key={oIdx} className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs">
+                                  <span className="text-slate-800 font-medium">{labelVal}</span>
+                                  <span className="font-mono font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded text-[10px]">Code {codeVal}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+
+              <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+                <button 
+                  onClick={() => setViewingCodebookSurvey(null)}
+                  className="px-6 py-2 rounded-full text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Close Codebook
+                </button>
+              </div>
+
+            </div>
           </div>
         )}
       </div>

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { FileText, ChevronLeft, Check, Calendar, Phone, User, ShieldCheck, ArrowRight, Save, MapPin, Activity, Stethoscope, HeartPulse, Brain, Link2, CheckCircle2, UserCheck, AlertCircle } from "lucide-react";
+import { FileText, ChevronLeft, ChevronDown, Check, Calendar, Phone, User, ShieldCheck, ArrowRight, Save, MapPin, Activity, Stethoscope, HeartPulse, Brain, Link2, CheckCircle2, UserCheck, AlertCircle, LayoutGrid, CheckSquare, ListFilter, X } from "lucide-react";
 import { T } from "../../lib/theme";
 import { saveToQueue } from "../../lib/db";
 import { api } from "../../lib/api";
+import { Mark } from "../../components/ui/Mark";
 
 // Helper to format Date to DD-MMM-YYYY
 function formatDateDDMMMYYYY(dateObj) {
@@ -13,22 +14,115 @@ function formatDateDDMMMYYYY(dateObj) {
   return `${d < 10 ? '0' + d : d}-${m}-${y}`;
 }
 
+export function generateParticipantID(loc = "Dharavi") {
+  const locLower = String(loc || "").toLowerCase();
+  let prefix = "DH";
+  if (locLower.includes("dharavi")) prefix = "DH";
+  else if (locLower.includes("malvani")) prefix = "ML";
+  else if (locLower.includes("vashi")) prefix = "VS";
+  else if (locLower.includes("other")) prefix = "OT";
+  else if (String(loc).trim().length >= 2) prefix = String(loc).trim().substring(0, 2).toUpperCase();
+
+  const num = Math.floor(1000 + Math.random() * 9000);
+  return `${prefix}-MUM-${num}`;
+}
+
+const DEFAULT_SURVEY_QUESTIONS = [
+  { id: "q1", title: "Q1. Age", type: "number", required: true, section: 1 },
+  { id: "q2", title: "Q2. Gender", type: "single_choice", options: ["Male", "Female", "Transgender"], required: true, section: 1 },
+  { id: "q3", title: "Q3. Site", type: "dropdown", options: ["Dharavi", "Malvani", "Vashi", "Others"], required: true, section: 1 },
+  { id: "q4", title: "Q4. Marital Status", type: "dropdown", options: ["Single", "Married", "Divorced", "Widowed"], required: false, section: 1 },
+  { id: "q5", title: "Q5. Highest Level of Education", type: "dropdown", options: ["No Formal Education", "Primary School", "High School", "Graduate", "Post-Graduate"], required: false, section: 1 },
+  { id: "q6", title: "Q6. Primary Occupation", type: "dropdown", options: ["Daily wage labourer", "Salaried employee", "Self-employed", "Unemployed", "Homemaker"], required: false, section: 1 },
+  { id: "q7", title: "Q7. Type of Housing", type: "dropdown", options: ["Slum", "Semi-pucca", "Pucca house", "Homeless"], required: false, section: 1 },
+  { id: "q8", title: "Q8. Community Perception & Demographics Notes", type: "single_choice", options: ["Positive Community Standing", "Moderate / Neutral", "Vulnerable / Needing Support"], required: false, section: 1 }
+];
+
+function getOptionCode(opt, oIdx = 0) {
+  if (typeof opt === 'object' && opt !== null) {
+    return String(opt.code ?? (oIdx + 1));
+  }
+  const str = String(opt || '');
+  const match = str.match(/^(?:Code\s*)?(\d+)/i);
+  return match ? match[1] : String(oIdx + 1);
+}
+
+function getOptionLabel(opt) {
+  if (typeof opt === 'object' && opt !== null) {
+    return String(opt.label || '');
+  }
+  return String(opt || '');
+}
+
+function isQuestionSkipped(q, customQuestions, data) {
+  const titleStr = String(q.title || "").trim();
+  const qMatch = titleStr.match(/^Q(\d+)/i);
+  const qNum = qMatch ? parseInt(qMatch[1]) : null;
+
+  // Rule 1: Skip Q10 if Q9 Code 11 is NOT ticked
+  if (qNum === 10 || titleStr.toLowerCase().includes("q10")) {
+    const q9 = (customQuestions || []).find(item => {
+      const t = String(item.title || "").toLowerCase();
+      return t.startsWith("q9") || t.includes("tobacco") || t.includes("substance");
+    });
+    if (q9) {
+      const q9Val = data[`custom_${q9.id}`] || data[q9.id];
+      const q9Arr = Array.isArray(q9Val) ? q9Val : (q9Val ? [q9Val] : []);
+      const q9Opts = Array.isArray(q9.options) ? q9.options : [];
+      
+      const hasCode11 = q9Arr.some(sel => {
+        const idx = q9Opts.findIndex(o => getOptionLabel(o) === getOptionLabel(sel));
+        const code = getOptionCode(sel, idx >= 0 ? idx : 10);
+        const label = getOptionLabel(sel).toLowerCase();
+        return code === "11" || label.includes("chewing") || label.includes("11");
+      });
+
+      if (!hasCode11) return true; // Skip Q10!
+    }
+  }
+
+  // Rule 2: Skip Q12 if Q11 is 2 or 3
+  if (qNum === 12 || titleStr.toLowerCase().includes("q12")) {
+    const q11 = (customQuestions || []).find(item => {
+      const t = String(item.title || "").toLowerCase();
+      return t.startsWith("q11") || t.includes("alcohol");
+    });
+    if (q11) {
+      const q11Val = data[`custom_${q11.id}`] || data[q11.id];
+      if (q11Val) {
+        const q11Opts = Array.isArray(q11.options) ? q11.options : [];
+        const idx = q11Opts.findIndex(o => getOptionLabel(o) === getOptionLabel(q11Val));
+        const code = getOptionCode(q11Val, idx >= 0 ? idx : 0);
+        const label = getOptionLabel(q11Val).toLowerCase();
+        
+        if (code === "2" || code === "3" || label.includes("occasional") || label.includes("never") || label.includes("no")) {
+          return true; // Skip Q12!
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
 export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   const [step, setStep] = useState(0); 
+  const [qPage, setQPage] = useState(0);
+  const [viewModes, setViewModes] = useState({});
+  const [openMultiDropdowns, setOpenMultiDropdowns] = useState({});
 
-  // Auto Participant ID & Current Date
-  const autoParticipantId = `NCD-MUM-${Math.floor(10000 + Math.random() * 90000)}`;
+  // Auto Participant ID in DH-MUM-0001 format & Current Date
   const currentDateFormatted = formatDateDDMMMYYYY(new Date());
 
   const [availableParticipants, setAvailableParticipants] = useState([
-    { id: "NCD-MUM-84920", name: "Rajesh Sharma", age: 48, gender: "Male", location: "Dharavi", status: "Demographics Completed", bp: "135/88", glucose: "142" },
-    { id: "NCD-MUM-84921", name: "Ananya Patil", age: 42, gender: "Female", location: "Dharavi", status: "Demographics Completed", bp: "120/80", glucose: "110" },
-    { id: "NCD-MUM-84922", name: "Suresh Pawar", age: 55, gender: "Male", location: "Dharavi", status: "Vitals Completed", bp: "148/95", glucose: "195" },
-    { id: "NCD-MUM-84925", name: "Meena M. Iyer", age: 39, gender: "Female", location: "Dharavi", status: "Demographics Completed", bp: "118/76", glucose: "105" }
+    { id: "DH-MUM-6589", age: 48, gender: "Male", location: "Dharavi", status: "Demographics Completed", bp: "135/88", glucose: "142" },
+    { id: "ML-MUM-4210", age: 42, gender: "Female", location: "Malvani", status: "Demographics Completed", bp: "120/80", glucose: "110" },
+    { id: "VS-MUM-5530", age: 55, gender: "Male", location: "Vashi", status: "Vitals Completed", bp: "148/95", glucose: "195" },
+    { id: "DH-MUM-3912", age: 39, gender: "Female", location: "Dharavi", status: "Demographics Completed", bp: "118/76", glucose: "105" }
   ]);
   
   const [data, setData] = useState({
-    participant_id: autoParticipantId,
+    participant_id: generateParticipantID("Dharavi"),
     screening_date: currentDateFormatted,
     raw_date: new Date().toISOString().split('T')[0],
     contact_number: "",
@@ -86,7 +180,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   const [customQuestions, setCustomQuestions] = useState([]);
 
   useEffect(() => {
-    // Parse custom survey questions if available from Admin Survey Builder
+    // 1. Check if participant has attached survey schema
     let loadedQs = null;
     if (participant && participant.sur_url) {
       try {
@@ -94,6 +188,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         if (Array.isArray(parsed) && parsed.length > 0) loadedQs = parsed;
       } catch (e) {}
     }
+    // 2. Check localStorage active questions from Admin Survey Builder
     if (!loadedQs) {
       const activeStr = localStorage.getItem('ncd_active_survey_questions');
       if (activeStr) {
@@ -103,10 +198,48 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         } catch (e) {}
       }
     }
-    if (loadedQs) {
+
+    if (loadedQs && loadedQs.length > 0) {
       setCustomQuestions(loadedQs);
+    } else {
+      // 3. Fetch active survey schema live from Admin backend API
+      api.get('/api/v1/surveymaster/index').then(res => {
+        if (res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
+          const activeSur = res.data.find(s => s.status === '1') || res.data[0];
+          if (activeSur && activeSur.sur_url) {
+            try {
+              const apiQs = JSON.parse(activeSur.sur_url);
+              if (Array.isArray(apiQs) && apiQs.length > 0) {
+                setCustomQuestions(apiQs);
+                return;
+              }
+            } catch (e) {}
+          }
+        }
+        setCustomQuestions(DEFAULT_SURVEY_QUESTIONS);
+      }).catch(() => {
+        setCustomQuestions(DEFAULT_SURVEY_QUESTIONS);
+      });
     }
   }, [participant]);
+
+  // Auto-capture Supervisor Location into Q3 (Site/Location) question
+  useEffect(() => {
+    if (customQuestions && customQuestions.length > 0 && data.location) {
+      const q3 = customQuestions.find(q => {
+        const titleLower = String(q.title || "").toLowerCase();
+        return titleLower.startsWith("q3") || titleLower.includes("site") || titleLower.includes("location");
+      });
+      if (q3) {
+        const customKey = `custom_${q3.id}`;
+        setData(d => ({
+          ...d,
+          [customKey]: d[customKey] || d.location,
+          [q3.id]: d[q3.id] || d.location
+        }));
+      }
+    }
+  }, [customQuestions, data.location]);
 
   useEffect(() => {
     const userString = localStorage.getItem('ncd_user') || localStorage.getItem('icc_user');
@@ -114,42 +247,89 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       try {
         const u = JSON.parse(userString);
         const role = u.role_name || "Field Supervisor";
+        const loc = u.assigned_location || "Dharavi";
         setData(d => ({
           ...d,
           user_name: u.username || "DEO",
           user_role: role,
-          location: u.assigned_location || "Dharavi"
+          location: loc,
+          participant_id: generateParticipantID(loc)
         }));
       } catch (e) {}
     }
 
-    // Fetch active backend list
+    // Fetch active backend list & combine with local queue
     api.get("/api/v1/dashboard/screeninglist").then(res => {
-      if (res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
-        const mapped = res.data.map(r => {
-          let rawPayload = {};
-          if (r.mem_scrn_q30) {
-            try { rawPayload = JSON.parse(r.mem_scrn_q30); } catch (e) {}
-          }
-          return {
-            id: r.mem_scrn_part_id || r.id || `NCD-MUM-${r.mem_scrn_id}`,
-            name: rawPayload.fullName || r.mem_scrn_q16 || 'Participant',
-            age: rawPayload.age || r.mem_scrn_q1 || 45,
-            gender: rawPayload.gender || (r.mem_scrn_q2 == "1" ? "Male" : "Female"),
-            location: rawPayload.location || r.mem_scrn_q17 || "Dharavi",
-            status: "Demographics Completed",
-            bp: rawPayload.bp_systolic ? `${rawPayload.bp_systolic}/${rawPayload.bp_diastolic}` : "130/84",
-            glucose: rawPayload.random_blood_glucose || "135",
-            rawPayload
-          };
+      let rawList = [];
+      if (res.status === 'success' && Array.isArray(res.data)) {
+        rawList = res.data;
+      }
+      
+      // Also check local offline queue
+      let localQueue = [];
+      try {
+        const localStr = localStorage.getItem('ncd_offline_queue');
+        if (localStr) {
+          const parsed = JSON.parse(localStr);
+          if (Array.isArray(parsed)) localQueue = parsed;
+        }
+      } catch (e) {}
+
+      const allRecords = [...localQueue, ...rawList];
+      const seenIds = new Set();
+      const uniqueParticipants = [];
+
+      allRecords.forEach((r, idx) => {
+        let rawPayload = {};
+        if (r.mem_scrn_q30) {
+          try { rawPayload = JSON.parse(r.mem_scrn_q30); } catch (e) {}
+        }
+
+        const partId = r.participant_id || r.mem_scrn_part_id || (r.mem_scrn_id ? `NCD-MUM-${r.mem_scrn_id}` : (r.id ? `NCD-MUM-${r.id}` : null));
+        
+        // Ignore invalid / undefined / duplicate IDs
+        if (!partId || partId.includes("undefined") || seenIds.has(partId)) {
+          return;
+        }
+
+        seenIds.add(partId);
+
+        const nameVal = rawPayload.fullName || r.fullName || r.mem_scrn_q16;
+        const displayName = (nameVal && nameVal !== "Unnamed Participant") ? nameVal : partId;
+        const ageVal = rawPayload.age || r.age || r.mem_scrn_q1 || "45";
+        const genderVal = rawPayload.gender || r.gender || (r.mem_scrn_q2 == "1" ? "Male" : "Female");
+        const locVal = rawPayload.location || r.location || r.mem_scrn_q17 || "Dharavi";
+
+        uniqueParticipants.push({
+          id: partId,
+          name: displayName,
+          age: ageVal,
+          gender: genderVal,
+          location: locVal,
+          status: r.status || "Demographics Completed",
+          bp: rawPayload.bp_systolic ? `${rawPayload.bp_systolic}/${rawPayload.bp_diastolic}` : "130/84",
+          glucose: rawPayload.random_blood_glucose || "135",
+          rawPayload
         });
-        setAvailableParticipants(mapped);
+      });
+
+      if (uniqueParticipants.length > 0) {
+        setAvailableParticipants(uniqueParticipants);
       }
     }).catch(e => console.error("Failed to load participant list", e));
   }, []);
 
-  const loggedInUserStr = localStorage.getItem('ncd_user') || localStorage.getItem('icc_user');
-  const loggedInUser = loggedInUserStr ? JSON.parse(loggedInUserStr) : null;
+  const getLoggedInUserSafely = () => {
+    try {
+      const str = localStorage.getItem('ncd_user') || localStorage.getItem('icc_user');
+      if (!str || str === 'undefined' || str === 'null') return null;
+      const parsed = JSON.parse(str);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (e) {
+      return null;
+    }
+  };
+  const loggedInUser = getLoggedInUserSafely();
   
   let userPrivileges = loggedInUser?.privileges;
   if (typeof userPrivileges === 'string') {
@@ -168,27 +348,62 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   const hasPrivilege = (modId) => userPrivileges.includes(modId);
   const isExistingParticipant = Boolean(data.participant_id && availableParticipants.some(p => p.id === data.participant_id));
   
-  let secTracker = 1;
-  const activeCustomQuestions = (customQuestions || []).filter(q => {
-    if (q.type === 'section_header' || (q.title && q.title.toLowerCase().startsWith('section '))) {
-      const match = q.title.match(/Section\s*(\d+)/i);
-      if (match) secTracker = parseInt(match[1]);
-      else if (q.section) secTracker = parseInt(q.section);
-    }
-    const secId = q.section ? parseInt(q.section) : secTracker;
-    if (secId === 16 && !isExistingParticipant) {
-      return false; // Hide Section 16 during initial creation
-    }
-    return hasPrivilege(secId);
-  });
-  const hasCustomQuestions = activeCustomQuestions.length > 0;
-
   const roleNameLower = (data.user_role || "Field Supervisor").toLowerCase();
   const isSupervisor = roleNameLower.includes("supervisor") || roleNameLower.includes("field");
   const isNurse = roleNameLower.includes("nurse");
   const isDoctor = roleNameLower.includes("doctor");
   const isCounselor = roleNameLower.includes("counselor");
   const isCoordinator = roleNameLower.includes("coordinator");
+
+  let secTracker = 1;
+  const activeCustomQuestions = (customQuestions || []).filter((q, idx) => {
+    const titleStr = String(q.title || "").trim();
+    const titleLower = titleStr.toLowerCase();
+    const qMatch = titleStr.match(/^Q(\d+)/i);
+
+    let qSec = q.section ? parseInt(q.section) : secTracker;
+
+    if (qMatch) {
+      const qNum = parseInt(qMatch[1]);
+      if (qNum >= 1 && qNum <= 8) qSec = 1;
+    } else if (
+      idx < 8 ||
+      titleLower.includes("age") || 
+      titleLower.includes("gender") || 
+      titleLower.includes("site") || 
+      titleLower.includes("location") || 
+      titleLower.includes("marital") || 
+      titleLower.includes("education") || 
+      titleLower.includes("occupation") || 
+      titleLower.includes("housing") || 
+      titleLower.includes("perception") || 
+      titleLower.includes("demographic")
+    ) {
+      qSec = 1;
+    }
+
+    if (q.type === 'section_header' || titleLower.startsWith('section ')) {
+      const match = titleStr.match(/Section\s*(\d+)/i);
+      if (match) secTracker = parseInt(match[1]);
+      else if (q.section) secTracker = parseInt(q.section);
+      qSec = secTracker;
+    }
+
+    if (isQuestionSkipped(q, customQuestions, data)) {
+      return false; // Dynamically skip Q10 or Q12 based on Q9 / Q11 responses!
+    }
+
+    if (isSupervisor) {
+      return qSec === 1; // Field Supervisor sees all Section 1 questions (Q1 to Q8)
+    }
+
+    if (qSec === 16 && !isExistingParticipant) {
+      return false; // Hide Section 16 during initial creation
+    }
+
+    return hasPrivilege(qSec);
+  });
+  const hasCustomQuestions = activeCustomQuestions.length > 0;
 
   const set = (k) => (v) => setData((d) => ({ ...d, [k]: v }));
 
@@ -268,7 +483,10 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         }
       }
 
-      notify("success", "Section Completed", `Participant ${data.participant_id} updated under ${data.user_role}.`);
+      const succMsg = isSupervisor 
+        ? `Participant ${data.participant_id} demographics saved & sent to Staff Nurse queue.`
+        : `Participant ${data.participant_id} updated under ${data.user_role}.`;
+      notify("success", isSupervisor ? "Demographics Completed" : "Section Completed", succMsg);
       onSubmit();
     } catch (err) {
       console.error(err);
@@ -281,32 +499,31 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   return (
     <div className="min-h-screen flex flex-col w-screen bg-[#F8FAFC] font-sans text-slate-900 overflow-hidden" style={{ fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif" }}>
       
-      {/* Top Fixed Header */}
-      <header className="flex flex-col md:flex-row items-stretch md:items-center justify-between px-4 sm:px-8 py-3 sm:py-3.5 bg-white border-b border-slate-200 shrink-0 shadow-2xs gap-3">
+      {/* Streamlined, Modern Clinical Entry Header */}
+      <header className="sticky top-0 z-40 bg-white border-b border-slate-200 px-6 sm:px-8 py-3 flex items-center justify-between shadow-2xs gap-4 shrink-0">
         <div className="flex items-center gap-3">
-          <button onClick={onCancel} className="rounded-full p-2 hover:bg-slate-100 transition-colors border border-slate-200 shrink-0">
+          <button onClick={onCancel} className="rounded-full p-1.5 hover:bg-slate-100 transition-colors border border-slate-200 shrink-0 cursor-pointer" title="Back to DEO Portal">
             <ChevronLeft size={18} className="text-slate-700" />
           </button>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-mono">
-                {participant?.sur_code || "NCD-MUM-2026"}
-              </span>
-              <span className="text-xs font-bold text-slate-500 font-mono">{data.user_role} Entry</span>
-            </div>
-            <h1 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
-              {participant?.sur_title || "MUMBAI’S NCD SURVEY — PHASE II"}
-            </h1>
+          
+          <img src="/yrg-logo.png" alt="YRG Care" className="w-8 h-8 object-contain shrink-0" />
+          <div className="h-5 w-px bg-slate-200" />
+          <Mark size={20} showSub={false} />
+
+          <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-slate-200">
+            <span className="text-xs font-extrabold text-slate-900 font-mono tracking-tight">
+              {data.user_role} Clinical Entry
+            </span>
           </div>
         </div>
 
-        {/* Assigned Location Pill & Exit Button */}
-        <div className="flex items-center justify-between md:justify-end gap-2 sm:gap-3 flex-wrap">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200 font-mono shadow-2xs">
-            <MapPin size={12} className="text-amber-600" /> Center: {data.location || "Dharavi"}
+        {/* Assigned Location Pill, Operator & Exit Button */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200 font-mono shadow-2xs">
+            <MapPin size={11} className="text-amber-600 shrink-0" /> Center: {data.location || "Dharavi"}
           </span>
 
-          <span className="hidden sm:inline-block text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+          <span className="hidden md:inline-block text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full border border-slate-200 font-mono">
             Operator: <strong>{data.user_name}</strong>
           </span>
 
@@ -337,8 +554,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       </div>
 
       {/* Main Form Body */}
-      <main className="flex-1 overflow-y-auto px-8 py-8 pb-24">
-        <div className="max-w-3xl mx-auto space-y-6">
+      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 pb-20">
+        <div className="max-w-6xl w-full mx-auto space-y-6">
 
           {/* STEP 0: PARTICIPANT SELECTION & INITIAL HEADER */}
           {step === 0 && (
@@ -375,7 +592,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                     <option value="">-- Choose Participant ID (Demographics Completed) --</option>
                     {availableParticipants.map(p => (
                       <option key={p.id} value={p.id}>
-                        {p.id} — {p.name} ({p.age} yrs, {p.gender}) [{p.location}]
+                        {p.id} ({p.age} yrs, {p.gender}) [{p.location}]
                       </option>
                     ))}
                   </select>
@@ -456,10 +673,10 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                 </button>
                 <button 
                   onClick={handleProceedNext}
-                  className="px-7 py-3 rounded-full text-xs font-bold bg-slate-900 text-white hover:bg-black transition-colors flex items-center gap-2.5 shadow-xs cursor-pointer"
+                  className="px-7 py-3 rounded-full text-xs font-black bg-[#f5d40b] text-[#4a4a4c] hover:bg-[#e0c20a] transition-all flex items-center gap-2.5 shadow-sm cursor-pointer border border-[#e5c40a]"
                 >
                   <span>Proceed to {data.user_role} Modules</span>
-                  <ArrowRight size={15} className="text-amber-400" />
+                  <ArrowRight size={15} className="text-[#4a4a4c]" />
                 </button>
               </div>
 
@@ -475,12 +692,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                   <h2 className="text-xl font-bold text-slate-900">
                     {isSupervisor ? "Field Supervisor Screening & Demographics Form" : `${data.user_role} Clinical Entry Form`}
                   </h2>
-                  <p className="text-xs text-slate-500 mt-1 font-medium">
-                    {data.fullName ? (
-                      <>Participant: <strong>{data.fullName}</strong> ({data.participant_id}) {data.age ? `• Age: ${data.age}` : ''} {data.gender ? `• ${data.gender}` : ''}</>
-                    ) : (
-                      <>Initiating Participant Screening ({data.participant_id})</>
-                    )}
+                  <p className="text-xs text-slate-500 mt-1 font-medium font-mono">
+                    Participant ID: <strong className="text-slate-900 font-bold">{data.participant_id}</strong> {data.age ? `• Age: ${data.age}` : ''} {data.gender ? `• ${data.gender}` : ''}
                   </p>
                 </div>
                 <span className="text-xs font-bold px-3 py-1 rounded-full bg-slate-900 text-white font-mono">
@@ -490,48 +703,77 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
               {/* Dynamic Survey Builder Questions Renderer */}
               {(() => {
-                const isExistingParticipant = Boolean(data.participant_id && availableParticipants.some(p => p.id === data.participant_id));
-                let currentSecId = 1;
-                const filteredCustomQuestions = (customQuestions || []).filter(q => {
-                  if (q.type === 'section_header' || (q.title && q.title.toLowerCase().startsWith('section '))) {
-                    const match = q.title.match(/Section\s*(\d+)/i);
-                    if (match) currentSecId = parseInt(match[1]);
-                    else if (q.section) currentSecId = parseInt(q.section);
-                  }
-                  const secId = q.section ? parseInt(q.section) : currentSecId;
-                  if (secId === 16 && !isExistingParticipant) {
-                    return false; // Hide Section 16 during initial creation
-                  }
-                  return hasPrivilege(secId);
-                });
-
+                const filteredCustomQuestions = activeCustomQuestions;
                 if (filteredCustomQuestions.length === 0) return null;
 
+                const questionsPerPage = 2;
+                const totalQPages = Math.ceil(filteredCustomQuestions.length / questionsPerPage);
+                const safeQPage = Math.min(qPage, totalQPages - 1);
+                const startIdx = safeQPage * questionsPerPage;
+                const currentBatch = filteredCustomQuestions.slice(startIdx, startIdx + questionsPerPage);
+
                 return (
-                  <div className="space-y-5 p-5 rounded-2xl bg-amber-50/50 border border-amber-200 shadow-2xs">
-                    <div className="text-xs font-bold text-amber-900 uppercase tracking-wider font-mono border-b border-amber-200/80 pb-2 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <FileText size={14} className="text-amber-700" /> Admin Custom Survey Questions ({filteredCustomQuestions.length} Questions)
+                  <div className="space-y-4 p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+                    {/* Clean Page Indicator */}
+                    <div className="text-xs font-bold text-slate-700 font-mono border-b border-slate-100 pb-2.5 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-slate-900 font-extrabold uppercase">
+                        <FileText size={14} className="text-amber-600" /> Page {safeQPage + 1} of {totalQPages}
                       </span>
-                      <span className="text-[10px] bg-amber-200/70 text-amber-950 px-2 py-0.5 rounded font-mono font-bold">LIVE ADMIN SYNC</span>
+                      <span className="text-[11px] bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-full font-mono font-bold">
+                        Questions {startIdx + 1}–{Math.min(startIdx + questionsPerPage, filteredCustomQuestions.length)} of {filteredCustomQuestions.length}
+                      </span>
                     </div>
-                    {filteredCustomQuestions.map((q, idx) => {
+
+                    {currentBatch.map((q, idx) => {
+                      const absoluteIdx = startIdx + idx;
                       const qType = q.type || 'short_text';
                       const opts = Array.isArray(q.options) ? q.options : [];
                       
                       if (qType === 'section_header') {
                         return (
-                          <div key={q.id || idx} className="pt-3 pb-1 border-b border-amber-200">
-                            <h3 className="text-sm font-black text-amber-950 tracking-tight uppercase font-mono">{q.title}</h3>
+                          <div key={q.id || absoluteIdx} className="pt-2 pb-1 border-b border-slate-100">
+                            <h3 className="text-xs font-black text-slate-900 tracking-tight uppercase font-mono">{q.title}</h3>
                           </div>
                         );
                       }
 
+                      // Determine view mode for question
+                      const userMode = viewModes[q.id];
+                      const effectiveMode = userMode || (opts.length > 5 ? "dropdown" : "grid");
+                      const qTitleDisplay = String(q.title || "").match(/^Q\d+/i) ? q.title : `${absoluteIdx + 1}. ${q.title}`;
+
                     return (
-                      <div key={q.id || idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-2">
-                        <label className="block text-xs font-bold text-slate-900">
-                          {idx + 1}. {q.title} {q.required && <span className="text-red-500">*</span>}
-                        </label>
+                      <div key={q.id || absoluteIdx} className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-2xs space-y-4 hover:border-slate-300 transition-all">
+                        
+                        {/* Question Header & Layout View Switcher */}
+                        <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                          <label className="block text-xs sm:text-sm font-extrabold text-slate-900 leading-relaxed flex-1">
+                            {qTitleDisplay} {q.required && <span className="text-red-500">*</span>}
+                          </label>
+
+                          {opts.length > 0 && (
+                            <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200/80 shadow-2xs shrink-0 font-mono">
+                              <button
+                                type="button"
+                                title="Dropdown View"
+                                onClick={() => setViewModes(prev => ({ ...prev, [q.id]: "dropdown" }))}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] flex items-center gap-1 transition-all cursor-pointer ${effectiveMode === "dropdown" ? 'bg-[#f5d40b] text-[#4a4a4c] font-black shadow-2xs' : 'text-slate-500 font-bold hover:bg-slate-200/60'}`}
+                              >
+                                <ChevronDown size={12} />
+                                <span>Dropdown</span>
+                              </button>
+                              <button
+                                type="button"
+                                title="Grid / Pills View"
+                                onClick={() => setViewModes(prev => ({ ...prev, [q.id]: "grid" }))}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] flex items-center gap-1 transition-all cursor-pointer ${effectiveMode === "grid" ? 'bg-[#f5d40b] text-[#4a4a4c] font-black shadow-2xs' : 'text-slate-500 font-bold hover:bg-slate-200/60'}`}
+                              >
+                                <LayoutGrid size={12} />
+                                <span>Grid</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
                         
                         {(qType === 'short_text') && (
                           <input 
@@ -539,7 +781,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                             placeholder="Enter text response..." 
                             value={data[`custom_${q.id}`] || data[q.id] || ''} 
                             onChange={(e) => updateCustomField(q, e.target.value)} 
-                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:border-amber-500" 
+                            className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-amber-400 shadow-2xs" 
                           />
                         )}
 
@@ -549,66 +791,200 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                             placeholder="Enter numerical value..." 
                             value={data[`custom_${q.id}`] || data[q.id] || ''} 
                             onChange={(e) => updateCustomField(q, e.target.value)} 
-                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:border-amber-500" 
+                            className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-amber-400 font-mono shadow-2xs" 
                           />
                         )}
 
-                        {(qType === 'dropdown') && (
-                          <select 
-                            value={data[`custom_${q.id}`] || data[q.id] || ''} 
-                            onChange={(e) => updateCustomField(q, e.target.value)} 
-                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 outline-none bg-white cursor-pointer focus:border-amber-500"
-                          >
-                            <option value="">-- Select Option --</option>
-                            {opts.map((opt, oIdx) => (
-                              <option key={oIdx} value={opt}>{opt}</option>
-                            ))}
-                          </select>
+                        {/* Single Choice (Dropdown vs Grid/Pills) */}
+                        {(qType === 'dropdown' || qType === 'single_choice' || qType === 'radio') && (
+                          effectiveMode === 'dropdown' ? (
+                            <select 
+                              value={data[`custom_${q.id}`] || data[q.id] || ''} 
+                              onChange={(e) => updateCustomField(q, e.target.value)} 
+                              className="w-full px-4 py-3 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 outline-none bg-white cursor-pointer focus:ring-2 focus:ring-amber-400 font-mono shadow-2xs"
+                            >
+                              <option value="">-- Select Option ({opts.length} choices) --</option>
+                              {opts.map((opt, oIdx) => {
+                                const labelText = getOptionLabel(opt);
+                                const codeText = getOptionCode(opt, oIdx);
+                                return (
+                                  <option key={oIdx} value={labelText}>[Code {codeText}] {labelText}</option>
+                                );
+                              })}
+                            </select>
+                          ) : (
+                            <div className="flex flex-wrap gap-2.5 pt-1">
+                              {opts.map((opt, oIdx) => {
+                                const labelText = getOptionLabel(opt);
+                                const codeText = getOptionCode(opt, oIdx);
+                                const isSel = (data[`custom_${q.id}`] || data[q.id]) === labelText;
+                                return (
+                                  <label 
+                                    key={oIdx} 
+                                    onClick={() => updateCustomField(q, labelText)} 
+                                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${isSel ? 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs ring-1 ring-amber-400' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}
+                                  >
+                                    <input type="radio" checked={isSel} onChange={() => {}} className="text-amber-600 focus:ring-0 cursor-pointer" />
+                                    <span>{labelText}</span>
+                                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-normal">Code {codeText}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )
                         )}
 
-                        {(qType === 'single_choice' || qType === 'radio') && (
-                          <div className="flex flex-wrap gap-2 pt-1">
-                            {opts.map((opt, oIdx) => {
-                              const isSel = (data[`custom_${q.id}`] || data[q.id]) === opt;
-                              return (
-                                <label 
-                                  key={oIdx} 
-                                  onClick={() => updateCustomField(q, opt)} 
-                                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-bold cursor-pointer transition-colors ${isSel ? 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'}`}
-                                >
-                                  <input type="radio" checked={isSel} onChange={() => {}} className="text-amber-600 focus:ring-0 cursor-pointer" />
-                                  <span>{opt}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        )}
-
+                        {/* Multi-Choice (Multi-Select Dropdown vs Grid/Pills) */}
                         {(qType === 'multi_choice' || qType === 'checkbox') && (
-                          <div className="flex flex-wrap gap-2 pt-1">
-                            {opts.map((opt, oIdx) => {
-                              const curVal = data[`custom_${q.id}`] || data[q.id];
-                              const curArr = Array.isArray(curVal) ? curVal : [];
-                              const isChecked = curArr.includes(opt);
-                              const toggleOpt = () => {
-                                if (isChecked) {
-                                  updateCustomField(q, curArr.filter(x => x !== opt));
-                                } else {
-                                  updateCustomField(q, [...curArr, opt]);
-                                }
-                              };
-                              return (
-                                <label 
-                                  key={oIdx} 
-                                  onClick={toggleOpt} 
-                                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-bold cursor-pointer transition-colors ${isChecked ? 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'}`}
-                                >
-                                  <input type="checkbox" checked={isChecked} onChange={() => {}} className="rounded text-amber-600 focus:ring-0 cursor-pointer" />
-                                  <span>{opt}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
+                          (effectiveMode === 'dropdown' || effectiveMode === 'multi') ? (
+                            <div className="relative">
+                              {(() => {
+                                const curVal = data[`custom_${q.id}`] || data[q.id];
+                                const curArr = Array.isArray(curVal) ? curVal : [];
+                                const isOpen = !!openMultiDropdowns[q.id];
+
+                                return (
+                                  <div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setOpenMultiDropdowns(prev => ({ ...prev, [q.id]: !prev[q.id] }))}
+                                      className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-900 flex items-center justify-between shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer"
+                                    >
+                                      <div className="flex items-center gap-2 truncate font-mono">
+                                        <CheckSquare size={15} className="text-amber-600 shrink-0" />
+                                        {curArr.length === 0 ? (
+                                          <span className="text-slate-400 font-normal">-- Select Multiple Options ({opts.length} options available) --</span>
+                                        ) : (
+                                          <span className="text-amber-950 font-bold">
+                                            {curArr.length} Selected: {curArr.map(x => getOptionLabel(x)).join(", ")}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <ChevronDown size={16} className={`text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+
+                                    {isOpen && (
+                                      <div className="absolute left-0 right-0 top-full mt-2 z-30 bg-white rounded-2xl p-3 border border-slate-200 shadow-xl space-y-2 animate-in fade-in duration-150 max-h-64 overflow-y-auto">
+                                        <div className="flex items-center justify-between pb-2 border-b border-slate-100 text-[11px] font-mono font-bold text-slate-500">
+                                          <span>Select Options (Code 1 to {opts.length})</span>
+                                          <button 
+                                            type="button" 
+                                            onClick={() => updateCustomField(q, [])}
+                                            className="text-amber-700 hover:underline cursor-pointer"
+                                          >
+                                            Clear All
+                                          </button>
+                                        </div>
+                                        <div className="space-y-1">
+                                          {opts.map((opt, oIdx) => {
+                                            const labelText = getOptionLabel(opt);
+                                            const codeText = getOptionCode(opt, oIdx);
+                                            const isChecked = curArr.some(x => getOptionLabel(x) === labelText);
+
+                                            const titleLower = String(q.title || "").toLowerCase();
+                                            const isQ9 = titleLower.includes("q9") || titleLower.includes("tobacco") || titleLower.includes("substance");
+
+                                            const toggleOpt = () => {
+                                              if (isQ9) {
+                                                const isExclusiveCode16 = codeText === "16" || labelText.toLowerCase().includes("none");
+                                                if (isExclusiveCode16) {
+                                                  if (!isChecked) updateCustomField(q, [opt]);
+                                                  else updateCustomField(q, []);
+                                                } else {
+                                                  const filtered = curArr.filter(x => {
+                                                    const xCode = getOptionCode(x);
+                                                    const xLabel = getOptionLabel(x).toLowerCase();
+                                                    return xCode !== "16" && !xLabel.includes("none");
+                                                  });
+                                                  if (isChecked) {
+                                                    updateCustomField(q, filtered.filter(x => getOptionLabel(x) !== labelText));
+                                                  } else {
+                                                    updateCustomField(q, [...filtered, opt]);
+                                                  }
+                                                }
+                                              } else {
+                                                if (isChecked) {
+                                                  updateCustomField(q, curArr.filter(x => getOptionLabel(x) !== labelText));
+                                                } else {
+                                                  updateCustomField(q, [...curArr, opt]);
+                                                }
+                                              }
+                                            };
+
+                                            return (
+                                              <label 
+                                                key={oIdx} 
+                                                onClick={toggleOpt} 
+                                                className={`flex items-center justify-between p-2 rounded-xl text-xs font-bold cursor-pointer transition-colors ${isChecked ? 'bg-amber-100 text-amber-950 font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                                              >
+                                                <div className="flex items-center gap-2">
+                                                  <input type="checkbox" checked={isChecked} onChange={() => {}} className="rounded text-amber-600 focus:ring-0 cursor-pointer" />
+                                                  <span>{labelText}</span>
+                                                </div>
+                                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-50 border border-slate-200 text-slate-600">Code {codeText}</span>
+                                              </label>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          ) : (
+                            <div className="flex flex-wrap gap-2.5 pt-1">
+                              {opts.map((opt, oIdx) => {
+                                const labelText = getOptionLabel(opt);
+                                const codeText = getOptionCode(opt, oIdx);
+                                const curVal = data[`custom_${q.id}`] || data[q.id];
+                                const curArr = Array.isArray(curVal) ? curVal : [];
+                                const isChecked = curArr.some(x => getOptionLabel(x) === labelText);
+
+                                const titleLower = String(q.title || "").toLowerCase();
+                                const isQ9 = titleLower.includes("q9") || titleLower.includes("tobacco") || titleLower.includes("substance");
+
+                                const toggleOpt = () => {
+                                  if (isQ9) {
+                                    const isExclusiveCode16 = codeText === "16" || labelText.toLowerCase().includes("none");
+                                    if (isExclusiveCode16) {
+                                      if (!isChecked) updateCustomField(q, [opt]);
+                                      else updateCustomField(q, []);
+                                    } else {
+                                      const filtered = curArr.filter(x => {
+                                        const xCode = getOptionCode(x);
+                                        const xLabel = getOptionLabel(x).toLowerCase();
+                                        return xCode !== "16" && !xLabel.includes("none");
+                                      });
+                                      if (isChecked) {
+                                        updateCustomField(q, filtered.filter(x => getOptionLabel(x) !== labelText));
+                                      } else {
+                                        updateCustomField(q, [...filtered, opt]);
+                                      }
+                                    }
+                                  } else {
+                                    if (isChecked) {
+                                      updateCustomField(q, curArr.filter(x => getOptionLabel(x) !== labelText));
+                                    } else {
+                                      updateCustomField(q, [...curArr, opt]);
+                                    }
+                                  }
+                                };
+
+                                return (
+                                  <label 
+                                    key={oIdx} 
+                                    onClick={toggleOpt} 
+                                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${isChecked ? 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs ring-1 ring-amber-400' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}
+                                  >
+                                    <input type="checkbox" checked={isChecked} onChange={() => {}} className="rounded text-amber-600 focus:ring-0 cursor-pointer" />
+                                    <span>{labelText}</span>
+                                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-normal">Code {codeText}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )
                         )}
                       </div>
                     );
@@ -617,18 +993,283 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                 );
               })()}
 
+              {/* Fallback Standard Clinical Section Blocks (when customQuestions is empty) */}
+              {!hasCustomQuestions && hasPrivilege(1) && (
+                <div className="space-y-4 p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                    <User size={14} className="text-amber-600" /> Section 1: Demographics
+                  </h3>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 font-mono">Full Name *</label>
+                      <input type="text" value={data.fullName} onChange={(e) => set("fullName")(e.target.value)} placeholder="Enter full name..." className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 font-mono">Age (Years) *</label>
+                      <input type="number" value={data.age} onChange={(e) => set("age")(e.target.value)} placeholder="e.g. 45" className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold outline-none" />
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 font-mono">Gender</label>
+                      <select value={data.gender} onChange={(e) => set("gender")(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold outline-none">
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Transgender">Transgender</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 font-mono">Education</label>
+                      <select value={data.education} onChange={(e) => set("education")(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold outline-none">
+                        <option value="Illiterate">Illiterate</option>
+                        <option value="Primary School">Primary School</option>
+                        <option value="High School">High School</option>
+                        <option value="Graduate & Above">Graduate & Above</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 font-mono">Housing Type</label>
+                      <select value={data.housing_type} onChange={(e) => set("housing_type")(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold outline-none">
+                        <option value="Pucca House">Pucca House</option>
+                        <option value="Semi-Pucca">Semi-Pucca</option>
+                        <option value="Slum / Kutcha">Slum / Kutcha</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!hasCustomQuestions && hasPrivilege(2) && (
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono mb-2 flex items-center gap-1.5">
+                    <Stethoscope size={14} className="text-amber-600" /> Section 2: Medical History
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs font-semibold text-slate-700">
+                    {["Hypertension", "Diabetes", "Heart Disease", "Stroke", "Asthma/COPD", "Cancer"].map(cond => (
+                      <label key={cond} className="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-lg border border-slate-200">
+                        <input type="checkbox" defaultChecked={cond === "Hypertension"} className="rounded text-amber-600 focus:ring-amber-500" />
+                        <span>{cond}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!hasCustomQuestions && (hasPrivilege(9) || hasPrivilege(10)) && (
+                <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200 space-y-3">
+                  <h3 className="text-xs font-bold text-amber-900 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                    <HeartPulse size={14} className="text-amber-700" /> Section 9 & 10: Anthropometry & Vitals
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {hasPrivilege(9) && (
+                      <>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">Height (cm)</label>
+                          <input type="number" value={data.height_cm} onChange={(e) => set("height_cm")(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">Weight (kg)</label>
+                          <input type="number" value={data.weight_kg} onChange={(e) => set("weight_kg")(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
+                        </div>
+                      </>
+                    )}
+                    {hasPrivilege(10) && (
+                      <>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">BP Systolic</label>
+                          <input type="number" value={data.bp_systolic} onChange={(e) => set("bp_systolic")(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">BP Diastolic</label>
+                          <input type="number" value={data.bp_diastolic} onChange={(e) => set("bp_diastolic")(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {!hasCustomQuestions && hasPrivilege(11) && (
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                    <Activity size={14} className="text-amber-600" /> Section 11: Point-of-Care (POC) Lab Tests
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">Random Blood Glucose (mg/dL)</label>
+                      <input type="number" value={data.random_blood_glucose} onChange={(e) => set("random_blood_glucose")(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">HbA1c (%)</label>
+                      <input type="text" value={data.hba1c} onChange={(e) => set("hba1c")(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">Total Cholesterol (mg/dL)</label>
+                      <input type="number" value={data.total_cholesterol} onChange={(e) => set("total_cholesterol")(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!hasCustomQuestions && hasPrivilege(12) && (
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                    <Stethoscope size={14} className="text-amber-600" /> Section 12: Clinical Examinations
+                  </h3>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">10-Year CVD Risk Category</label>
+                      <select value={data.cvd_risk_assessment} onChange={(e) => set("cvd_risk_assessment")(e.target.value)} className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none">
+                        <option value="Low (<10%)">Low (&lt;10%)</option>
+                        <option value="Moderate (10-20%)">Moderate (10-20%)</option>
+                        <option value="High (>20%)">High (&gt;20%)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">Retinopathy Screening</label>
+                      <select value={data.retinopathy_exam} onChange={(e) => set("retinopathy_exam")(e.target.value)} className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none">
+                        <option value="Normal">Normal</option>
+                        <option value="Mild Retinopathy">Mild Retinopathy</option>
+                        <option value="Severe / Immediate Referral">Severe / Immediate Referral</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!hasCustomQuestions && hasPrivilege(13) && (
+                <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-4">
+                  <h3 className="text-xs font-bold text-emerald-900 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                    <AlertCircle size={14} className="text-emerald-700" /> Section 13: Risk Categorisation & Referral
+                  </h3>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">Overall Doctor Risk Categorisation</label>
+                      <select value={data.overall_risk_rating} onChange={(e) => set("overall_risk_rating")(e.target.value)} className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none">
+                        <option value="Low Risk">Low Risk</option>
+                        <option value="Moderate Risk">Moderate Risk</option>
+                        <option value="High Risk (Priority Referral)">High Risk (Priority Referral)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">Referral Hospital / Center Name</label>
+                      <input type="text" value={data.referral_hospital} onChange={(e) => set("referral_hospital")(e.target.value)} placeholder="e.g. KEM Hospital" className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!hasCustomQuestions && hasPrivilege(14) && (
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                    <Link2 size={14} className="text-amber-600" /> Section 14: Linkages and Follow-up Tracking
+                  </h3>
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">Referral Confirmation Date</label>
+                      <input type="text" value={data.referral_confirmation_date} onChange={(e) => set("referral_confirmation_date")(e.target.value)} className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">OPD Appointment Date</label>
+                      <input type="text" value={data.opd_appointment_date} onChange={(e) => set("opd_appointment_date")(e.target.value)} className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 font-mono mb-1">Treatment Adherence Status</label>
+                      <select value={data.treatment_adherence_status} onChange={(e) => set("treatment_adherence_status")(e.target.value)} className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold outline-none">
+                        <option value="Regular Adherence">Regular Adherence</option>
+                        <option value="Partial Adherence">Partial Adherence</option>
+                        <option value="Non-Adherent (Lost to Follow-up)">Non-Adherent (Lost to Follow-up)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!hasCustomQuestions && hasPrivilege(15) && (
+                <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200 space-y-3">
+                  <h3 className="text-xs font-bold text-amber-900 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                    <UserCheck size={14} className="text-amber-700" /> Section 15: Health Counseling & Behavioral Therapy Notes
+                  </h3>
+                  <textarea rows={4} value={data.health_counseling_notes} onChange={(e) => set("health_counseling_notes")(e.target.value)} placeholder="Counseling recommendations..." className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs outline-none" />
+                </div>
+              )}
+
+              {!hasCustomQuestions && hasPrivilege(16) && isExistingParticipant && (
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                    <FileText size={14} className="text-amber-600" /> Section 16: Community Perception Notes
+                  </h3>
+                  <textarea rows={3} value={data.community_perception} onChange={(e) => set("community_perception")(e.target.value)} placeholder="Supervisor observations & community notes..." className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs outline-none" />
+                </div>
+              )}
 
 
-              {/* Submit Button */}
-              <div className="pt-6 border-t border-slate-100 flex items-center justify-between">
-                <button type="button" onClick={() => setStep(0)} className="px-4 py-2.5 rounded-full text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors">
-                  Back to Selection
-                </button>
-                <button type="submit" disabled={submitting} className="px-8 py-3 rounded-full text-xs font-bold bg-amber-500 text-slate-950 hover:bg-amber-400 transition-all flex items-center gap-2 shadow-xs disabled:opacity-50 cursor-pointer">
-                  <Save size={16} />
-                  <span>{submitting ? "Submitting..." : `Submit ${data.user_role} Clinical Entry`}</span>
-                </button>
-              </div>
+
+              {/* Question Pagination & Submit Controls */}
+              {(() => {
+                const activeQs = activeCustomQuestions;
+                const totalQPages = activeQs.length > 0 ? Math.ceil(activeQs.length / 2) : 1;
+                const safeQPage = Math.min(qPage, Math.max(0, totalQPages - 1));
+
+                return (
+                  <div className="pt-6 border-t border-slate-100 flex items-center justify-between">
+                    {safeQPage > 0 ? (
+                      <button 
+                        type="button" 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setQPage(p => Math.max(0, p - 1));
+                        }} 
+                        className="px-5 py-2.5 rounded-full text-xs font-bold text-slate-700 hover:bg-slate-100 border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      >
+                        <ChevronLeft size={15} />
+                        <span>Previous Questions</span>
+                      </button>
+                    ) : (
+                      <button 
+                        type="button" 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setStep(0);
+                        }} 
+                        className="px-4 py-2.5 rounded-full text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+                      >
+                        Back to Selection
+                      </button>
+                    )}
+
+                    {safeQPage < totalQPages - 1 ? (
+                      <button 
+                        type="button" 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setQPage(p => Math.min(totalQPages - 1, p + 1));
+                        }} 
+                        className="px-6 py-2.5 rounded-full text-xs font-black bg-[#f5d40b] text-[#4a4a4c] hover:bg-[#e0c20a] transition-all flex items-center gap-2 shadow-sm cursor-pointer border border-[#e5c40a]"
+                      >
+                        <span>Next Questions</span>
+                        <ArrowRight size={15} className="text-[#4a4a4c]" />
+                      </button>
+                    ) : (
+                      <button 
+                        type="submit" 
+                        disabled={submitting} 
+                        className="px-8 py-3 rounded-full text-xs font-black bg-[#f5d40b] text-[#4a4a4c] hover:bg-[#e0c20a] transition-all flex items-center gap-2 shadow-sm disabled:opacity-50 cursor-pointer border border-[#e5c40a]"
+                      >
+                        <Save size={16} />
+                        <span>
+                          {submitting 
+                            ? "Submitting..." 
+                            : isSupervisor 
+                              ? "Submit Demographics & Send to Staff Nurse Queue" 
+                              : `Submit ${data.user_role} Clinical Entry`}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
 
             </form>
           )}
@@ -636,17 +1277,15 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 px-8 py-3 flex items-center justify-between text-xs text-slate-500 font-medium shrink-0 z-40">
+      {/* Simple Clean Footer */}
+      <footer className="bg-white border-t border-slate-200 px-6 sm:px-8 py-3 flex items-center justify-between text-xs text-slate-500 font-medium shrink-0 z-40">
         <div className="flex items-center gap-2">
           <img src="/yrg-logo.png" alt="YRG Care" className="w-5 h-5 object-contain" />
-          <span>YRGMERF &copy; 2026 • NCD Healthcare Screening Platform v2.4</span>
+          <span>YRGMERF &copy; {new Date().getFullYear()} • NCD Platform</span>
         </div>
-        <div className="flex items-center gap-4 font-mono text-[11px] text-slate-400">
-          <span>Role: {data.user_role}</span>
-          <span>•</span>
-          <span>Center: {data.location || "Dharavi"}</span>
-        </div>
+        <span className="font-mono text-[11px] text-slate-400">
+          Confidential Clinical System
+        </span>
       </footer>
 
     </div>

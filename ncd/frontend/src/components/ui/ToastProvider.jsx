@@ -32,14 +32,14 @@ export function ToastProvider({ children }) {
     if (title && title.toLowerCase().includes("signed out")) {
       setToasts([{ id: ++idRef.current, type, title, body }]);
       recentToastsRef.current.clear();
-      window.setTimeout(() => dismiss(idRef.current), 3200);
+      window.setTimeout(() => dismiss(idRef.current), 1000);
       return;
     }
 
-    // Prevent identical toast duplicates within 3.5 seconds
+    // Prevent identical toast duplicates within 1 second
     if (recentToastsRef.current.has(key)) {
       const lastTime = recentToastsRef.current.get(key);
-      if (now - lastTime < 3500) {
+      if (now - lastTime < 1000) {
         return;
       }
     }
@@ -58,7 +58,7 @@ export function ToastProvider({ children }) {
       return updated;
     });
 
-    window.setTimeout(() => dismiss(id), 3200);
+    window.setTimeout(() => dismiss(id), 1000);
   }, [dismiss]);
 
   return (

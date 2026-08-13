@@ -85,6 +85,7 @@ export function UserManagement({ notify }) {
     username: "",
     password: "",
     role: "staff_nurse",
+    location: "Dharavi",
     email: "",
     mobile: "",
     status: "1",
@@ -117,6 +118,7 @@ export function UserManagement({ notify }) {
             ...u,
             username: u.username || u.users_name || "",
             role: roleKey,
+            location: u.location || u.loc_code || "Dharavi",
             privileges
           };
         });
@@ -159,6 +161,7 @@ export function UserManagement({ notify }) {
       username: u.username || "",
       password: "",
       role: u.role || "staff_nurse",
+      location: u.location || u.loc_code || "Dharavi",
       email: u.email || "",
       mobile: u.mobile || "",
       status: u.status || "1",
@@ -201,7 +204,8 @@ export function UserManagement({ notify }) {
         username: cleanUsername,
         users_name: cleanUsername,
         full_name: cleanUsername,
-        loc_code: 'DH',
+        loc_code: formData.location || 'Dharavi',
+        location: formData.location || 'Dharavi',
         password: cleanPassword,
         role: formData.role,
         user_role: numericRole,
@@ -217,7 +221,7 @@ export function UserManagement({ notify }) {
           notify("success", "User Updated", `Account '${cleanUsername}' updated successfully.`);
           setShowForm(false);
           setEditingId(null);
-          setFormData({ username: "", password: "", role: "staff_nurse", email: "", mobile: "", status: "1", privileges: getDefaultModulesForRole("staff_nurse") });
+          setFormData({ username: "", password: "", role: "staff_nurse", location: "Dharavi", email: "", mobile: "", status: "1", privileges: getDefaultModulesForRole("staff_nurse") });
           fetchUsers();
         } else {
           const errMsg = res.message || (res.errors ? Object.values(res.errors).flat().join(", ") : "Failed to update user.");
@@ -229,7 +233,7 @@ export function UserManagement({ notify }) {
           notify("success", "User Provisioned", `User '${cleanUsername}' created successfully. You can now log in with username '${cleanUsername}' and password '${cleanPassword}'.`);
           setShowForm(false);
           setEditingId(null);
-          setFormData({ username: "", password: "", role: "staff_nurse", email: "", mobile: "", status: "1", privileges: getDefaultModulesForRole("staff_nurse") });
+          setFormData({ username: "", password: "", role: "staff_nurse", location: "Dharavi", email: "", mobile: "", status: "1", privileges: getDefaultModulesForRole("staff_nurse") });
           fetchUsers();
         } else {
           const errMsg = res.message || (res.errors ? Object.values(res.errors).flat().join(", ") : "Failed to create user.");
@@ -333,6 +337,7 @@ export function UserManagement({ notify }) {
                 <tr className="border-b border-gray-200 bg-gray-50 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                   <th className="py-3 px-6">User Account</th>
                   <th className="py-3 px-4">Assigned Role</th>
+                  <th className="py-3 px-4">Assigned Location</th>
                   <th className="py-3 px-4">Contact Info</th>
                   <th className="py-3 px-4">Module Privileges Access</th>
                   <th className="py-3 px-4">Status</th>
@@ -351,7 +356,7 @@ export function UserManagement({ notify }) {
                         <td className="py-3.5 px-6 font-semibold text-gray-900">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-xs border border-gray-200 shrink-0">
-                              {u.username.substring(0, 2).toUpperCase()}
+                              {String(u.username || "US").substring(0, 2).toUpperCase()}
                             </div>
                             <span className="truncate max-w-[140px]">{u.username}</span>
                           </div>
@@ -363,6 +368,12 @@ export function UserManagement({ notify }) {
                             style={{ background: roleCfg.badgeBg, color: roleCfg.badgeColor, borderColor: "rgba(0,0,0,0.06)" }}
                           >
                             {roleCfg.label}
+                          </span>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                            📍 {u.location || u.loc_code || 'Dharavi'}
                           </span>
                         </td>
 
@@ -499,7 +510,7 @@ export function UserManagement({ notify }) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                   <label className="block font-semibold text-gray-700 mb-1">
                     Operational Role *
@@ -516,6 +527,22 @@ export function UserManagement({ notify }) {
                     <option value="case_management_coordinator">Case Coordinator</option>
                     <option value="deo">Data Entry Operator (DEO)</option>
                     <option value="admin">System Administrator</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">
+                    Assigned Location *
+                  </label>
+                  <select 
+                    value={formData.location || "Dharavi"}
+                    onChange={(e) => setFormData({...formData, location: e.target.value})}
+                    className="w-full px-3 py-2 rounded-lg text-xs border border-gray-300 font-bold outline-none bg-white text-gray-900"
+                  >
+                    <option value="Dharavi">Dharavi</option>
+                    <option value="Malvani">Malvani</option>
+                    <option value="Vashi">Vashi</option>
+                    <option value="Others">Others</option>
                   </select>
                 </div>
 
