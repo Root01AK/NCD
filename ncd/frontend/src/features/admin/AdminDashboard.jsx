@@ -187,19 +187,7 @@ export function AdminDashboard({ notify, logout }) {
           </select>
         </div>
 
-        <div 
-          className="flex items-center gap-2 px-3 py-1.5 rounded-full shadow-sm shrink-0"
-          style={{ background: T.paperRaised, border: `1px solid ${T.line}` }}
-        >
-          <Search size={14} color={T.charcoal500} />
-          <input 
-            type="text" 
-            placeholder="Search..." 
-            className="bg-transparent outline-none text-xs w-24 sm:w-32"
-            style={{ fontFamily: "'IBM Plex Sans', sans-serif", color: T.ink }}
-          />
-        </div>
-        
+
         <div className="relative hidden md:block">
           <button 
             onClick={() => setShowNotifications(!showNotifications)}
@@ -412,8 +400,8 @@ export function AdminDashboard({ notify, logout }) {
         </div>
       )}
 
-      {/* Main Content Area - Clean Rounded Panel Structure */}
-      <main className="flex-1 flex flex-col h-[calc(100vh-24px)] overflow-hidden relative my-3 mr-3 rounded-2xl bg-white border border-gray-200 shadow-2xs">
+      {/* Main Content Area - Clean Responsive Panel Structure */}
+      <main className="flex-1 flex flex-col h-screen md:h-[calc(100vh-24px)] overflow-hidden relative m-0 md:my-3 md:mr-3 rounded-none md:rounded-2xl bg-white border-0 md:border md:border-gray-200 shadow-2xs">
         
         {navTab === "dashboard" && (
           <div className="flex-1 flex flex-col overflow-hidden">
@@ -422,21 +410,21 @@ export function AdminDashboard({ notify, logout }) {
           </div>
         )}
 
-        {navTab === "surveys" && <SurveyManagement notify={notify} setNavTab={setNavTab} setSelectedSurvey={setSelectedSurvey} phase={selectedPhase} />}
-        {navTab === "survey-builder" && <SurveyBuilder notify={notify} selectedSurvey={selectedSurvey} onBack={() => setNavTab("surveys")} />}
-        {navTab === "participants" && <ParticipantManagement notify={notify} phase={selectedPhase} initialLocation={selectedAdminLocation} />}
-        {navTab === "location" && <LocationMaster notify={notify} />}
-        {navTab === "users" && <UserManagement notify={notify} />}
-        {navTab === "profile" && <AdminProfile notify={notify} user={user} phase1Unlocked={phase1Unlocked} togglePhase1Lock={togglePhase1Lock} />}
-        {navTab === "export" && <DataExport notify={notify} phase={selectedPhase} />}
+        {navTab === "surveys" && <SurveyManagement notify={notify} setNavTab={setNavTab} setSelectedSurvey={setSelectedSurvey} phase={selectedPhase} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
+        {navTab === "survey-builder" && <SurveyBuilder notify={notify} selectedSurvey={selectedSurvey} onBack={() => setNavTab("surveys")} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
+        {navTab === "participants" && <ParticipantManagement notify={notify} phase={selectedPhase} initialLocation={selectedAdminLocation} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
+        {navTab === "location" && <LocationMaster notify={notify} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
+        {navTab === "users" && <UserManagement notify={notify} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
+        {navTab === "profile" && <AdminProfile notify={notify} user={user} phase1Unlocked={phase1Unlocked} togglePhase1Lock={togglePhase1Lock} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
+        {navTab === "export" && <DataExport notify={notify} phase={selectedPhase} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
 
         {navTab === "queue" && (
           <div className="flex-1 flex flex-col overflow-hidden">
             <DashboardHeader title="Verification Queue" subtitle="Review incoming field survey entries requiring verification." />
 
-            <div className="flex-1 overflow-y-auto p-8 pb-24 space-y-8">
-              <div className="rounded-3xl shadow-sm overflow-hidden" style={{ background: T.paperRaised, border: `1px solid ${T.line}` }}>
-                <table className="w-full text-left border-collapse">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-8 pb-24 space-y-8">
+              <div className="rounded-3xl shadow-sm overflow-x-auto" style={{ background: T.paperRaised, border: `1px solid ${T.line}` }}>
+                <table className="w-full text-left border-collapse min-w-[650px]">
                   <thead>
                     <tr style={{ background: T.paper, borderBottom: `1px solid ${T.line}` }}>
                       <th className="px-6 py-4 text-xs font-medium" style={{ fontFamily: "'IBM Plex Mono', monospace", color: T.charcoal500 }}>PARTICIPANT ID</th>

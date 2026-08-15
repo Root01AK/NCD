@@ -64,12 +64,7 @@ class ErrorBoundary extends Component {
 }
 
 function MainApp() {
-  const [view, setView] = useState("landing");
-  const [activeParticipant, setActiveParticipant] = useState(null);
-  const { push } = useToasts();
-  
-  // Check auth state on mount
-  useEffect(() => {
+  const [view, setView] = useState(() => {
     try {
       const token = localStorage.getItem('ncd_token') || localStorage.getItem('icc_token');
       const userStr = localStorage.getItem('ncd_user') || localStorage.getItem('icc_user');
@@ -77,20 +72,19 @@ function MainApp() {
         const user = JSON.parse(userStr);
         if (user && typeof user === 'object') {
           if (user.role_id === 1 || user.role_id === '1') {
-            setView("admin");
-          } else {
-            setView("client");
+            return "admin";
           }
+          return "client";
         }
       }
     } catch (e) {
       console.error("Auth check error", e);
-      localStorage.removeItem('ncd_token');
-      localStorage.removeItem('ncd_user');
-      localStorage.removeItem('icc_token');
-      localStorage.removeItem('icc_user');
     }
-  }, []);
+    return "landing";
+  });
+
+  const [activeParticipant, setActiveParticipant] = useState(null);
+  const { push } = useToasts();
 
   const handleLoginSuccess = (token, user) => {
     if (user && (user.role_id === 1 || user.role_id === '1')) {

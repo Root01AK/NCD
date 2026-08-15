@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { Search, Plus, FileText, Play, BarChart2, Copy, Loader2, Settings, Trash2 } from "lucide-react";
+import { Search, Plus, FileText, Play, BarChart2, Copy, Loader2, Settings, Trash2, BookOpen, Edit, SlidersHorizontal, Layers, Eye, ClipboardList, ClipboardCheck, Stethoscope, Menu } from "lucide-react";
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 
-export function SurveyManagement({ notify, setNavTab, setSelectedSurvey }) {
+export function SurveyManagement({ notify, setNavTab, setSelectedSurvey, onOpenMobileMenu }) {
   const [surveys, setSurveys] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -83,41 +83,44 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey }) {
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-gray-50/50 relative">
       
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between shadow-2xs">
-        <div>
-          <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 24, color: T.ink, letterSpacing: "-0.02em" }}>
-            Survey Management
-          </h1>
-          <p style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 13, color: T.charcoal500, marginTop: 2 }}>
-            Deploy screening forms to the field.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div 
-            className="flex items-center gap-2 px-4 py-2.5 rounded-full shadow-sm"
-            style={{ background: T.paperRaised, border: `1px solid ${T.line}` }}
-          >
-            <Search size={16} color={T.charcoal500} />
-            <input 
-              type="text" 
-              placeholder="Search surveys..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-transparent outline-none text-sm w-48"
-              style={{ fontFamily: "'IBM Plex Sans', sans-serif", color: T.ink }}
-            />
+      <header className="sticky top-0 z-40 bg-white border-b border-gray-200 px-4 sm:px-8 py-3.5 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => onOpenMobileMenu && onOpenMobileMenu()}
+              className="md:hidden p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 cursor-pointer shrink-0"
+              title="Open Navigation"
+            >
+              <Menu size={20} />
+            </button>
+            <div>
+              <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: "clamp(1.1rem, 2vw, 1.5rem)", color: T.ink, letterSpacing: "-0.02em" }}>
+                Survey Management
+              </h1>
+              <p style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 12, color: T.charcoal500, marginTop: 1 }}>
+                Deploy screening forms to the field.
+              </p>
+            </div>
           </div>
-          
+
           <button 
             onClick={() => setNavTab("survey-builder")}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-transform active:scale-95 shadow-sm hover:shadow-md"
+            className="sm:hidden flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-transform active:scale-95 shadow-sm"
             style={{ background: T.ink, color: T.gold }}
           >
-            <Plus size={16} />
-            New Survey
+            <Plus size={15} />
+            <span>New</span>
           </button>
         </div>
+
+        <button 
+          onClick={() => setNavTab("survey-builder")}
+          className="hidden sm:flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-transform active:scale-95 shadow-sm hover:shadow-md cursor-pointer"
+          style={{ background: T.ink, color: T.gold }}
+        >
+          <Plus size={16} />
+          <span>New Survey</span>
+        </button>
       </header>
 
       {/* Main Content */}
@@ -141,8 +144,8 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey }) {
               >
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gray-50 border" style={{ borderColor: T.line }}>
-                      <FileText size={20} color={T.ink} />
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-amber-100 border border-amber-300/80 shadow-2xs">
+                      <ClipboardCheck size={22} className="text-amber-900" />
                     </div>
                     <div>
                       <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 18, color: T.ink }}>
@@ -154,7 +157,7 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey }) {
                     </div>
                   </div>
 
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Active Survey
                   </span>
                 </div>
@@ -167,13 +170,13 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey }) {
                     </div>
                   </div>
                   
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <button 
                       onClick={() => setViewingCodebookSurvey(s)}
-                      className="px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs font-mono"
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-100 text-amber-950 border border-amber-300 hover:bg-amber-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs font-mono"
                       title="View Option Codebook"
                     >
-                      <FileText size={13} className="text-amber-600" />
+                      <BookOpen size={13} className="text-amber-800" />
                       <span>Codebook</span>
                     </button>
                     <button 
@@ -181,35 +184,33 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey }) {
                         setSelectedSurvey(s);
                         setNavTab("survey-builder");
                       }}
-                      className="p-2 rounded-full hover:bg-gray-50 transition-colors border cursor-pointer"
-                      style={{ borderColor: T.line, color: T.charcoal700 }}
-                      title="Edit Schema"
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200 hover:bg-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      title="Edit Survey Schema"
                     >
-                      <Settings size={16} />
+                      <Edit size={13} className="text-slate-700" />
+                      <span>Edit</span>
                     </button>
                     <button 
                       onClick={() => setNavTab("dashboard")}
-                      className="p-2 rounded-full hover:bg-gray-50 transition-colors border cursor-pointer"
-                      style={{ borderColor: T.line, color: T.charcoal700 }}
-                      title="View Responses"
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200 hover:bg-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      title="View Survey Responses"
                     >
-                      <BarChart2 size={16} />
+                      <BarChart2 size={13} className="text-slate-700" />
+                      <span>Results</span>
                     </button>
                     <button 
                       onClick={() => handleDuplicate(s)}
-                      className="p-2 rounded-full hover:bg-gray-50 transition-colors border cursor-pointer"
-                      style={{ borderColor: T.line, color: T.charcoal700 }}
+                      className="p-2 rounded-xl hover:bg-slate-100 transition-colors border border-slate-200 text-slate-700 cursor-pointer"
                       title="Duplicate Survey"
                     >
-                      <Copy size={16} />
+                      <Copy size={14} />
                     </button>
                     <button 
                       onClick={() => handleDelete(s)}
-                      className="p-2 rounded-full hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-colors border cursor-pointer"
-                      style={{ borderColor: T.line, color: T.charcoal700 }}
+                      className="p-2 rounded-xl hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors border border-slate-200 text-slate-500 cursor-pointer"
                       title="Delete Survey"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 </div>

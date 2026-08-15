@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Search, UserCircle2, Edit2, Trash2, ShieldCheck, Mail, ShieldAlert, X, Loader2, Layers, CheckCircle2, Check, RefreshCw, ChevronDown, ChevronUp, Lock } from "lucide-react";
+import { Plus, Search, UserCircle2, Edit2, Trash2, ShieldCheck, Mail, ShieldAlert, X, Loader2, Layers, CheckCircle2, Check, RefreshCw, ChevronDown, ChevronUp, Lock, Menu } from "lucide-react";
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 
@@ -43,13 +43,13 @@ export const getDefaultModulesForRole = (roleKey) => {
 };
 
 export const ROLE_CONFIGS = {
-  admin: { label: "System Administrator", badgeBg: "#f4f4f5", badgeColor: "#18181b" },
-  field_supervisor: { label: "Field Supervisor", badgeBg: "#eff6ff", badgeColor: "#1d4ed8" },
-  staff_nurse: { label: "Staff Nurse", badgeBg: "#ecfdf5", badgeColor: "#047857" },
-  counselor: { label: "Counselor", badgeBg: "#fdf2f8", badgeColor: "#be185d" },
-  doctor: { label: "Doctor", badgeBg: "#faf5ff", badgeColor: "#6b21a8" },
-  case_management_coordinator: { label: "Case Coordinator", badgeBg: "#eef2ff", badgeColor: "#3730a3" },
-  deo: { label: "Data Entry Operator", badgeBg: "#f1f5f9", badgeColor: "#334155" }
+  admin: { label: "System Administrator", className: "bg-amber-100 text-amber-950 border-amber-300" },
+  field_supervisor: { label: "Field Supervisor", className: "bg-blue-100 text-blue-950 border-blue-300" },
+  staff_nurse: { label: "Staff Nurse", className: "bg-emerald-100 text-emerald-950 border-emerald-300" },
+  counselor: { label: "Counselor", className: "bg-pink-100 text-pink-950 border-pink-300" },
+  doctor: { label: "Doctor", className: "bg-purple-100 text-purple-950 border-purple-300" },
+  case_management_coordinator: { label: "Case Coordinator", className: "bg-indigo-100 text-indigo-950 border-indigo-300" },
+  deo: { label: "Data Entry Operator", className: "bg-slate-100 text-slate-950 border-slate-300" }
 };
 
 export const ROLE_NUMERIC_MAP = {
@@ -72,7 +72,7 @@ export const ROLE_KEY_MAP = {
   7: "deo"
 };
 
-export function UserManagement({ notify }) {
+export function UserManagement({ notify, onOpenMobileMenu }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState("table"); // 'table' or 'cards'
@@ -272,40 +272,50 @@ export function UserManagement({ notify }) {
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-gray-50/60">
       
       {/* Clean Header */}
-      <header className="sticky top-0 z-40 bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between shadow-2xs">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 tracking-tight">
-            User Management & Access Control
-          </h1>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Provision staff user accounts and configure 16 screening section access privileges.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3.5 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm">
-            <Search size={15} className="text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Search user or role..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-transparent outline-none text-xs w-48 text-gray-800"
-            />
+      <header className="sticky top-0 z-40 bg-white border-b border-gray-200 px-4 sm:px-8 py-3.5 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => onOpenMobileMenu && onOpenMobileMenu()}
+              className="md:hidden p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 cursor-pointer shrink-0"
+              title="Open Navigation"
+            >
+              <Menu size={20} />
+            </button>
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight">
+                User Management & Access Control
+              </h1>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Provision staff user accounts and configure 16 screening section access privileges.
+              </p>
+            </div>
           </div>
-          
+
           <button 
             onClick={() => {
               setEditingId(null);
               setFormData({ username: "", password: "", role: "staff_nurse", email: "", mobile: "", status: "1", privileges: getDefaultModulesForRole("staff_nurse") });
               setShowForm(true);
             }}
-            className="px-4 py-2 rounded-lg text-xs font-semibold bg-gray-900 text-white hover:bg-black transition-colors flex items-center gap-1.5 shadow-xs"
+            className="sm:hidden px-3.5 py-2 rounded-lg text-xs font-bold bg-gray-900 text-white hover:bg-black transition-colors flex items-center gap-1.5 shadow-xs shrink-0"
           >
             <Plus size={15} />
-            Provision User
+            Provision
           </button>
         </div>
+
+        <button 
+          onClick={() => {
+            setEditingId(null);
+            setFormData({ username: "", password: "", role: "staff_nurse", email: "", mobile: "", status: "1", privileges: getDefaultModulesForRole("staff_nurse") });
+            setShowForm(true);
+          }}
+          className="hidden sm:flex px-4 py-2.5 rounded-lg text-xs font-semibold bg-gray-900 text-white hover:bg-black transition-colors items-center gap-1.5 shadow-xs cursor-pointer"
+        >
+          <Plus size={15} />
+          Create User
+        </button>
       </header>
 
       {/* Main Content Area */}
@@ -355,24 +365,24 @@ export function UserManagement({ notify }) {
                       <tr className="hover:bg-gray-50/80 transition-colors">
                         <td className="py-3.5 px-6 font-semibold text-gray-900">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-xs border border-gray-200 shrink-0">
+                            <div className="w-8 h-8 rounded-lg bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-xs border border-gray-200 shrink-0 font-mono">
                               {String(u.username || "US").substring(0, 2).toUpperCase()}
                             </div>
-                            <span className="truncate max-w-[140px]">{u.username}</span>
+                            <span className="truncate max-w-[140px] font-bold">{u.username}</span>
                           </div>
                         </td>
 
-                        <td className="py-3.5 px-4">
+                        <td className="py-3.5 px-4 whitespace-nowrap">
                           <span 
-                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border"
-                            style={{ background: roleCfg.badgeBg, color: roleCfg.badgeColor, borderColor: "rgba(0,0,0,0.06)" }}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-black border shadow-2xs whitespace-nowrap ${roleCfg.className}`}
                           >
-                            {roleCfg.label}
+                            <ShieldCheck size={13} className="shrink-0" />
+                            <span>{roleCfg.label}</span>
                           </span>
                         </td>
 
                         <td className="py-3.5 px-4">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200 font-mono">
                             📍 {u.location || u.loc_code || 'Dharavi'}
                           </span>
                         </td>

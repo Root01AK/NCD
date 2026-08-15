@@ -42,3 +42,38 @@ php -S 127.0.0.1:8080 -t web
 
 
 In Q9 Code 16 is exclusive. If ticked, no other box may be selected. and in Q9 If code 11 is not ticked, skip to Q11.If Q11 is 2 or 3 skip to Q13, and create a code book for every options, for every options it comes 1,2,3,4,5,6,7,8,9, so on. and in admin panel setup a proper code for every options.
+
+Field Supervisor
+
+UserName : FS001
+PassWord : FSadmin123
+
+
+Staff Nurse
+
+UserName : SN001
+PassWord : SNadmin123
+
+Counselor
+
+UserName : C001
+PassWord : Cadmin123
+
+
+Doctor
+
+UserName : D001
+PassWord : Dadmin123
+
+Case Management Coordinator
+
+UserName : CMC001
+PassWord : CMCadmin123
+
+
+
+Assigned Role Privileges & Enabled Survey Modules 10 Sections -- remove the green flicking dots and make it minimal UI. Staff Nurse login can't able to find the dropdown to select the user and start the survey please check it. Do validation fix, here all the field are mandatory without any answer we can't able to move to next question and make it.
+
+
+The DEO portal is not mobile responsive for the navigation use hamburger menu icon to show the nav options, and footer is sticker fix it. All the rounded UI's is bludge looking fix it, in Mobile view the Grid option UI is not properly aligned. and btn of preview & next is not properly aligned. since it is mysql database add phpadmin in docker as for the XAMPP. and also don't forget it is XAMP hosting application. We have bug sometimes we have issue of creating empty survey.While refreshing creating empty survey screen.
+

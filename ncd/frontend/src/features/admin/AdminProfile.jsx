@@ -105,7 +105,7 @@ export function AdminProfile({ notify, user, phase1Unlocked, togglePhase1Lock })
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-200">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-200">
               <ShieldCheck size={14} className="text-amber-500" /> System Administrator
             </span>
           </div>

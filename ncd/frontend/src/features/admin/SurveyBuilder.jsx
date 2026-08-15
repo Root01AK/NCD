@@ -1,16 +1,35 @@
 import React, { useState } from "react";
-import { Plus, Trash2, ArrowUp, ArrowDown, GripVertical, Settings2, FileText, CheckSquare, AlignLeft, Hash, UploadCloud, Loader2, ChevronDown, ChevronUp, CircleDot, Table, FolderClosed, Save, ChevronLeft } from "lucide-react";
+import { Plus, Trash2, ArrowUp, ArrowDown, GripVertical, Settings2, FileText, CheckSquare, AlignLeft, Hash, UploadCloud, Loader2, ChevronDown, ChevronUp, CircleDot, Table, FolderClosed, Save, ChevronLeft, ArrowUpDown, Filter, SlidersHorizontal, Layers, X, MoveUp, MoveDown } from "lucide-react";
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
+
+export const SECTION_CATALOG = [
+  { id: 1, label: "Sec 1 · Demographics" },
+  { id: 2, label: "Sec 2 · Medical History" },
+  { id: 3, label: "Sec 3 · Tobacco Use" },
+  { id: 4, label: "Sec 4 · Alcohol Use" },
+  { id: 5, label: "Sec 5 · Other Substance Use" },
+  { id: 6, label: "Sec 6 · Diet & Activity" },
+  { id: 7, label: "Sec 7 · Symptoms" },
+  { id: 8, label: "Sec 8 · Mental Health" },
+  { id: 9, label: "Sec 9 · Anthropometry" },
+  { id: 10, label: "Sec 10 · Vitals" },
+  { id: 11, label: "Sec 11 · POC Tests" },
+  { id: 12, label: "Sec 12 · Clinical Exams" },
+  { id: 13, label: "Sec 13 · Risk & Referral" },
+  { id: 14, label: "Sec 14 · Linkages" },
+  { id: 15, label: "Sec 15 · Health Counseling" },
+  { id: 16, label: "Sec 16 · Community Perception" }
+];
 
 const Q_TYPES = [
   { id: "section_header", label: "Section Header", icon: FolderClosed },
   { id: "short_text", label: "Short Text", icon: AlignLeft },
   { id: "number", label: "Number", icon: Hash },
   { id: "dropdown", label: "Dropdown", icon: ChevronDown },
-  { id: "single_choice", label: "Radio Button", icon: CircleDot },
+  { id: "single_choice", label: "Radio", icon: CircleDot },
   { id: "multi_choice", label: "Checkbox", icon: CheckSquare },
-  { id: "matrix", label: "Matrix (Grid)", icon: Table },
+  { id: "matrix", label: "Matrix", icon: Table },
 ];
 
 export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
@@ -21,16 +40,60 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
     if (selectedSurvey && selectedSurvey.sur_url) {
       try {
         const parsed = JSON.parse(selectedSurvey.sur_url);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {
         console.error("Failed to parse schema JSON:", e);
       }
     }
+    try {
+      const activeStr = localStorage.getItem('ncd_active_survey_questions');
+      if (activeStr) {
+        const parsed = JSON.parse(activeStr);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
     return [];
   });
   const [expandedIds, setExpandedIds] = useState({});
   const [importing, setImporting] = useState(false);
+  const [selectedSectionFilter, setSelectedSectionFilter] = useState('all');
+  const [showSortModal, setShowSortModal] = useState(false);
   const fileInputRef = React.useRef(null);
+
+  const moveSectionBlock = (targetSec, direction) => {
+    const secNumbers = Array.from(new Set(questions.map((q) => {
+      const match = String(q.title || "").match(/Section\s*(\d+)/i);
+      return match ? parseInt(match[1]) : (q.section ? parseInt(q.section) : 1);
+    }))).sort((a, b) => a - b);
+
+    const currIdx = secNumbers.indexOf(targetSec);
+    if (currIdx === -1) return;
+    const swapIdx = direction === 'up' ? currIdx - 1 : currIdx + 1;
+    if (swapIdx < 0 || swapIdx >= secNumbers.length) return;
+
+    const grouped = {};
+    secNumbers.forEach(s => { grouped[s] = []; });
+    
+    let currentSec = 1;
+    questions.forEach(q => {
+      const match = String(q.title || "").match(/Section\s*(\d+)/i);
+      if (match) currentSec = parseInt(match[1]);
+      else if (q.section) currentSec = parseInt(q.section);
+      if (!grouped[currentSec]) grouped[currentSec] = [];
+      grouped[currentSec].push(q);
+    });
+
+    const reorderedSecs = [...secNumbers];
+    [reorderedSecs[currIdx], reorderedSecs[swapIdx]] = [reorderedSecs[swapIdx], reorderedSecs[currIdx]];
+
+    let newQuestions = [];
+    reorderedSecs.forEach(s => {
+      if (grouped[s]) newQuestions.push(...grouped[s]);
+    });
+
+    setQuestions(newQuestions);
+    notify("success", "Section Reordered", `Moved Section ${targetSec} ${direction}.`);
+  };
 
   const toggleExpand = (id) => {
     setExpandedIds(prev => ({ ...prev, [id]: !prev[id] }));
@@ -229,6 +292,10 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
       notify("error", "Validation Error", "Survey title cannot be empty.");
       return;
     }
+    if (!questions || questions.length === 0) {
+      notify("error", "Validation Error", "Cannot save an empty survey. Please add at least one question or section.");
+      return;
+    }
     if (questions.some(q => !q.title.trim())) {
       notify("error", "Validation Error", "All questions must have a title.");
       return;
@@ -263,82 +330,274 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
   };
 
   return (
-    <div className="flex h-full bg-[#F7F6F2]">
-      {/* Canvas */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-8 pb-36">
-        <div className="max-w-6xl mx-auto space-y-6">
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#F7F6F2]">
+      
+      {/* Sticky Top Header */}
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-8 py-3.5 sm:py-4 shadow-2xs">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
           
-          {/* Top Bar with Back Button */}
-          {onBack && (
-            <button 
-              onClick={onBack}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-white border border-slate-200 text-slate-700 shadow-2xs hover:bg-slate-50 transition-all cursor-pointer mb-2"
-            >
-              <ChevronLeft size={16} /> Back to Surveys
-            </button>
-          )}
-
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            {onBack && (
+              <button 
+                onClick={onBack}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 border border-slate-200 text-slate-700 shadow-2xs hover:bg-slate-200 transition-all cursor-pointer shrink-0"
+                title="Back to Surveys"
+              >
+                <ChevronLeft size={16} /> <span className="hidden sm:inline">Back</span>
+              </button>
+            )}
             <div className="flex-1 min-w-0">
               <input
                 type="text"
                 value={surveyTitle}
                 onChange={(e) => setSurveyTitle(e.target.value)}
                 placeholder="Enter Survey Title..."
-                className="text-lg sm:text-2xl font-bold bg-transparent outline-none border-b border-dashed border-slate-300 hover:border-slate-400 focus:border-slate-900 w-full pb-1 leading-tight break-words max-w-full"
-                style={{ fontFamily: "'Space Grotesk', sans-serif", color: T.ink }}
+                className="text-lg sm:text-2xl font-black bg-transparent outline-none border-b border-dashed border-slate-300 hover:border-slate-400 focus:border-slate-900 w-full pb-0.5 leading-tight break-words uppercase font-mono tracking-tight text-slate-900"
               />
-              <p style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 12, color: T.charcoal500, marginTop: 4 }}>
+              <p style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 12, color: T.charcoal500, marginTop: 2 }}>
                 Create sections, build skip logic rules, and define question grids.
               </p>
             </div>
-
-            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-              <button 
-                onClick={expandAll}
-                className="px-3 sm:px-4 py-1.5 text-xs font-bold bg-white border rounded-full hover:bg-slate-50 transition-colors"
-                style={{ borderColor: T.line, color: T.charcoal700 }}
-              >
-                Expand All
-              </button>
-              <button 
-                onClick={collapseAll}
-                className="px-3 sm:px-4 py-1.5 text-xs font-bold bg-white border rounded-full hover:bg-slate-50 transition-colors"
-                style={{ borderColor: T.line, color: T.charcoal700 }}
-              >
-                Collapse All
-              </button>
-              
-              <input 
-                type="file" 
-                accept=".docx,.pdf,.md,.txt" 
-                ref={fileInputRef} 
-                onChange={simulateImport} 
-                className="hidden" 
-              />
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                disabled={importing}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-medium shadow-2xs transition-transform bg-white border border-slate-200 disabled:opacity-50"
-                style={{ color: T.ink, fontFamily: "'IBM Plex Sans', sans-serif" }}
-              >
-                {importing ? <Loader2 size={15} className="animate-spin" /> : <UploadCloud size={15} />}
-                <span>Import</span>
-              </button>
-
-              <button 
-                onClick={handleSave}
-                className="flex items-center gap-1.5 px-4.5 py-1.5 rounded-full text-xs sm:text-sm font-medium shadow-2xs transition-transform bg-slate-900 text-white cursor-pointer"
-                style={{ fontFamily: "'IBM Plex Sans', sans-serif" }}
-              >
-                <Save size={15} /> <span>Save Schema</span>
-              </button>
-            </div>
           </div>
 
-          {questions.map((q, idx) => {
-            const isExpanded = !!expandedIds[q.id];
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 flex-wrap">
+            <button 
+              onClick={expandAll}
+              className="px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-bold bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer text-slate-700"
+            >
+              Expand All
+            </button>
+            <button 
+              onClick={collapseAll}
+              className="px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-bold bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer text-slate-700"
+            >
+              Collapse All
+            </button>
+            
+            <input 
+              type="file" 
+              accept=".docx,.pdf,.md,.txt" 
+              ref={fileInputRef} 
+              onChange={simulateImport} 
+              className="hidden" 
+            />
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importing}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold shadow-2xs transition-transform bg-white border border-slate-200 disabled:opacity-50 text-slate-800 hover:bg-slate-50 cursor-pointer"
+            >
+              {importing ? <Loader2 size={15} className="animate-spin text-amber-600" /> : <UploadCloud size={15} className="text-slate-600" />}
+              <span>Import</span>
+            </button>
+
+            <button 
+              onClick={handleSave}
+              className="flex items-center gap-1.5 px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl text-xs font-black shadow-md transition-all bg-slate-900 text-white hover:bg-black cursor-pointer"
+            >
+              <Save size={15} className="text-amber-400" /> <span>Save Schema</span>
+            </button>
+          </div>
+
+        </div>
+      </header>
+
+      {/* Section Quick Jump & Reorder Sorting Bar Component (Clean Professional Layout) */}
+      <div className="bg-white border-b border-slate-200 px-4 sm:px-8 py-3 shadow-2xs z-30 shrink-0">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+          
+          {/* Section Filter Tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto py-1 no-scrollbar scroll-smooth flex-1 min-w-0">
+            <span className="text-xs font-black uppercase font-mono tracking-wider bg-amber-100 text-amber-950 border border-amber-300 px-3 py-1.5 rounded-xl shrink-0 flex items-center gap-1.5 shadow-2xs">
+              <Filter size={13} className="text-amber-700" /> Sections
+            </span>
+
+            {(() => {
+              // Helper to sequentially calculate section number for every question
+              let runSec = 1;
+              const questionsWithSec = (questions || []).map(q => {
+                const match = String(q.title || "").match(/Section\s*(\d+)/i);
+                if (match) runSec = parseInt(match[1]);
+                else if (q.section) runSec = parseInt(q.section);
+                return { ...q, _secNum: runSec };
+              });
+
+              return (
+                <>
+                  <button
+                    onClick={() => setSelectedSectionFilter('all')}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border ${
+                      selectedSectionFilter === 'all' 
+                        ? 'bg-slate-900 text-white border-slate-900 font-extrabold shadow-sm' 
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                    }`}
+                  >
+                    All Sections ({questions.length})
+                  </button>
+
+                  {SECTION_CATALOG.map((sec) => {
+                    const secQuestions = questionsWithSec.filter(q => q._secNum === sec.id && q.type !== 'section_header');
+                    const count = secQuestions.length;
+                    const isSelected = selectedSectionFilter === sec.id;
+
+                    return (
+                      <button
+                        key={sec.id}
+                        onClick={() => setSelectedSectionFilter(sec.id)}
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 flex items-center gap-2 border ${
+                          isSelected 
+                            ? 'bg-slate-900 text-white border-slate-900 font-extrabold shadow-sm' 
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                        }`}
+                      >
+                        <span>{sec.label}</span>
+                        <span className={`text-[11px] px-2 py-0.5 rounded-lg font-mono font-black ${
+                          isSelected ? 'bg-amber-400 text-slate-950' : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </>
+              );
+            })()}
+          </div>
+
+          {/* Section Reorder Modal Trigger Button */}
+          <button
+            onClick={() => setShowSortModal(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black bg-[#f5d40b] text-[#4a4a4c] hover:bg-[#e0c20a] border border-[#e5c40a] transition-all shadow-2xs cursor-pointer shrink-0"
+            title="Sort / Reorder Survey Sections"
+          >
+            <ArrowUpDown size={14} />
+            <span className="hidden sm:inline">Sort / Reorder Sections</span>
+            <span className="sm:hidden">Sort</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Section Sorting & Reordering Modal Component */}
+      {showSortModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-xl bg-white rounded-3xl p-6 shadow-2xl border border-slate-200 max-h-[85vh] flex flex-col space-y-4">
+            
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <ArrowUpDown size={20} className="text-amber-600" />
+                <h3 className="text-lg font-bold text-slate-900" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                  Sort & Reorder Survey Sections
+                </h3>
+              </div>
+              <button 
+                onClick={() => setShowSortModal(false)}
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 font-medium">
+              Use the Move Up and Move Down buttons to reorder entire section question blocks instantly.
+            </p>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {SECTION_CATALOG.map((sec, idx) => {
+                let runSec = 1;
+                const secQs = (questions || []).filter(q => {
+                  const match = String(q.title || "").match(/Section\s*(\d+)/i);
+                  if (match) runSec = parseInt(match[1]);
+                  else if (q.section) runSec = parseInt(q.section);
+                  return runSec === sec.id && q.type !== 'section_header';
+                });
+
+                return (
+                  <div 
+                    key={sec.id}
+                    className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-slate-300 transition-all shadow-2xs"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="w-7 h-7 rounded-full bg-slate-900 text-white font-mono text-xs font-bold flex items-center justify-center">
+                        {sec.id}
+                      </span>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-900">{sec.label}</h4>
+                        <p className="text-[11px] text-slate-500 font-mono mt-0.5">
+                          {secQs.length} Questions
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => moveSectionBlock(sec.id, 'up')}
+                        disabled={idx === 0}
+                        className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs"
+                        title="Move Section Up"
+                      >
+                        <ArrowUp size={15} />
+                      </button>
+                      <button
+                        onClick={() => moveSectionBlock(sec.id, 'down')}
+                        disabled={idx === SECTION_CATALOG.length - 1}
+                        className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs"
+                        title="Move Section Down"
+                      >
+                        <ArrowDown size={15} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={() => setShowSortModal(false)}
+                className="px-6 py-2.5 rounded-full bg-slate-900 text-white text-xs font-bold hover:bg-black transition-colors cursor-pointer"
+              >
+                Done
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Scrollable Questions Canvas */}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-8 pb-36">
+        <div className="max-w-6xl mx-auto space-y-6">
+
+          {(() => {
+            let runSec = 1;
+            const qsWithSec = (questions || []).map(q => {
+              const match = String(q.title || "").match(/Section\s*(\d+)/i);
+              if (match) runSec = parseInt(match[1]);
+              else if (q.section) runSec = parseInt(q.section);
+              return { ...q, _secNum: runSec };
+            });
+
+            const filteredQs = qsWithSec.filter(q => {
+              if (selectedSectionFilter === 'all') return true;
+              return q._secNum === selectedSectionFilter;
+            });
+
             return (
+              <>
+                {selectedSectionFilter !== 'all' && (
+                  <div className="flex items-center justify-between p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 text-xs font-bold font-mono shadow-2xs">
+                    <span>Viewing {SECTION_CATALOG.find(s => s.id === selectedSectionFilter)?.label} ({filteredQs.length} items)</span>
+                    <button 
+                      onClick={() => setSelectedSectionFilter('all')}
+                      className="px-3.5 py-1 rounded-full bg-slate-900 text-white font-extrabold hover:bg-black transition-colors cursor-pointer"
+                    >
+                      Show All Sections
+                    </button>
+                  </div>
+                )}
+
+                {filteredQs.map((q, idx) => {
+                  const isExpanded = !!expandedIds[q.id];
+                  return (
               <div 
                 key={q.id} 
                 className="rounded-2xl p-5 relative group shadow-sm transition-all bg-white border hover:shadow-md"
@@ -562,8 +821,11 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
                   </div>
                 )}
               </div>
-            );
-          })}
+                );
+              })}
+            </>
+          );
+        })()}
 
           {questions.length === 0 && (
             <div className="text-center py-20 bg-white border border-dashed rounded-3xl" style={{ borderColor: T.line }}>
@@ -573,24 +835,24 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
         </div>
       </div>
 
-      {/* Floating Toolbar (Mobile-friendly Bottom Bar) */}
-      <div className="fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[95vw] sm:max-w-none">
-        <div className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2.5 sm:py-3.5 rounded-2xl sm:rounded-full shadow-xl backdrop-blur-xl bg-white/95 border border-slate-200 overflow-x-auto max-w-full no-scrollbar">
-          <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-slate-400 shrink-0 mr-1 font-mono">
-            ADD:
+      {/* Floating Bottom Toolbar (Clean Professional Action Dock) */}
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 max-w-[96vw]">
+        <div className="flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl shadow-2xl bg-slate-900/95 backdrop-blur-md border border-slate-700 text-white shrink-0">
+          <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 font-mono flex items-center gap-1 pr-2 border-r border-slate-800 shrink-0">
+            <Plus size={13} className="text-amber-400" /> Add:
           </span>
-          <div className="flex items-center gap-1.5 shrink-0 flex-nowrap sm:flex-wrap">
-            {Q_TYPES.map(t => {
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+            {Q_TYPES.filter(t => t.id !== 'section_header').map(t => {
               const Icon = t.icon;
               return (
                 <button 
                   key={t.id}
                   onClick={() => addQuestion(t.id)}
-                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full hover:bg-slate-100 transition-colors border border-slate-200/60 bg-slate-50/50 hover:border-slate-300 text-xs font-semibold shrink-0 cursor-pointer"
-                  title={t.label}
+                  className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-amber-400 hover:text-slate-950 transition-all border border-slate-700/80 text-slate-200 text-xs font-bold shrink-0 cursor-pointer shadow-2xs group"
+                  title={`Add ${t.label} Question`}
                 >
-                  <Icon size={13} className="text-slate-800 shrink-0" />
-                  <span className="text-[11px] text-slate-800 font-semibold whitespace-nowrap">{t.label}</span>
+                  <Icon size={12} className="shrink-0 text-slate-400 group-hover:text-slate-950" />
+                  <span className="text-xs whitespace-nowrap">{t.label}</span>
                 </button>
               )
             })}

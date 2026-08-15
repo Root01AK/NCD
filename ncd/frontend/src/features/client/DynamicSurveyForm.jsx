@@ -28,14 +28,46 @@ export function generateParticipantID(loc = "Dharavi") {
 }
 
 const DEFAULT_SURVEY_QUESTIONS = [
+  // Section 1: Demographics
+  { id: "sec_1", title: "SECTION 1 · DEMOGRAPHICS — FIELD SUPERVISOR", type: "section_header", section: 1 },
   { id: "q1", title: "Q1. Age", type: "number", required: true, section: 1 },
-  { id: "q2", title: "Q2. Gender", type: "single_choice", options: ["Male", "Female", "Transgender"], required: true, section: 1 },
-  { id: "q3", title: "Q3. Site", type: "dropdown", options: ["Dharavi", "Malvani", "Vashi", "Others"], required: true, section: 1 },
-  { id: "q4", title: "Q4. Marital Status", type: "dropdown", options: ["Single", "Married", "Divorced", "Widowed"], required: false, section: 1 },
-  { id: "q5", title: "Q5. Highest Level of Education", type: "dropdown", options: ["No Formal Education", "Primary School", "High School", "Graduate", "Post-Graduate"], required: false, section: 1 },
-  { id: "q6", title: "Q6. Primary Occupation", type: "dropdown", options: ["Daily wage labourer", "Salaried employee", "Self-employed", "Unemployed", "Homemaker"], required: false, section: 1 },
-  { id: "q7", title: "Q7. Type of Housing", type: "dropdown", options: ["Slum", "Semi-pucca", "Pucca house", "Homeless"], required: false, section: 1 },
-  { id: "q8", title: "Q8. Community Perception & Demographics Notes", type: "single_choice", options: ["Positive Community Standing", "Moderate / Neutral", "Vulnerable / Needing Support"], required: false, section: 1 }
+  { id: "q2", title: "Q2. Gender", type: "single_choice", options: ["Male", "Female", "Transgender women", "Transgender man", "Prefer not to say"], required: true, section: 1 },
+  { id: "q3", title: "Q3. Site", type: "dropdown", options: ["Dharavi", "Malvani", "Vashi", "Other project site"], required: true, section: 1 },
+  { id: "q4", title: "Q4. Primary Occupation", type: "dropdown", options: ["Unemployed, seeking work", "Unemployed, not seeking work", "Daily wage labourer", "Construction worker", "Domestic worker", "Street vendor / hawker", "Shop assistant / retail", "Driver / transport worker", "Artisan / craft worker", "Tailor / garment worker", "Factory / industrial worker", "Waste picker / sanitation worker", "Security guard", "Cook / food service", "Salaried, private sector", "Salaried, government", "Self-employed / small business", "Housewife / home-based work", "Student", "Retired", "Unable to work due to illness or disability", "Sex work", "Not stated"], required: false, section: 1 },
+  { id: "q5", title: "Q5. Education Level", type: "dropdown", options: ["No formal education", "Primary (classes 1 to 5)", "Middle (classes 6 to 8)", "Secondary (classes 9 to 10)", "Higher secondary (classes 11 to 12)", "ITI / diploma / vocational", "Graduate", "Postgraduate", "Not stated"], required: false, section: 1 },
+  { id: "q6", title: "Q6. Current Monthly Household Income (₹)", type: "dropdown", options: ["No income", "10,000 or below", "10,001 to 20,000", "20,001 to 30,000", "Above 30,000", "Not stated"], required: false, section: 1 },
+  { id: "q7", title: "Q7. Type of Housing", type: "dropdown", options: ["Pavement / open space", "Temporary shelter or tarpaulin structure", "Dormitory / shared labour accommodation", "Chawl room", "Single-room tenement, kutcha", "Single-room tenement, pucca", "Flat / apartment", "Individual house", "Hostel", "Institutional accommodation", "Not stated"], required: false, section: 1 },
+  { id: "q8", title: "Q8. How long have you lived at this address?", type: "dropdown", options: ["Less than 6 months", "6 months to 2 years", "2 to 5 years", "More than 5 years", "Not stated"], required: false, section: 1 },
+
+  // Section 2: Medical History
+  { id: "sec_2", title: "SECTION 2 · MEDICAL HISTORY — STAFF NURSE", type: "section_header", section: 2 },
+  { id: "q9", title: "Q9. Have you ever been told by a doctor that you have any of the following? (check all that apply)", type: "multi_choice", options: ["Diabetes", "Hypertension", "Heart disease", "Stroke / paralysis", "Chronic respiratory disease", "Chronic kidney disease", "Chronic liver disease", "Chronic gastrointestinal disease", "Thyroid disorder", "Tuberculosis", "Cancer", "Epilepsy / seizure disorder", "Arthritis / joint disease", "Anaemia", "Mental health condition", "None of the above"], required: true, section: 2 },
+  { id: "q10", title: "Q10. If cancer, which type?", type: "dropdown", options: ["Oral / head and neck", "Breast", "Cervical", "Lung", "Stomach / oesophageal", "Colorectal", "Blood / lymphatic", "Other solid organs", "Not known to participant"], required: false, section: 2 },
+  { id: "q11", title: "Q11. Family history of NCDs", type: "single_choice", options: ["Yes", "No", "Don't know"], required: false, section: 2 },
+  { id: "q12", title: "Q12. If yes, which?", type: "multi_choice", options: ["Diabetes", "Hypertension", "Heart disease", "Stroke", "Chronic respiratory disease", "Chronic kidney disease", "Cancer", "Mental health condition", "Not known which"], required: false, section: 2 },
+  { id: "q13", title: "Q13. Have you been told before that you have high blood pressure or high blood sugar?", type: "single_choice", options: ["Yes, blood pressure only", "Yes, blood sugar only", "Yes, both", "No", "Don't know"], required: false, section: 2 },
+  { id: "q14", title: "Q14. Do you take any medication regularly?", type: "single_choice", options: ["Yes", "No"], required: false, section: 2 },
+  { id: "q15", title: "Q15. If yes, for which conditions?", type: "multi_choice", options: ["Diabetes", "Blood pressure", "Heart", "Respiratory", "Cholesterol", "Obesity", "Corticosteroids", "Antacids / PPIs", "Thyroid", "Tuberculosis", "Mental health", "Pain relief", "Traditional or alternative medicine", "Not known to participant"], required: false, section: 2 },
+  { id: "q16", title: "Q16. In the last month, have you missed your medication for more than three days together?", type: "single_choice", options: ["No", "Yes, cost", "Yes, medicine not available", "Yes, side effects", "Yes, felt better", "Yes, forgot", "Yes, could not reach facility", "Not stated"], required: false, section: 2 },
+
+  // Section 3: Tobacco Use
+  { id: "sec_3", title: "SECTION 3 · TOBACCO USE — STAFF NURSE", type: "section_header", section: 3 },
+  { id: "q17", title: "Q17. Which best describes your tobacco use?", type: "single_choice", options: ["Never used", "Used in the past, stopped completely", "Currently use"], required: true, section: 3 },
+  { id: "q18", title: "Q18. How long ago did you stop? (Former users only)", type: "dropdown", options: ["Less than 6 months", "6 to 12 months", "1 to 5 years", "More than 5 years"], required: false, section: 3 },
+  { id: "q19", title: "Q19. For how many years did you use tobacco before stopping?", type: "dropdown", options: ["Less than 1 year", "1 to 5 years", "6 to 10 years", "11 to 20 years", "More than 20 years"], required: false, section: 3 },
+  { id: "q20", title: "Q20. Which products do you currently use? (Current users only)", type: "multi_choice", options: ["Cigarette", "Bidi", "Hookah", "Cigar / pipe", "E-cigarette", "Gutkha", "Khaini", "Zarda", "Paan with tobacco", "Paan masala with tobacco", "Snuff", "Mishri / gul"], required: false, section: 3 },
+  { id: "q21", title: "Q21. How soon after waking do you first use tobacco?", type: "dropdown", options: ["Within 5 minutes", "6 to 30 minutes", "31 to 60 minutes", "After 60 minutes"], required: false, section: 3 },
+  { id: "q22", title: "Q22. How many times do you use tobacco in a day, all products together?", type: "dropdown", options: ["10 or fewer", "11 to 20", "21 to 30", "31 or more"], required: false, section: 3 },
+  { id: "q23", title: "Q23. Heaviness of Smoking Index total", type: "number", required: false, section: 3 },
+  { id: "q24", title: "Q24. Is anyone else in your household a current tobacco user?", type: "single_choice", options: ["Yes, smoked", "Yes, smokeless", "Yes, both", "No", "Don't know"], required: false, section: 3 },
+
+  // Section 4: Alcohol Use
+  { id: "sec_4", title: "SECTION 4 · ALCOHOL USE — STAFF NURSE", type: "section_header", section: 4 },
+  { id: "q25", title: "Q25. Which best describes your alcohol use?", type: "single_choice", options: ["Never consumed", "Consumed in the past, stopped completely", "Currently consume"], required: true, section: 4 },
+  { id: "q26", title: "Q26. If you stopped, how long ago?", type: "dropdown", options: ["Less than 6 months", "6 to 12 months", "1 to 5 years", "More than 5 years"], required: false, section: 4 },
+  { id: "q27", title: "Q27. How often do you have a drink containing alcohol?", type: "dropdown", options: ["Never", "Monthly or less", "Two to four times a month", "Two to three times a week", "Four or more times a week"], required: false, section: 4 },
+  { id: "q28", title: "Q28. How many standard drinks on a typical drinking day?", type: "dropdown", options: ["One or two", "Three or four", "Five or six", "Seven to nine", "Ten or more"], required: false, section: 4 },
+  { id: "q29", title: "Q29. How often do you have six or more standard drinks on one occasion?", type: "dropdown", options: ["Never", "Less than monthly", "Monthly", "Weekly", "Daily or almost daily"], required: false, section: 4 }
 ];
 
 function getOptionCode(opt, oIdx = 0) {
@@ -59,25 +91,27 @@ function isQuestionSkipped(q, customQuestions, data) {
   const qMatch = titleStr.match(/^Q(\d+)/i);
   const qNum = qMatch ? parseInt(qMatch[1]) : null;
 
-  // Rule 1: Skip Q10 if Q9 Code 11 is NOT ticked
+  // Rule 1: Skip Q10 if Q9 Code 11 (Cancer) is NOT ticked
   if (qNum === 10 || titleStr.toLowerCase().includes("q10")) {
     const q9 = (customQuestions || []).find(item => {
       const t = String(item.title || "").toLowerCase();
-      return t.startsWith("q9") || t.includes("tobacco") || t.includes("substance");
+      return t.startsWith("q9") || t.includes("doctor") || t.includes("following");
     });
     if (q9) {
       const q9Val = data[`custom_${q9.id}`] || data[q9.id];
-      const q9Arr = Array.isArray(q9Val) ? q9Val : (q9Val ? [q9Val] : []);
-      const q9Opts = Array.isArray(q9.options) ? q9.options : [];
-      
-      const hasCode11 = q9Arr.some(sel => {
-        const idx = q9Opts.findIndex(o => getOptionLabel(o) === getOptionLabel(sel));
-        const code = getOptionCode(sel, idx >= 0 ? idx : 10);
-        const label = getOptionLabel(sel).toLowerCase();
-        return code === "11" || label.includes("chewing") || label.includes("11");
-      });
+      if (q9Val) {
+        const q9Arr = Array.isArray(q9Val) ? q9Val : [q9Val];
+        const q9Opts = Array.isArray(q9.options) ? q9.options : [];
+        
+        const hasCode11 = q9Arr.some(sel => {
+          const idx = q9Opts.findIndex(o => getOptionLabel(o) === getOptionLabel(sel));
+          const code = getOptionCode(sel, idx >= 0 ? idx : 10);
+          const label = getOptionLabel(sel).toLowerCase();
+          return code === "11" || label.includes("cancer") || label.includes("11");
+        });
 
-      if (!hasCode11) return true; // Skip Q10!
+        if (!hasCode11) return true; // Skip Q10 only when Q9 is answered and Cancer is not ticked
+      }
     }
   }
 
@@ -85,7 +119,7 @@ function isQuestionSkipped(q, customQuestions, data) {
   if (qNum === 12 || titleStr.toLowerCase().includes("q12")) {
     const q11 = (customQuestions || []).find(item => {
       const t = String(item.title || "").toLowerCase();
-      return t.startsWith("q11") || t.includes("alcohol");
+      return t.startsWith("q11") || t.includes("family history");
     });
     if (q11) {
       const q11Val = data[`custom_${q11.id}`] || data[q11.id];
@@ -95,8 +129,8 @@ function isQuestionSkipped(q, customQuestions, data) {
         const code = getOptionCode(q11Val, idx >= 0 ? idx : 0);
         const label = getOptionLabel(q11Val).toLowerCase();
         
-        if (code === "2" || code === "3" || label.includes("occasional") || label.includes("never") || label.includes("no")) {
-          return true; // Skip Q12!
+        if (code === "2" || code === "3" || label.includes("no") || label.includes("don't know")) {
+          return true; // Skip Q12 only when Q11 is answered No/Don't know
         }
       }
     }
@@ -106,9 +140,20 @@ function isQuestionSkipped(q, customQuestions, data) {
 }
 
 export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
-  const [step, setStep] = useState(0); 
+  const getUserSafely = () => {
+    try {
+      const userString = localStorage.getItem('ncd_user') || localStorage.getItem('icc_user');
+      if (!userString || userString === 'undefined' || userString === 'null') return null;
+      return JSON.parse(userString);
+    } catch (e) { return null; }
+  };
+  const activeUser = getUserSafely();
+  const isSupervisor = String(activeUser?.role_name || "").toLowerCase().includes("supervisor");
+
+  const [step, setStep] = useState(() => (participant ? 1 : 0));
   const [qPage, setQPage] = useState(0);
   const [viewModes, setViewModes] = useState({});
+  const [openSingleDropdowns, setOpenSingleDropdowns] = useState({});
   const [openMultiDropdowns, setOpenMultiDropdowns] = useState({});
 
   // Auto Participant ID in DH-MUM-0001 format & Current Date
@@ -349,7 +394,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   const isExistingParticipant = Boolean(data.participant_id && availableParticipants.some(p => p.id === data.participant_id));
   
   const roleNameLower = (data.user_role || "Field Supervisor").toLowerCase();
-  const isSupervisor = roleNameLower.includes("supervisor") || roleNameLower.includes("field");
+  const isFieldSupervisor = isSupervisor || roleNameLower.includes("supervisor") || roleNameLower.includes("field");
   const isNurse = roleNameLower.includes("nurse");
   const isDoctor = roleNameLower.includes("doctor");
   const isCounselor = roleNameLower.includes("counselor");
@@ -447,13 +492,37 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     }
   };
 
+  const validateCurrentPageQuestions = () => {
+    const activeQs = activeCustomQuestions;
+    if (!activeQs || activeQs.length === 0) return true;
+    const questionsPerPage = 2;
+    const totalQPages = Math.ceil(activeQs.length / questionsPerPage);
+    const safeQPage = Math.min(qPage, totalQPages - 1);
+    const startIdx = safeQPage * questionsPerPage;
+    const currentBatch = activeQs.slice(startIdx, startIdx + questionsPerPage);
+
+    for (const q of currentBatch) {
+      if (q.type === 'section_header') continue;
+      
+      const val = data[q.id] !== undefined ? data[q.id] : data[`custom_${q.id}`];
+      const isEmpty = val === undefined || val === null || val === "" || (Array.isArray(val) && val.length === 0);
+      
+      if (isEmpty) {
+        notify("error", "Mandatory Question", `Please answer mandatory question: "${q.title}" before moving forward.`);
+        return false;
+      }
+    }
+    return true;
+  };
+
   const handleProceedNext = (e) => {
     e.preventDefault();
     if (!data.participant_id) {
-      notify("error", "Required", "Please select or enter a Participant ID.");
+      notify("error", "Participant Required", "Please select a Participant ID from the dropdown or enter a valid Participant ID.");
       return;
     }
     setStep(1);
+    setQPage(0);
   };
 
   const handleSubmitRoleForm = async (e) => {
@@ -564,103 +633,102 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                    {isSupervisor ? "Initial Participant Screening" : `${data.user_role} — Select Participant ID`}
+                    Participant Selection & Screening Overview
                   </h2>
                   <p className="text-xs text-slate-500 mt-1">
-                    {isSupervisor 
-                      ? "Verify auto-generated Participant ID, screening date, and optional contact details before proceeding to Demographics."
-                      : "Select a participant completed by Field Supervisor to load their clinical screening modules."
-                    }
+                    Select an existing participant record or verify Participant ID, screening date, and contact details to proceed.
                   </p>
                 </div>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200 font-mono shadow-2xs">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200 font-mono shadow-2xs">
                   <MapPin size={13} className="text-amber-600" /> Center: {data.location || "Dharavi"}
                 </span>
               </div>
 
-              {/* NON-SUPERVISOR PARTICIPANT DROPDOWN SELECTOR */}
-              {!isSupervisor && (
-                <div className="p-5 rounded-2xl bg-amber-50/60 border border-amber-200 space-y-2">
-                  <label className="block text-xs font-bold uppercase tracking-wider font-mono text-amber-900 flex items-center gap-1.5">
-                    <UserCheck size={14} className="text-amber-700" /> Select Participant ID *
+              {/* PARTICIPANT DROPDOWN SELECTOR FOR ALL ROLES */}
+              <div className="p-5 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-wider font-mono text-amber-950 flex items-center gap-1.5">
+                    <UserCheck size={14} className="text-amber-700" /> Select Participant from Queue / Database *
                   </label>
-                  <select 
-                    value={data.participant_id} 
-                    onChange={(e) => handleParticipantSelect(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-white border border-amber-300 text-sm font-bold text-slate-900 font-mono outline-none shadow-2xs cursor-pointer focus:ring-2 focus:ring-amber-400"
-                  >
-                    <option value="">-- Choose Participant ID (Demographics Completed) --</option>
-                    {availableParticipants.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.id} ({p.age} yrs, {p.gender}) [{p.location}]
-                      </option>
-                    ))}
-                  </select>
+                  <span className="text-[11px] font-bold text-amber-800 font-mono">{availableParticipants.length} Records Available</span>
                 </div>
-              )}
+                <select 
+                  value={data.participant_id} 
+                  onChange={(e) => handleParticipantSelect(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-white border border-amber-300 text-sm font-bold text-slate-900 font-mono outline-none shadow-2xs cursor-pointer focus:ring-2 focus:ring-amber-400"
+                >
+                  <option value="">-- Choose Participant ID to load Clinical Modules --</option>
+                  {availableParticipants.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.id} — {p.name || 'Participant'} ({p.age} yrs, {p.gender}) [{p.location}]
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-              {/* Light Mode 3-Column Initial Screening Card */}
-              <div className="border border-slate-200 rounded-2xl bg-slate-50/80 text-slate-900 p-6 shadow-2xs">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 divide-y md:divide-y-0 md:divide-x divide-slate-200">
-                  
-                  {/* Column 1: Participant ID */}
-                  <div className="pr-0 md:pr-4 pt-2 md:pt-0">
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 font-mono flex items-center gap-1.5">
-                      <User size={13} className="text-amber-600" /> Participant ID *
-                    </label>
-                    <input 
-                      type="text" 
-                      value={data.participant_id} 
-                      onChange={(e) => set("participant_id")(e.target.value)}
-                      readOnly={!isSupervisor}
-                      className={`w-full bg-white border border-slate-300 text-slate-900 font-mono font-bold text-sm outline-none px-3.5 py-2 rounded-xl shadow-2xs ${!isSupervisor ? 'bg-slate-100 text-slate-700 cursor-not-allowed' : 'focus:border-amber-500'}`}
-                      placeholder="NCD-MUM-XXXXX"
-                    />
-                  </div>
+              {/* Initial Participant Details Card (Field Supervisor only) */}
+              {isFieldSupervisor && (
+                <div className="border border-slate-200 rounded-2xl bg-slate-50/80 text-slate-900 p-6 shadow-2xs">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 divide-y md:divide-y-0 md:divide-x divide-slate-200">
+                    
+                    {/* Column 1: Participant ID */}
+                    <div className="pr-0 md:pr-4 pt-2 md:pt-0">
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 font-mono flex items-center gap-1.5">
+                        <User size={13} className="text-amber-600" /> Participant ID *
+                      </label>
+                      <input 
+                        type="text" 
+                        value={data.participant_id} 
+                        onChange={(e) => set("participant_id")(e.target.value)}
+                        className="w-full bg-white border border-slate-300 text-slate-900 font-mono font-bold text-sm outline-none px-3.5 py-2 rounded-xl shadow-2xs focus:border-amber-500"
+                        placeholder="NCD-MUM-XXXXX"
+                      />
+                    </div>
 
-                  {/* Column 2: Screening Date */}
-                  <div className="pt-4 md:pt-0 pl-0 md:pl-6 pr-0 md:pr-4">
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 font-mono flex items-center gap-1.5">
-                      <Calendar size={13} className="text-amber-600" /> Screening Date *
-                    </label>
-                    <div className="flex items-center justify-between bg-white border border-slate-300 rounded-xl px-3.5 py-2 shadow-2xs relative">
-                      <span className="text-slate-900 font-mono font-bold text-sm tracking-wide">
-                        {data.screening_date}
-                      </span>
-                      <div className="relative">
-                        <input 
-                          type="date"
-                          value={data.raw_date}
-                          onChange={handleDateChange}
-                          className="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10"
-                        />
-                        <button type="button" className="p-1 rounded text-slate-600 hover:bg-slate-100 transition-colors">
-                          <Calendar size={14} className="text-amber-600" />
-                        </button>
+                    {/* Column 2: Screening Date */}
+                    <div className="pt-4 md:pt-0 pl-0 md:pl-6 pr-0 md:pr-4">
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 font-mono flex items-center gap-1.5">
+                        <Calendar size={13} className="text-amber-600" /> Screening Date *
+                      </label>
+                      <div className="flex items-center justify-between bg-white border border-slate-300 rounded-xl px-3.5 py-2 shadow-2xs relative">
+                        <span className="text-slate-900 font-mono font-bold text-sm tracking-wide">
+                          {data.screening_date}
+                        </span>
+                        <div className="relative">
+                          <input 
+                            type="date"
+                            value={data.raw_date}
+                            onChange={handleDateChange}
+                            className="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10"
+                          />
+                          <button type="button" className="p-1 rounded text-slate-600 hover:bg-slate-100 transition-colors">
+                            <Calendar size={14} className="text-amber-600" />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Column 3: Contact Number */}
-                  <div className="pt-4 md:pt-0 pl-0 md:pl-6">
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                        <Phone size={13} className="text-amber-600" /> Contact Number
-                      </label>
-                      <span className="text-slate-400 text-[10px] font-mono">(Optional)</span>
+                    {/* Column 3: Contact Number */}
+                    <div className="pt-4 md:pt-0 pl-0 md:pl-6">
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                          <Phone size={13} className="text-amber-600" /> Contact Number
+                        </label>
+                        <span className="text-slate-400 text-[10px] font-mono">(Optional)</span>
+                      </div>
+                      <input 
+                        type="tel" 
+                        value={data.contact_number} 
+                        onChange={(e) => set("contact_number")(e.target.value)}
+                        placeholder="10-digit mobile number"
+                        maxLength={10}
+                        className="w-full bg-white border border-slate-300 text-slate-900 font-mono text-sm outline-none px-3.5 py-2 rounded-xl shadow-2xs"
+                      />
                     </div>
-                    <input 
-                      type="tel" 
-                      value={data.contact_number} 
-                      onChange={(e) => set("contact_number")(e.target.value)}
-                      placeholder="10-digit mobile number"
-                      maxLength={10}
-                      className="w-full bg-white border border-slate-300 text-slate-900 font-mono text-sm outline-none px-3.5 py-2 rounded-xl shadow-2xs"
-                    />
-                  </div>
 
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Action Buttons */}
               <div className="pt-4 flex items-center justify-between border-t border-slate-100">
@@ -795,23 +863,70 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                           />
                         )}
 
-                        {/* Single Choice (Dropdown vs Grid/Pills) */}
+                        {/* Single Choice (Custom Dropdown vs Grid/Pills) */}
                         {(qType === 'dropdown' || qType === 'single_choice' || qType === 'radio') && (
                           effectiveMode === 'dropdown' ? (
-                            <select 
-                              value={data[`custom_${q.id}`] || data[q.id] || ''} 
-                              onChange={(e) => updateCustomField(q, e.target.value)} 
-                              className="w-full px-4 py-3 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 outline-none bg-white cursor-pointer focus:ring-2 focus:ring-amber-400 font-mono shadow-2xs"
-                            >
-                              <option value="">-- Select Option ({opts.length} choices) --</option>
-                              {opts.map((opt, oIdx) => {
-                                const labelText = getOptionLabel(opt);
-                                const codeText = getOptionCode(opt, oIdx);
+                            <div className="relative">
+                              {(() => {
+                                const curVal = data[`custom_${q.id}`] || data[q.id] || '';
+                                const isOpen = !!openSingleDropdowns[q.id];
+                                const selectedOpt = opts.find(o => getOptionLabel(o) === curVal);
+                                const selectedLabel = selectedOpt ? getOptionLabel(selectedOpt) : '';
+                                const selectedCode = selectedOpt ? getOptionCode(selectedOpt, opts.indexOf(selectedOpt)) : '';
+
                                 return (
-                                  <option key={oIdx} value={labelText}>[Code {codeText}] {labelText}</option>
+                                  <div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setOpenSingleDropdowns(prev => ({ ...prev, [q.id]: !prev[q.id] }))}
+                                      className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-900 flex items-center justify-between shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer"
+                                    >
+                                      <div className="flex items-center gap-2 truncate font-mono">
+                                        {curVal ? (
+                                          <span className="text-slate-900 font-bold flex items-center gap-2">
+                                            <span className="px-1.5 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-950 font-bold text-[11px]">{selectedCode}</span>
+                                            <span>{selectedLabel}</span>
+                                          </span>
+                                        ) : (
+                                          <span className="text-slate-400 font-normal">-- Select Option ({opts.length} choices) --</span>
+                                        )}
+                                      </div>
+                                      <ChevronDown size={16} className={`text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+
+                                    {isOpen && (
+                                      <div className="absolute left-0 right-0 top-full mt-2 z-30 bg-white rounded-2xl p-2 border border-slate-200 shadow-xl space-y-1 animate-in fade-in duration-150 max-h-64 overflow-y-auto">
+                                        {opts.map((opt, oIdx) => {
+                                          const labelText = getOptionLabel(opt);
+                                          const codeText = getOptionCode(opt, oIdx);
+                                          const isSelected = curVal === labelText;
+
+                                          const handleSelect = () => {
+                                            updateCustomField(q, labelText);
+                                            // IMMEDIATELY CLOSE DROPDOWN DRAWER AFTER SELECTING!
+                                            setOpenSingleDropdowns(prev => ({ ...prev, [q.id]: false }));
+                                          };
+
+                                          return (
+                                            <div 
+                                              key={oIdx} 
+                                              onClick={handleSelect} 
+                                              className={`flex items-center justify-between p-2.5 rounded-xl text-xs font-bold cursor-pointer transition-colors ${isSelected ? 'bg-amber-100 text-amber-950 font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                                            >
+                                              <div className="flex items-center gap-2">
+                                                <input type="radio" checked={isSelected} onChange={() => {}} className="text-amber-600 focus:ring-0 cursor-pointer" />
+                                                <span>{labelText}</span>
+                                              </div>
+                                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-50 border border-slate-200 text-slate-600 font-bold">{codeText}</span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
                                 );
-                              })}
-                            </select>
+                              })()}
+                            </div>
                           ) : (
                             <div className="flex flex-wrap gap-2.5 pt-1">
                               {opts.map((opt, oIdx) => {
@@ -826,7 +941,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                   >
                                     <input type="radio" checked={isSel} onChange={() => {}} className="text-amber-600 focus:ring-0 cursor-pointer" />
                                     <span>{labelText}</span>
-                                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-normal">Code {codeText}</span>
+                                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-bold">{codeText}</span>
                                   </label>
                                 );
                               })}
@@ -866,14 +981,23 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                     {isOpen && (
                                       <div className="absolute left-0 right-0 top-full mt-2 z-30 bg-white rounded-2xl p-3 border border-slate-200 shadow-xl space-y-2 animate-in fade-in duration-150 max-h-64 overflow-y-auto">
                                         <div className="flex items-center justify-between pb-2 border-b border-slate-100 text-[11px] font-mono font-bold text-slate-500">
-                                          <span>Select Options (Code 1 to {opts.length})</span>
-                                          <button 
-                                            type="button" 
-                                            onClick={() => updateCustomField(q, [])}
-                                            className="text-amber-700 hover:underline cursor-pointer"
-                                          >
-                                            Clear All
-                                          </button>
+                                          <span>Select Options (1 to {opts.length})</span>
+                                          <div className="flex items-center gap-3">
+                                            <button 
+                                              type="button" 
+                                              onClick={() => updateCustomField(q, [])}
+                                              className="text-amber-700 hover:underline cursor-pointer"
+                                            >
+                                              Clear All
+                                            </button>
+                                            <button 
+                                              type="button" 
+                                              onClick={() => setOpenMultiDropdowns(prev => ({ ...prev, [q.id]: false }))}
+                                              className="px-2.5 py-1 rounded-lg bg-slate-900 text-white font-bold text-[10px] hover:bg-black transition-colors cursor-pointer"
+                                            >
+                                              Done ✓
+                                            </button>
+                                          </div>
                                         </div>
                                         <div className="space-y-1">
                                           {opts.map((opt, oIdx) => {
@@ -921,7 +1045,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                                   <input type="checkbox" checked={isChecked} onChange={() => {}} className="rounded text-amber-600 focus:ring-0 cursor-pointer" />
                                                   <span>{labelText}</span>
                                                 </div>
-                                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-50 border border-slate-200 text-slate-600">Code {codeText}</span>
+                                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-50 border border-slate-200 text-slate-600 font-bold">{codeText}</span>
                                               </label>
                                             );
                                           })}
@@ -933,7 +1057,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                               })()}
                             </div>
                           ) : (
-                            <div className="flex flex-wrap gap-2.5 pt-1">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
                               {opts.map((opt, oIdx) => {
                                 const labelText = getOptionLabel(opt);
                                 const codeText = getOptionCode(opt, oIdx);
@@ -979,7 +1103,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                   >
                                     <input type="checkbox" checked={isChecked} onChange={() => {}} className="rounded text-amber-600 focus:ring-0 cursor-pointer" />
                                     <span>{labelText}</span>
-                                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-normal">Code {codeText}</span>
+                                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-bold">{codeText}</span>
                                   </label>
                                 );
                               })}
@@ -1213,7 +1337,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                 const safeQPage = Math.min(qPage, Math.max(0, totalQPages - 1));
 
                 return (
-                  <div className="pt-6 border-t border-slate-100 flex items-center justify-between">
+                  <div className="pt-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3">
                     {safeQPage > 0 ? (
                       <button 
                         type="button" 
@@ -1221,7 +1345,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                           e.preventDefault();
                           setQPage(p => Math.max(0, p - 1));
                         }} 
-                        className="px-5 py-2.5 rounded-full text-xs font-bold text-slate-700 hover:bg-slate-100 border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                        className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 border border-slate-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
                       >
                         <ChevronLeft size={15} />
                         <span>Previous Questions</span>
@@ -1233,7 +1357,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                           e.preventDefault();
                           setStep(0);
                         }} 
-                        className="px-4 py-2.5 rounded-full text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+                        className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer text-center"
                       >
                         Back to Selection
                       </button>
@@ -1244,9 +1368,10 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                         type="button" 
                         onClick={(e) => {
                           e.preventDefault();
+                          if (!validateCurrentPageQuestions()) return;
                           setQPage(p => Math.min(totalQPages - 1, p + 1));
                         }} 
-                        className="px-6 py-2.5 rounded-full text-xs font-black bg-[#f5d40b] text-[#4a4a4c] hover:bg-[#e0c20a] transition-all flex items-center gap-2 shadow-sm cursor-pointer border border-[#e5c40a]"
+                        className="px-6 py-2.5 rounded-xl text-xs font-black bg-[#f5d40b] text-[#4a4a4c] hover:bg-[#e0c20a] transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer border border-[#e5c40a]"
                       >
                         <span>Next Questions</span>
                         <ArrowRight size={15} className="text-[#4a4a4c]" />
@@ -1255,7 +1380,12 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                       <button 
                         type="submit" 
                         disabled={submitting} 
-                        className="px-8 py-3 rounded-full text-xs font-black bg-[#f5d40b] text-[#4a4a4c] hover:bg-[#e0c20a] transition-all flex items-center gap-2 shadow-sm disabled:opacity-50 cursor-pointer border border-[#e5c40a]"
+                        onClick={(e) => {
+                          if (!validateCurrentPageQuestions()) {
+                            e.preventDefault();
+                          }
+                        }}
+                        className="px-8 py-3 rounded-xl text-xs font-black bg-[#f5d40b] text-[#4a4a4c] hover:bg-[#e0c20a] transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 cursor-pointer border border-[#e5c40a]"
                       >
                         <Save size={16} />
                         <span>

@@ -108,7 +108,7 @@ export function Landing({ goLogin, notify }) {
                 className="rounded-full px-9 py-4 text-base font-extrabold flex items-center gap-3 transition-all hover:scale-[1.03] shadow-lg hover:shadow-xl active:scale-95 cursor-pointer"
                 style={{ fontFamily: "'Space Grotesk', sans-serif", background: T.gold, color: T.ink }}
               >
-                <span>Sign In</span>
+                <span>Sign In / Sign Up</span>
                 <ChevronRight size={20} strokeWidth={2.5} />
               </button>
             </div>
@@ -145,9 +145,9 @@ export function Landing({ goLogin, notify }) {
       <footer className="relative z-20 px-8 py-4 flex flex-col sm:flex-row items-center justify-between border-t border-slate-200/80 bg-white/80 backdrop-blur-md text-slate-500 text-xs font-medium gap-2">
         <div className="flex items-center gap-2">
           <Mark size={18} showSub={false} />
-          <span>© {new Date().getFullYear()} YRG MERF · NCD Screening System</span>
+          <span>© {new Date().getFullYear()} YRG MERF</span>
         </div>
-        <span className="font-mono text-[11px] text-slate-400">Phase II Live Architecture</span>
+        <span className="font-mono text-[11px] text-slate-400">NCD - Phase II</span>
       </footer>
     </div>
   );

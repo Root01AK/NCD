@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Wifi, WifiOff, FileText, ArrowRight, LogOut, Loader2, Home, FolderSync, ClipboardCheck, UserCircle2, RefreshCw, MapPin, Database, Award, Shield, UserCheck, CheckCircle2, AlertCircle } from "lucide-react";
+import { Wifi, WifiOff, FileText, ArrowRight, LogOut, Loader2, Home, FolderSync, ClipboardCheck, UserCircle2, RefreshCw, MapPin, Database, Award, Shield, UserCheck, CheckCircle2, AlertCircle, Search, Download, Eye, X, Menu } from "lucide-react";
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { getQueue, deleteFromQueue } from "../../lib/db";
@@ -31,6 +31,45 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
   const [loading, setLoading] = useState(true);
   const [syncQueue, setSyncQueue] = useState([]);
   const [syncing, setSyncing] = useState(false);
+  const [syncSearch, setSyncSearch] = useState("");
+  const [selectedQaModalItem, setSelectedQaModalItem] = useState(null);
+
+  const exportSyncQueueCSV = () => {
+    if (!syncQueue || syncQueue.length === 0) return;
+    
+    const headers = ["Local ID", "Participant ID", "Full Name", "Age", "Gender", "Location", "Screening Date", "Contact Number", "Saved Timestamp"];
+    const rows = syncQueue.map(item => [
+      item.local_id || "",
+      `"${item.participant_id || ''}"`,
+      `"${item.fullName || ''}"`,
+      item.age || "",
+      `"${item.gender || ''}"`,
+      `"${item.location || user.assigned_location || ''}"`,
+      `"${item.screening_date || ''}"`,
+      `"${item.contact_number || ''}"`,
+      `"${item.timestamp || ''}"`
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `ncd_offline_sync_queue_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    notify("success", "Export Completed", "Offline sync queue exported to CSV.");
+  };
+
+  const filteredSyncQueue = syncQueue.filter(item => {
+    if (!syncSearch.trim()) return true;
+    const q = syncSearch.toLowerCase().trim();
+    const pid = String(item.participant_id || "").toLowerCase();
+    const name = String(item.fullName || "").toLowerCase();
+    const loc = String(item.location || "").toLowerCase();
+    const age = String(item.age || "").toLowerCase();
+    return pid.includes(q) || name.includes(q) || loc.includes(q) || age.includes(q);
+  });
 
   // Load active user & role details safely
   const getUserSafely = () => {
@@ -194,10 +233,12 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
     }).catch(e => console.error("Error loading completed records", e));
   }, []);
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
     <div className="flex flex-col h-screen w-screen bg-[#F8FAFC] font-sans text-slate-900 overflow-hidden" style={{ fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif" }}>
       
-      {/* Sleek, Modern, Uncluttered DEO Portal Header */}
+      {/* Sleek, Modern, Mobile-Responsive DEO Portal Header */}
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200 px-4 sm:px-8 py-3 flex items-center justify-between shadow-2xs gap-4 shrink-0">
         
         {/* Left: YRG Logo + Mark + Clean Role & Center Badge */}
@@ -210,14 +251,14 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
             <span className="text-xs font-extrabold text-slate-900 font-mono tracking-tight">
               {user.role_name || "DEO Portal"}
             </span>
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200 font-mono shadow-2xs">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200 font-mono shadow-2xs">
               <MapPin size={11} className="text-amber-600 shrink-0" /> {user.assigned_location || "Dharavi"}
             </span>
           </div>
         </div>
 
-        {/* Center: Navigation Bar / Elevated Tabs */}
-        <div className="flex items-center gap-1 bg-slate-100/90 border border-slate-200/80 rounded-full p-1 shadow-inner overflow-x-auto max-w-full no-scrollbar">
+        {/* Desktop Navigation Bar */}
+        <div className="hidden md:flex items-center gap-1.5 bg-slate-100/90 border border-slate-200/80 rounded-2xl p-1 shadow-inner overflow-x-auto max-w-full no-scrollbar">
           {[
             { id: "dashboard", label: "Dashboard", icon: Home },
             { id: "completed", label: "Completed", icon: ClipboardCheck, badge: completedRecords.length },
@@ -230,14 +271,14 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
               <button 
                 key={n.id} 
                 onClick={() => setCurrentTab(n.id)}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full transition-all text-xs font-black cursor-pointer shrink-0 whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl transition-all text-xs font-extrabold cursor-pointer shrink-0 whitespace-nowrap ${
                   isActive ? 'bg-[#f5d40b] text-[#4a4a4c] font-black shadow-2xs border border-[#e5c40a]' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                 }`}
               >
                 <Icon size={14} className={isActive ? 'text-[#4a4a4c]' : 'text-slate-400'} />
                 <span>{n.label}</span>
                 {n.badge > 0 && (
-                  <span className={`inline-flex items-center justify-center text-[9px] font-black rounded-full px-1.5 py-0.5 ml-1 min-w-[16px] h-4 ${isActive ? 'bg-[#4a4a4c] text-[#f5d40b]' : 'bg-[#f5d40b]/20 text-[#4a4a4c] border border-[#f5d40b]'}`}>
+                  <span className={`inline-flex items-center justify-center text-[9px] font-black rounded-md px-1.5 py-0.5 ml-1 min-w-[16px] h-4 ${isActive ? 'bg-[#4a4a4c] text-[#f5d40b]' : 'bg-[#f5d40b]/20 text-[#4a4a4c] border border-[#f5d40b]'}`}>
                     {n.badge}
                   </span>
                 )}
@@ -246,11 +287,11 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
           })}
         </div>
 
-        {/* Right: Network Status + User Avatar & Logout */}
+        {/* Right: Network Status + Logout + Mobile Hamburger Button */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => setOnline(!online)}
-            className="hidden sm:flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold transition-all cursor-pointer shadow-2xs border"
+            className="hidden sm:flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all cursor-pointer shadow-2xs border"
             style={{
               background: online ? '#ecfdf5' : '#fef2f2',
               color: online ? '#065f46' : '#991b1b',
@@ -262,34 +303,96 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
             <span className="font-mono text-[11px]">{online ? "Online" : "Offline"}</span>
           </button>
 
-          <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-            <div className="w-8 h-8 rounded-full bg-[#f5d40b]/20 text-[#4a4a4c] border border-[#f5d40b] font-black flex items-center justify-center text-xs shadow-2xs font-mono">
-              {String(user?.username || "DEO").substring(0, 2).toUpperCase()}
-            </div>
-            <span className="hidden lg:inline text-xs font-bold text-slate-800 font-mono">
-              {user.username}
-            </span>
-          </div>
-          
           <button
             onClick={logout}
-            className="p-2 rounded-full text-slate-600 hover:text-red-700 bg-slate-50 hover:bg-red-50 border border-slate-200 transition-colors shadow-2xs cursor-pointer ml-1"
+            className="hidden sm:flex p-2 rounded-xl text-slate-600 hover:text-red-700 bg-slate-50 hover:bg-red-50 border border-slate-200 transition-colors shadow-2xs cursor-pointer ml-1"
             title="Logout"
           >
             <LogOut size={14} />
           </button>
+
+          {/* Mobile Hamburger Toggle Button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 transition-colors cursor-pointer"
+            aria-label="Toggle Mobile Menu"
+          >
+            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
         </div>
       </header>
 
+      {/* Mobile Slide-Down Navigation Menu */}
+      {mobileMenuOpen && (
+        <div className="md:hidden bg-white border-b border-slate-200 px-4 py-3 space-y-2 animate-in slide-in-from-top-2 duration-150 shadow-md z-30">
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { id: "dashboard", label: "Dashboard", icon: Home },
+              { id: "completed", label: "Completed", icon: ClipboardCheck, badge: completedRecords.length },
+              { id: "sync", label: "Sync Queue", icon: FolderSync, badge: syncQueue.length },
+              { id: "profile", label: "Profile", icon: UserCircle2 }
+            ].map((n) => {
+              const Icon = n.icon;
+              const isActive = currentTab === n.id;
+              return (
+                <button 
+                  key={n.id} 
+                  onClick={() => {
+                    setCurrentTab(n.id);
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all text-xs font-bold cursor-pointer border ${
+                    isActive ? 'bg-[#f5d40b] text-[#4a4a4c] font-black border-[#e5c40a]' : 'bg-slate-50 text-slate-700 border-slate-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Icon size={15} />
+                    <span>{n.label}</span>
+                  </div>
+                  {n.badge > 0 && (
+                    <span className={`text-[10px] font-black rounded-md px-1.5 py-0.5 ${isActive ? 'bg-[#4a4a4c] text-[#f5d40b]' : 'bg-slate-200 text-slate-800'}`}>
+                      {n.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+            <button
+              onClick={() => setOnline(!online)}
+              className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold border"
+              style={{
+                background: online ? '#ecfdf5' : '#fef2f2',
+                color: online ? '#065f46' : '#991b1b',
+                borderColor: online ? '#a7f3d0' : '#fecaca'
+              }}
+            >
+              {online ? <Wifi size={13} /> : <WifiOff size={13} />}
+              <span className="font-mono text-[11px]">{online ? "Live Online" : "Offline Mode"}</span>
+            </button>
+
+            <button
+              onClick={logout}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-red-700 bg-red-50 border border-red-200 cursor-pointer"
+            >
+              <LogOut size={13} />
+              <span>Logout</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto px-8 py-6 pb-24">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6 pb-20">
         
         {/* Tab: Dashboard */}
         {currentTab === "dashboard" && (
-          <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-200">
+          <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-200">
             
             {/* Light Mode Header Metrics for Assigned Center */}
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid md:grid-cols-3 gap-4 sm:gap-6">
               
               <div className="bg-white rounded-3xl p-5 border border-slate-200 flex items-center gap-4 shadow-2xs">
                 <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shrink-0">
@@ -325,18 +428,13 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
 
             </div>
 
-            {/* Active Screening Survey Program Cards */}
-            <div>
-              <div className="mb-6 flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                    Active Screening Program
-                  </h2>
-                  <p className="text-xs text-slate-500 font-medium">Click to initiate participant screening & Demographics recording.</p>
-                </div>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <UserCheck size={13} /> Privileges: {privilegesText}
-                </span>
+            {/* Active Screening Survey Program Card */}
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                  Active Screening Program
+                </h2>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">Initiate participant screening & Demographics recording for {user.assigned_location || "Dharavi"} Center.</p>
               </div>
 
               {loading ? (
@@ -448,41 +546,101 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
 
         {/* Tab: Sync Queue */}
         {currentTab === "sync" && (
-          <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-200">
-            <div className="flex justify-between items-center mb-4">
+          <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-200">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Offline Sync Queue</h2>
                 <p className="text-xs text-slate-500 mt-0.5">Records stored locally while offline that need server synchronization.</p>
               </div>
-              <button
-                onClick={handleSync}
-                disabled={syncing || syncQueue.length === 0}
-                className="flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 transition-all shadow-2xs cursor-pointer"
-              >
-                <RefreshCw size={13} className={syncing ? "animate-spin" : ""} />
-                <span>{syncing ? "Syncing..." : "Sync Now"}</span>
-              </button>
+
+              <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+                <button
+                  onClick={exportSyncQueueCSV}
+                  disabled={syncQueue.length === 0}
+                  className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 transition-all shadow-2xs cursor-pointer"
+                  title="Export offline queue records to CSV"
+                >
+                  <Download size={13} className="text-slate-600" />
+                  <span>Export CSV</span>
+                </button>
+
+                <button
+                  onClick={handleSync}
+                  disabled={syncing || syncQueue.length === 0}
+                  className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 transition-all shadow-2xs cursor-pointer"
+                >
+                  <RefreshCw size={13} className={syncing ? "animate-spin" : ""} />
+                  <span>{syncing ? "Syncing..." : "Sync Now"}</span>
+                </button>
+              </div>
             </div>
 
-            {syncQueue.length === 0 ? (
+            {/* Search Bar for Sync Queue */}
+            <div className="relative">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={syncSearch}
+                onChange={(e) => setSyncSearch(e.target.value)}
+                placeholder="Search offline queue by Participant ID, Name, Center..."
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-amber-400 shadow-2xs"
+              />
+              {syncSearch && (
+                <button 
+                  onClick={() => setSyncSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {filteredSyncQueue.length === 0 ? (
               <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300">
                 <FolderSync size={48} className="mx-auto text-slate-300 mb-4" />
-                <p className="font-bold text-slate-800">All Caught Up!</p>
-                <p className="text-xs text-slate-500 mt-1">No pending offline survey entries for {user.assigned_location || "Dharavi"}.</p>
+                <p className="font-bold text-slate-800">
+                  {syncSearch ? "No Matching Offline Records" : "All Caught Up!"}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {syncSearch ? `No records found matching "${syncSearch}".` : `No pending offline survey entries for ${user.assigned_location || "Dharavi"}.`}
+                </p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {syncQueue.map((item, index) => (
-                  <div key={index} className="bg-white rounded-2xl p-4 border border-slate-200 flex justify-between items-center shadow-2xs">
-                    <div>
-                      <p className="font-bold text-slate-800 text-sm font-mono">
-                        {(item.fullName && item.fullName !== "Unnamed Participant") ? item.fullName : (item.participant_id || item.mem_scrn_part_id || "Participant")}
+              <div className="space-y-3">
+                {filteredSyncQueue.map((item, index) => (
+                  <div key={item.local_id || index} className="bg-white rounded-2xl p-4 border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shadow-2xs hover:border-slate-300 transition-all">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-bold text-slate-900 text-sm font-mono">
+                          {(item.fullName && item.fullName !== "Unnamed Participant") ? item.fullName : (item.participant_id || item.mem_scrn_part_id || "Participant")}
+                        </p>
+                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-mono">
+                          Pending Sync
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 font-mono">
+                        ID: <span className="font-bold text-slate-800">{item.participant_id || 'N/A'}</span>
+                        {item.age ? ` • Age: ${item.age}` : ''} 
+                        {item.gender ? ` • Gender: ${item.gender}` : ''}
+                        • Center: <span className="font-bold text-slate-800">{item.location || user.assigned_location || 'Dharavi'}</span>
                       </p>
-                      <p className="text-[11px] text-slate-400 font-mono mt-0.5">ID: {item.participant_id || 'N/A'} {item.age ? `• Age: ${item.age}` : ''} • Center: {item.location || user.assigned_location || 'Dharavi'}</p>
+                      {item.timestamp && (
+                        <p className="text-[10px] text-slate-400 font-mono">
+                          Saved: {new Date(item.timestamp).toLocaleString()}
+                        </p>
+                      )}
                     </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                      Pending Sync
-                    </span>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => setSelectedQaModalItem(item)}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all border border-slate-200 cursor-pointer shadow-2xs"
+                        title="View Question & Answer Details"
+                      >
+                        <Eye size={13} className="text-slate-600" />
+                        <span>View Q&A</span>
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -490,33 +648,173 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
           </div>
         )}
 
-        {/* Tab: Profile */}
-        {currentTab === "profile" && (
-          <div className="max-w-lg mx-auto bg-white rounded-3xl p-8 border border-slate-200 shadow-2xs space-y-6 animate-in fade-in duration-200">
-            <div className="flex items-center gap-4 border-b border-slate-100 pb-6">
-              <div className="w-16 h-16 rounded-full bg-slate-900 text-amber-400 flex items-center justify-center text-xl font-extrabold shadow-2xs">
-                DEO
+      {/* View Q&A Modal (Read Only) */}
+      {selectedQaModalItem && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-2xl bg-white rounded-3xl p-6 shadow-2xl border border-slate-200 max-h-[85vh] flex flex-col space-y-4">
+            
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <FileText size={20} className="text-amber-600" />
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 font-mono">
+                    {selectedQaModalItem.fullName || selectedQaModalItem.participant_id || "Participant Q&A"}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-mono">
+                    Participant ID: {selectedQaModalItem.participant_id || "N/A"} • Location: {selectedQaModalItem.location || user.assigned_location || "Dharavi"}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">{user.username}</h3>
-                <p className="text-xs text-slate-500 font-medium">Field Supervisor · Mumbai {user.assigned_location || "Dharavi"} Center</p>
+              <button 
+                onClick={() => setSelectedQaModalItem(null)}
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              {/* Primary Metadata Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-mono">
+                <div>
+                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Participant ID</span>
+                  <span className="font-extrabold text-slate-900">{selectedQaModalItem.participant_id || "N/A"}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Screening Date</span>
+                  <span className="font-extrabold text-slate-900">{selectedQaModalItem.screening_date || "N/A"}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Contact Number</span>
+                  <span className="font-extrabold text-slate-900">{selectedQaModalItem.contact_number || "Optional / None"}</span>
+                </div>
+              </div>
+
+              <h4 className="text-xs font-extrabold uppercase font-mono tracking-wider text-slate-400 pt-2 border-t border-slate-100">
+                Recorded Questions & Answers ({Object.keys(selectedQaModalItem).filter(k => k.startsWith("custom_") || k.startsWith("q")).length} Fields)
+              </h4>
+
+              {/* Dynamic Q&A List */}
+              <div className="space-y-2">
+                {Object.entries(selectedQaModalItem)
+                  .filter(([key]) => key !== "local_id" && key !== "timestamp" && key !== "status")
+                  .map(([key, value], idx) => {
+                    const formatVal = (val) => {
+                      if (Array.isArray(val)) return val.map(v => typeof v === 'object' ? (v.label || JSON.stringify(v)) : String(v)).join(", ");
+                      if (typeof val === 'object' && val !== null) return val.label || JSON.stringify(val);
+                      return String(val || "N/A");
+                    };
+
+                    const labelName = key.startsWith("custom_") ? `Custom Field (${key.replace("custom_", "")})` : key.toUpperCase();
+
+                    return (
+                      <div key={idx} className="p-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row justify-between gap-1 text-xs">
+                        <span className="font-bold text-slate-700 font-mono shrink-0">{labelName}:</span>
+                        <span className="font-black text-slate-900 font-mono break-all text-right">{formatVal(value)}</span>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400 font-semibold uppercase tracking-wider font-mono">Assigned Role</span>
-                <span className="font-bold text-slate-800">Field Supervisor</span>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400 font-semibold uppercase tracking-wider font-mono">Module Privileges</span>
-                <span className="font-bold text-slate-800">Demographics & Community Perception</span>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400 font-semibold uppercase tracking-wider font-mono">Assigned Center</span>
-                <span className="font-bold text-slate-800 font-mono">Mumbai - {user.assigned_location || "Dharavi"}</span>
+            <div className="pt-3 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={() => setSelectedQaModalItem(null)}
+                className="px-6 py-2.5 rounded-full bg-slate-900 text-white text-xs font-bold hover:bg-black transition-colors cursor-pointer"
+              >
+                Close View
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+        {/* Tab: Profile (Admin-aligned UI Style) */}
+        {currentTab === "profile" && (
+          <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-200">
+            
+            {/* Admin-styled Hero Banner */}
+            <div className="bg-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden border border-slate-800">
+              <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-64 h-64 rounded-full bg-amber-400/10 blur-3xl pointer-events-none" />
+              
+              <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+                <div className="flex items-center gap-5">
+                  <div className="w-20 h-20 rounded-2xl bg-amber-400 text-slate-950 font-black text-2xl flex items-center justify-center shadow-lg font-mono border-2 border-amber-300 shrink-0">
+                    {String(user?.username || "DEO").substring(0, 2).toUpperCase()}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-2xl font-black tracking-tight text-white">{user.username}</h2>
+                      <span className="px-3 py-1 rounded-lg text-xs font-black bg-[#f5d40b] text-[#4a4a4c] font-mono shadow-2xs">
+                        {user.role_name || "Field Supervisor"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 font-medium">
+                      YRGMERF Non-Communicable Disease Clinical Screening Platform
+                    </p>
+                    <p className="text-[11px] text-amber-400 font-mono flex items-center gap-1.5 pt-1">
+                      <MapPin size={13} /> Center: Mumbai - {user.assigned_location || "Dharavi"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end border-t sm:border-t-0 border-slate-800 pt-4 sm:pt-0">
+                  <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+                    <UserCheck size={14} /> Active Verified User
+                  </span>
+                </div>
               </div>
             </div>
+
+            {/* Profile Grid Info Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
+                <span className="text-[10px] font-extrabold uppercase font-mono tracking-wider text-slate-400 block">User ID / Code</span>
+                <p className="text-sm font-extrabold text-slate-900 font-mono">{user.username || "FS001"}</p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
+                <span className="text-[10px] font-extrabold uppercase font-mono tracking-wider text-slate-400 block">Assigned Role</span>
+                <p className="text-sm font-extrabold text-slate-900">{user.role_name || "Field Supervisor"}</p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
+                <span className="text-[10px] font-extrabold uppercase font-mono tracking-wider text-slate-400 block">Assigned Center</span>
+                <p className="text-sm font-extrabold text-slate-900 font-mono">Mumbai - {user.assigned_location || "Dharavi"}</p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
+                <span className="text-[10px] font-extrabold uppercase font-mono tracking-wider text-slate-400 block">Access Status</span>
+                <p className="text-sm font-extrabold text-emerald-700 font-mono flex items-center gap-1">
+                  <CheckCircle2 size={14} /> {userPrivileges.length} Sections Enabled
+                </p>
+              </div>
+            </div>
+
+            {/* Minimal UI Module Access & Privileges Card */}
+            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-2xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <Shield size={18} className="text-amber-600 shrink-0" />
+                  <h3 className="text-xs font-bold uppercase font-mono tracking-wider text-slate-800">
+                    Assigned Role Privileges & Enabled Survey Modules ({userPrivileges.length} Sections)
+                  </h3>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                {userPrivileges.map(secId => (
+                  <div 
+                    key={secId} 
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300 font-mono shadow-2xs"
+                  >
+                    <span>{SECTION_NAMES[secId] || `Section ${secId}`}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
         )}
 
