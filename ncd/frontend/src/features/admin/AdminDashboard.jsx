@@ -22,7 +22,26 @@ export function AdminDashboard({ notify, logout }) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [selectedSurvey, setSelectedSurvey] = useState(null);
+  const [selectedSurveyState, setSelectedSurveyState] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ncd_selected_survey');
+      if (saved && saved !== 'undefined' && saved !== 'null') {
+        return JSON.parse(saved);
+      }
+    } catch (e) {}
+    return null;
+  });
+
+  const setSelectedSurvey = (survey) => {
+    setSelectedSurveyState(survey);
+    if (survey) {
+      localStorage.setItem('ncd_selected_survey', JSON.stringify(survey));
+    } else {
+      localStorage.removeItem('ncd_selected_survey');
+    }
+  };
+
+  const selectedSurvey = selectedSurveyState;
   
   // Phase 1 Lock System State
   const [phase1Unlocked, setPhase1Unlocked] = useState(() => {

@@ -104,7 +104,10 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey, onOpenM
           </div>
 
           <button 
-            onClick={() => setNavTab("survey-builder")}
+            onClick={() => {
+              setSelectedSurvey(null);
+              setNavTab("survey-builder");
+            }}
             className="sm:hidden flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-transform active:scale-95 shadow-sm"
             style={{ background: T.ink, color: T.gold }}
           >
@@ -114,7 +117,10 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey, onOpenM
         </div>
 
         <button 
-          onClick={() => setNavTab("survey-builder")}
+          onClick={() => {
+            setSelectedSurvey(null);
+            setNavTab("survey-builder");
+          }}
           className="hidden sm:flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-transform active:scale-95 shadow-sm hover:shadow-md cursor-pointer"
           style={{ background: T.ink, color: T.gold }}
         >

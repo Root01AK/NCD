@@ -37,21 +37,23 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
     return selectedSurvey ? selectedSurvey.sur_title : "New Survey Form";
   });
   const [questions, setQuestions] = useState(() => {
-    if (selectedSurvey && selectedSurvey.sur_url) {
+    if (selectedSurvey) {
+      if (selectedSurvey.sur_url) {
+        try {
+          const parsed = JSON.parse(selectedSurvey.sur_url);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch (e) {
+          console.error("Failed to parse schema JSON:", e);
+        }
+      }
       try {
-        const parsed = JSON.parse(selectedSurvey.sur_url);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch (e) {
-        console.error("Failed to parse schema JSON:", e);
-      }
+        const activeStr = localStorage.getItem('ncd_active_survey_questions');
+        if (activeStr) {
+          const parsed = JSON.parse(activeStr);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
     }
-    try {
-      const activeStr = localStorage.getItem('ncd_active_survey_questions');
-      if (activeStr) {
-        const parsed = JSON.parse(activeStr);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {}
     return [];
   });
   const [expandedIds, setExpandedIds] = useState({});
