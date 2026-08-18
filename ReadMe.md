@@ -77,3 +77,20 @@ Assigned Role Privileges & Enabled Survey Modules 10 Sections -- remove the gree
 
 The DEO portal is not mobile responsive for the navigation use hamburger menu icon to show the nav options, and footer is sticker fix it. All the rounded UI's is bludge looking fix it, in Mobile view the Grid option UI is not properly aligned. and btn of preview & next is not properly aligned. since it is mysql database add phpadmin in docker as for the XAMPP. and also don't forget it is XAMP hosting application. We have bug sometimes we have issue of creating empty survey.While refreshing creating empty survey screen.
 
+Phase -1 Correction need to improve
+
+1. Need to Change the Participant code logic need to generate the code location wise sample code is NCDDH0001 for Dharavi, NCDML0001 for Malvani, NCDVA0001 for Vashi.. all should start from 0001 to 9999 possiblities and this code generate should manage or customize by the admin panel, if we add another location also in future. 
+
+2. When hit "Enter" btn the initated Survey automatically closes.
+
+3. Prefill location is not working when we start the survey, if a survey started from the location Dharavi it should automatically choose in the demographics section.. Same like that for Malvani, Vashi..
+
+4. Why Participant select dropdown some in the "Field Supervisor" login when this initate the fresh survey, and it comes for Staff nurse, doctor , counselor, CMC. 
+
+5. In Sync Queue, the participant data comes it all mock data, it is not showing the actual data which entered.
+
+6. Contact Number should be 10 digit and it should have only numbers no alphabets and special characters. Without it we can't able to move to the next question.
+
+7. In admin panel, under the Participant Directory & Multi-Role Audit
+when a Field Supervisor initate the survey it will automatically create a participant need to show that create participant id in the participant directory in the admin panel. where need to add views participant response, Location, date of survey, created by Field Supervisor. and need to track the status also one which section the particpant is currently under which user. eg nurse, doctor, counselor, CMC, FS.. and which user completed, in which user queue they are pending. 
+

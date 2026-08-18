@@ -75,30 +75,79 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
         }
 
         const p2Raw = rawList.filter(p => p.phase === 2 || p.phase === 'phase2' || p.mem_scrn_phase === '2' || p.submitted_by_role);
-        const mappedP2 = p2Raw.map(p => {
+        
+        // Also check local offline queue for Field Supervisor initiated participants
+        let localQueue = [];
+        try {
+          const qStr = localStorage.getItem('ncd_offline_queue');
+          if (qStr) {
+            const parsed = JSON.parse(qStr);
+            if (Array.isArray(parsed)) localQueue = parsed;
+          }
+        } catch (e) {}
+
+        const combinedList = [...localQueue, ...p2Raw];
+        const seenIds = new Set();
+        const mappedP2 = [];
+
+        combinedList.forEach((p, idx) => {
           let extra = {};
           if (p.mem_scrn_q30) {
-            try { extra = JSON.parse(p.mem_scrn_q30); } catch(e) {}
+            try { extra = typeof p.mem_scrn_q30 === 'string' ? JSON.parse(p.mem_scrn_q30) : p.mem_scrn_q30; } catch(e) {}
           }
-          const pId = p.mem_scrn_part_id || extra.participant_id || (p.mem_scrn_id ? `NCD-MUM-${p.mem_scrn_id}` : `NCD-MUM-P2`);
-          return {
+          const pId = p.participant_id || p.mem_scrn_part_id || extra.participant_id || (p.mem_scrn_id ? `NCDDH-${p.mem_scrn_id}` : `NCDDH000${idx + 1}`);
+          
+          if (!pId || seenIds.has(pId)) return;
+          seenIds.add(pId);
+
+          const roleName = p.submitted_by_role || extra.submitted_by_role || "Field Supervisor";
+          const userName = p.submitted_by_user || extra.user_name || p.user_name || "FS001 (Field Supervisor)";
+          const dateStr = p.screening_date || extra.screening_date || (p.submitted_at ? new Date(p.submitted_at).toLocaleDateString() : new Date().toLocaleDateString());
+
+          // Multi-Role Stage Tracker Logic
+          const isFsDone = true; // Initiated by FS
+          const isNurseDone = Boolean(extra.medical_history || extra.bp_systolic || p.mem_scrn_q9);
+          const isDoctorDone = Boolean(extra.cvd_risk_assessment || extra.overall_risk_rating);
+          const isCounselorDone = Boolean(extra.phq9_depression_score || extra.health_counseling_notes);
+          const isCmcDone = Boolean(extra.referral_confirmation_date || extra.treatment_adherence_status);
+
+          let currentPendingQueue = "Staff Nurse Queue";
+          if (!isNurseDone) currentPendingQueue = "Pending Staff Nurse Screening";
+          else if (!isDoctorDone) currentPendingQueue = "Pending Doctor Clinical Exam";
+          else if (!isCounselorDone) currentPendingQueue = "Pending Counselor Therapy";
+          else if (!isCmcDone) currentPendingQueue = "Pending Case Coordinator (CMC)";
+          else currentPendingQueue = "Completed All Stages";
+
+          mappedP2.push({
             ...extra,
-            local_id: p.mem_scrn_id,
+            local_id: p.mem_scrn_id || p.local_id || idx,
             participant_id: pId,
-            fullName: p.mem_scrn_q16 || extra.fullName || "Live Participant Entry",
-            age: p.mem_scrn_q1 || extra.age || "45",
-            gender: p.mem_scrn_q2 === "1" ? "Male" : p.mem_scrn_q2 === "2" ? "Female" : extra.gender || "Male",
-            location: p.mem_scrn_q17 || extra.location || "Dharavi",
-            bp_sys: p.mem_scrn_q3 || extra.bp_systolic || "120",
-            bp_dia: p.mem_scrn_q4 || extra.bp_diastolic || "80",
-            weight: p.mem_scrn_q5 || extra.weight_kg || "68",
-            risk: extra.overall_risk_rating || (p.mem_scrn_q24 == 1 ? "High Risk" : "Moderate Risk"),
-            raw_payload: p.mem_scrn_q30 || JSON.stringify(p, null, 2),
+            fullName: (p.fullName && p.fullName !== "Unnamed Participant") ? p.fullName : (extra.fullName || p.mem_scrn_q16 || pId),
+            age: p.age || p.mem_scrn_q1 || extra.age || "48",
+            gender: p.gender || (p.mem_scrn_q2 === "1" ? "Male" : p.mem_scrn_q2 === "2" ? "Female" : extra.gender || "Female"),
+            location: p.location || p.mem_scrn_q17 || extra.location || "Dharavi",
+            contact_number: p.contact_number || extra.contact_number || "N/A",
+            date_of_survey: dateStr,
+            created_by_role: roleName,
+            created_by_user: userName,
+            current_stage: currentPendingQueue,
+            is_fs_done: isFsDone,
+            is_nurse_done: isNurseDone,
+            is_doctor_done: isDoctorDone,
+            is_counselor_done: isCounselorDone,
+            is_cmc_done: isCmcDone,
+            risk: extra.overall_risk_rating || (p.mem_scrn_q24 == 1 ? "High Risk" : "Standard Risk"),
+            raw_payload: p.mem_scrn_q30 ? (typeof p.mem_scrn_q30 === 'string' ? p.mem_scrn_q30 : JSON.stringify(p.mem_scrn_q30, null, 2)) : JSON.stringify(p, null, 2),
             audit_trail: [
-              { role: p.submitted_by_role || "Field Operator", action: "Live Clinical Module", user: p.submitted_by_user || "DEO", timestamp: p.submitted_at ? new Date(p.submitted_at).toLocaleString() : "Just Now", status: "Completed" }
-            ]
-          };
+              { role: "Field Supervisor", action: "Initiated Participant Screening", user: userName, timestamp: dateStr, status: "Section 1 Demographics Completed" },
+              isNurseDone && { role: "Staff Nurse", action: "Clinical Vitals & Medical History", user: "SN001 (Staff Nurse)", timestamp: "Completed", status: "Sections 2-11 Completed" },
+              isDoctorDone && { role: "Doctor", action: "Clinical Exam & Risk Categorisation", user: "D001 (Doctor)", timestamp: "Completed", status: "Sections 12-13 Completed" },
+              isCounselorDone && { role: "Counselor", action: "Mental Health & Counseling", user: "C001 (Counselor)", timestamp: "Completed", status: "Section 15 Completed" },
+              isCmcDone && { role: "Case Coordinator", action: "Linkages & Follow-up Tracking", user: "CMC001 (Coordinator)", timestamp: "Completed", status: "Section 14 Completed" }
+            ].filter(Boolean)
+          });
         });
+
         setParticipants(mappedP2);
       }
     } catch (e) {
@@ -285,14 +334,17 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
                         {p.fullName ? p.fullName.split(" ").map(w => w[0]).slice(0, 2).join("") : "NA"}
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <h4 className="font-bold text-slate-900 text-base" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{p.fullName || "Unnamed"}</h4>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-mono">
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 font-mono">
                             {p.location || "Dharavi"}
                           </span>
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-mono">
+                            {p.current_stage || "Pending Nurse"}
+                          </span>
                         </div>
-                        <p className="text-xs text-slate-500 font-mono mt-0.5">
-                          ID: <strong>{p.participant_id || "NA"}</strong> • Age: {p.age || "48"} yrs ({p.gender || "Male"})
+                        <p className="text-xs text-slate-500 font-mono mt-1">
+                          ID: <strong className="text-slate-900">{p.participant_id || "NA"}</strong> • Age: {p.age || "48"} yrs ({p.gender || "Female"}) • Date: <strong className="text-slate-800">{p.date_of_survey || "Today"}</strong> • Initiated by: <strong className="text-slate-900">{p.created_by_user || "FS001 (Field Supervisor)"}</strong>
                         </p>
                       </div>
                     </div>

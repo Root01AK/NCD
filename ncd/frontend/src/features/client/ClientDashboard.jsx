@@ -607,42 +607,56 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredSyncQueue.map((item, index) => (
-                  <div key={item.local_id || index} className="bg-white rounded-2xl p-4 border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shadow-2xs hover:border-slate-300 transition-all">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-bold text-slate-900 text-sm font-mono">
-                          {(item.fullName && item.fullName !== "Unnamed Participant") ? item.fullName : (item.participant_id || item.mem_scrn_part_id || "Participant")}
-                        </p>
-                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-mono">
-                          Pending Sync
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 font-mono">
-                        ID: <span className="font-bold text-slate-800">{item.participant_id || 'N/A'}</span>
-                        {item.age ? ` • Age: ${item.age}` : ''} 
-                        {item.gender ? ` • Gender: ${item.gender}` : ''}
-                        • Center: <span className="font-bold text-slate-800">{item.location || user.assigned_location || 'Dharavi'}</span>
-                      </p>
-                      {item.timestamp && (
-                        <p className="text-[10px] text-slate-400 font-mono">
-                          Saved: {new Date(item.timestamp).toLocaleString()}
-                        </p>
-                      )}
-                    </div>
+                {filteredSyncQueue.map((item, index) => {
+                  let raw = {};
+                  if (item.mem_scrn_q30) {
+                    try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
+                  }
+                  const pid = item.participant_id || item.mem_scrn_part_id || raw.participant_id || raw.mem_scrn_part_id || 'N/A';
+                  const name = (item.fullName && item.fullName !== "Unnamed Participant") ? item.fullName : (raw.fullName || item.mem_scrn_q16 || pid);
+                  const age = item.age || raw.age || item.mem_scrn_q1 || "45";
+                  const gender = item.gender || raw.gender || (item.mem_scrn_q2 == "1" ? "Male" : "Female");
+                  const loc = item.location || raw.location || item.mem_scrn_q17 || user.assigned_location || 'Dharavi';
+                  const phone = item.contact_number || raw.contact_number || "N/A";
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => setSelectedQaModalItem(item)}
-                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all border border-slate-200 cursor-pointer shadow-2xs"
-                        title="View Question & Answer Details"
-                      >
-                        <Eye size={13} className="text-slate-600" />
-                        <span>View Q&A</span>
-                      </button>
+                  return (
+                    <div key={item.local_id || index} className="bg-white rounded-2xl p-4 border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shadow-2xs hover:border-slate-300 transition-all">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-bold text-slate-900 text-sm font-mono">
+                            {name}
+                          </p>
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-mono">
+                            Pending Sync
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 font-mono">
+                          ID: <span className="font-bold text-slate-800">{pid}</span>
+                          {age ? ` • Age: ${age} yrs` : ''} 
+                          {gender ? ` • Gender: ${gender}` : ''}
+                          {phone && phone !== 'N/A' ? ` • Phone: ${phone}` : ''}
+                          • Center: <span className="font-bold text-slate-800">{loc}</span>
+                        </p>
+                        {item.timestamp && (
+                          <p className="text-[10px] text-slate-400 font-mono">
+                            Saved: {new Date(item.timestamp).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => setSelectedQaModalItem({ ...item, pid, name, age, gender, loc, phone, raw })}
+                          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all border border-slate-200 cursor-pointer shadow-2xs"
+                          title="View Question & Answer Details"
+                        >
+                          <Eye size={13} className="text-slate-600" />
+                          <span>View Q&A</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

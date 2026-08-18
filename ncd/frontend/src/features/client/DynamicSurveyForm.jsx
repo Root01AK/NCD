@@ -14,17 +14,50 @@ function formatDateDDMMMYYYY(dateObj) {
   return `${d < 10 ? '0' + d : d}-${m}-${y}`;
 }
 
-export function generateParticipantID(loc = "Dharavi") {
-  const locLower = String(loc || "").toLowerCase();
-  let prefix = "DH";
-  if (locLower.includes("dharavi")) prefix = "DH";
-  else if (locLower.includes("malvani")) prefix = "ML";
-  else if (locLower.includes("vashi")) prefix = "VS";
-  else if (locLower.includes("other")) prefix = "OT";
-  else if (String(loc).trim().length >= 2) prefix = String(loc).trim().substring(0, 2).toUpperCase();
+export function getlocationPrefix(loc = "Dharavi") {
+  const locLower = String(loc || "").toLowerCase().trim();
+  let prefixMap = {
+    dharavi: "DH",
+    malvani: "ML",
+    vashi: "VA",
+    other: "OT"
+  };
 
-  const num = Math.floor(1000 + Math.random() * 9000);
-  return `${prefix}-MUM-${num}`;
+  try {
+    const customPrefixes = localStorage.getItem('ncd_location_prefixes');
+    if (customPrefixes) {
+      const parsed = JSON.parse(customPrefixes);
+      if (parsed && typeof parsed === 'object') {
+        Object.keys(parsed).forEach(k => {
+          if (k && parsed[k]) prefixMap[k.toLowerCase()] = String(parsed[k]).toUpperCase();
+        });
+      }
+    }
+  } catch (e) {}
+
+  for (const [key, code] of Object.entries(prefixMap)) {
+    if (locLower.includes(key)) return code;
+  }
+
+  const clean = locLower.replace(/[^a-z0-9]/gi, '');
+  return clean.length >= 2 ? clean.substring(0, 2).toUpperCase() : "DH";
+}
+
+export function generateParticipantID(loc = "Dharavi") {
+  const prefix = getlocationPrefix(loc);
+  const counterKey = `ncd_participant_seq_${prefix}`;
+  let currentSeq = parseInt(localStorage.getItem(counterKey) || "1", 10);
+  if (isNaN(currentSeq) || currentSeq > 9999) currentSeq = 1;
+  const padNum = String(currentSeq).padStart(4, '0');
+  return `NCD${prefix}${padNum}`;
+}
+
+export function incrementParticipantIDCounter(loc = "Dharavi") {
+  const prefix = getlocationPrefix(loc);
+  const counterKey = `ncd_participant_seq_${prefix}`;
+  let currentSeq = parseInt(localStorage.getItem(counterKey) || "1", 10);
+  if (isNaN(currentSeq)) currentSeq = 1;
+  localStorage.setItem(counterKey, String(currentSeq + 1));
 }
 
 const DEFAULT_SURVEY_QUESTIONS = [
@@ -521,6 +554,10 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       notify("error", "Participant Required", "Please select a Participant ID from the dropdown or enter a valid Participant ID.");
       return;
     }
+    if (data.contact_number && String(data.contact_number).length < 10) {
+      notify("error", "Invalid Contact Number", "Contact Number must contain exactly 10 numeric digits.");
+      return;
+    }
     setStep(1);
     setQPage(0);
   };
@@ -644,27 +681,29 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                 </span>
               </div>
 
-              {/* PARTICIPANT DROPDOWN SELECTOR FOR ALL ROLES */}
-              <div className="p-5 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold uppercase tracking-wider font-mono text-amber-950 flex items-center gap-1.5">
-                    <UserCheck size={14} className="text-amber-700" /> Select Participant from Queue / Database *
-                  </label>
-                  <span className="text-[11px] font-bold text-amber-800 font-mono">{availableParticipants.length} Records Available</span>
+              {/* PARTICIPANT DROPDOWN SELECTOR FOR NON-SUPERVISOR ROLES ONLY */}
+              {!isFieldSupervisor && (
+                <div className="p-5 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider font-mono text-amber-950 flex items-center gap-1.5">
+                      <UserCheck size={14} className="text-amber-700" /> Select Participant from Queue / Database *
+                    </label>
+                    <span className="text-[11px] font-bold text-amber-800 font-mono">{availableParticipants.length} Records Available</span>
+                  </div>
+                  <select 
+                    value={data.participant_id} 
+                    onChange={(e) => handleParticipantSelect(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-white border border-amber-300 text-sm font-bold text-slate-900 font-mono outline-none shadow-2xs cursor-pointer focus:ring-2 focus:ring-amber-400"
+                  >
+                    <option value="">-- Choose Participant ID to load Clinical Modules --</option>
+                    {availableParticipants.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.id} — {p.name || 'Participant'} ({p.age} yrs, {p.gender}) [{p.location}]
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <select 
-                  value={data.participant_id} 
-                  onChange={(e) => handleParticipantSelect(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-white border border-amber-300 text-sm font-bold text-slate-900 font-mono outline-none shadow-2xs cursor-pointer focus:ring-2 focus:ring-amber-400"
-                >
-                  <option value="">-- Choose Participant ID to load Clinical Modules --</option>
-                  {availableParticipants.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.id} — {p.name || 'Participant'} ({p.age} yrs, {p.gender}) [{p.location}]
-                    </option>
-                  ))}
-                </select>
-              </div>
+              )}
 
               {/* Initial Participant Details Card (Field Supervisor only) */}
               {isFieldSupervisor && (
@@ -719,10 +758,13 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                       <input 
                         type="tel" 
                         value={data.contact_number} 
-                        onChange={(e) => set("contact_number")(e.target.value)}
+                        onChange={(e) => {
+                          const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          set("contact_number")(digitsOnly);
+                        }}
                         placeholder="10-digit mobile number"
                         maxLength={10}
-                        className="w-full bg-white border border-slate-300 text-slate-900 font-mono text-sm outline-none px-3.5 py-2 rounded-xl shadow-2xs"
+                        className="w-full bg-white border border-slate-300 text-slate-900 font-mono text-sm outline-none px-3.5 py-2 rounded-xl shadow-2xs focus:border-amber-500"
                       />
                     </div>
 
@@ -753,7 +795,15 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
           {/* STEP 1: ROLE SPECIFIC MODULES */}
           {step === 1 && (
-            <form onSubmit={handleSubmitRoleForm} className="bg-white rounded-3xl p-8 border border-slate-200 shadow-2xs space-y-6 animate-in fade-in duration-200">
+            <form 
+              onSubmit={handleSubmitRoleForm} 
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+                  e.preventDefault();
+                }
+              }}
+              className="bg-white rounded-3xl p-8 border border-slate-200 shadow-2xs space-y-6 animate-in fade-in duration-200"
+            >
               
               <div className="border-b border-slate-100 pb-4 flex items-center justify-between">
                 <div>

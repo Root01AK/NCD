@@ -39,6 +39,19 @@ export function LocationMaster({ notify }) {
           loc_state: l.loc_state || "Maharashtra"
         }));
         setLocations(processed);
+
+        // Store location prefixes in localStorage for participant ID generation
+        try {
+          const prefixMap = { dharavi: "DH", malvani: "ML", vashi: "VA", other: "OT" };
+          processed.forEach(loc => {
+            const nameKey = String(loc.loc_city || loc.loc_name || "").toLowerCase().trim();
+            const codeVal = String(loc.loc_code || "").trim().toUpperCase();
+            if (nameKey && codeVal) {
+              prefixMap[nameKey] = codeVal;
+            }
+          });
+          localStorage.setItem('ncd_location_prefixes', JSON.stringify(prefixMap));
+        } catch (e) {}
       }
     } catch (e) {
       console.error(e);
