@@ -32,6 +32,184 @@ const Q_TYPES = [
   { id: "matrix", label: "Matrix", icon: Table },
 ];
 
+import { getDefaultSkipRulesForQuestion } from "../../lib/logicEngine";
+
+function QuestionSkipRulesEditor({ q, questions, updateQ }) {
+  const defaultRules = getDefaultSkipRulesForQuestion(q.title || q.id);
+  const rules = Array.isArray(q.skipRules) 
+    ? q.skipRules 
+    : (q.skipRule && q.skipRule.dependsOn ? [q.skipRule] : defaultRules);
+
+  const addRule = () => {
+    const newRule = {
+      id: `rule_${Date.now()}`,
+      dependsOn: "",
+      condition: "equals",
+      value: "",
+      action: "hide"
+    };
+    const updated = [...rules, newRule];
+    updateQ(q.id, "skipRules", updated);
+  };
+
+  const updateRuleItem = (ruleIdx, key, val) => {
+    const updated = rules.map((r, idx) => idx === ruleIdx ? { ...r, [key]: val } : r);
+    updateQ(q.id, "skipRules", updated);
+  };
+
+  const removeRuleItem = (ruleIdx) => {
+    const updated = rules.filter((_, idx) => idx !== ruleIdx);
+    updateQ(q.id, "skipRules", updated);
+  };
+
+  return (
+    <div className="p-4 bg-slate-50/70 rounded-2xl border border-slate-200 space-y-3 text-xs">
+      <div className="flex items-center justify-between">
+        <p className="font-bold text-slate-800 font-mono flex items-center gap-1.5">
+          <Settings2 size={14} className="text-amber-600" />
+          <span>Skip Logic & Visibility Rules</span>
+          <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-mono text-[10px] font-black">
+            {rules.length} {rules.length === 1 ? 'Logic' : 'Logics'}
+          </span>
+        </p>
+        <button
+          type="button"
+          onClick={addRule}
+          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-400 hover:bg-amber-500 text-slate-950 font-bold text-[11px] transition-all cursor-pointer shadow-2xs"
+        >
+          <Plus size={12} />
+          <span>Add Logic</span>
+        </button>
+      </div>
+
+      {rules.length === 0 ? (
+        <div className="p-3 rounded-xl bg-white border border-dashed border-slate-300 text-slate-400 text-center text-[11px] font-mono">
+          No logic rules attached to this question. Click <strong>+ Add Logic</strong> to attach multiple rules.
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {rules.map((rule, rIdx) => (
+            <div key={rule.id || rIdx} className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2 relative">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-mono">
+                  Logic Rule #{rIdx + 1}
+                </span>
+                <button 
+                  type="button" 
+                  onClick={() => removeRuleItem(rIdx)}
+                  className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                  title="Remove Rule"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {rule.description && (
+                  <div className="p-2 rounded-lg bg-amber-50 text-amber-950 font-mono text-[11px] border border-amber-200">
+                    <strong>⚡ Active Rule:</strong> {rule.description}
+                  </div>
+                )}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-mono">
+                    If Question
+                  </label>
+                  <select
+                    value={rule.dependsOn || ""}
+                    onChange={(e) => updateRuleItem(rIdx, "dependsOn", e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-800 outline-none"
+                  >
+                    <option value="">-- Choose Dependent / Source Question --</option>
+                    <option value={q.id}>Self / This Question ({q.title ? q.title.split('.')[0] : q.id})</option>
+                    {questions.filter(other => other.id !== q.id && other.type !== "section_header").map(other => (
+                      <option key={other.id} value={other.id}>
+                        {other.title || other.id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-mono">
+                      Condition
+                    </label>
+                    <select
+                      value={rule.condition || "equals"}
+                      onChange={(e) => updateRuleItem(rIdx, "condition", e.target.value)}
+                      className="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-medium text-slate-800 outline-none"
+                    >
+                      <option value="equals">Equals (Code)</option>
+                      <option value="in">In (2, 3...)</option>
+                      <option value="not_equals">Not Equals</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-mono">
+                      Value / Code
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 2, 3"
+                      value={rule.value || ""}
+                      onChange={(e) => updateRuleItem(rIdx, "value", e.target.value)}
+                      className="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-mono font-bold text-slate-900 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-mono">
+                      Action
+                    </label>
+                    <select
+                      value={rule.action || "hide"}
+                      onChange={(e) => updateRuleItem(rIdx, "action", e.target.value)}
+                      className="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 outline-none"
+                    >
+                      <option value="hide">Hide / Skip Question(s)</option>
+                      <option value="show">Show Question(s)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Explicit Target / Skip Question Selector */}
+                <div className="pt-1">
+                  <label className="block text-[10px] font-bold text-amber-900 uppercase tracking-wider mb-1 font-mono flex items-center gap-1">
+                    🎯 Target Question(s) to Skip / Jump To *
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <select
+                      value={rule.targetQuestion || ""}
+                      onChange={(e) => updateRuleItem(rIdx, "targetQuestion", e.target.value)}
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50/70 text-xs font-mono font-bold text-slate-900 outline-none cursor-pointer focus:ring-1 focus:ring-amber-400"
+                    >
+                      <option value="">-- Choose Target Question to Skip --</option>
+                      {questions.filter(other => other.type !== "section_header").map(other => (
+                        <option key={other.id} value={other.id}>
+                          {other.title || other.id}
+                        </option>
+                      ))}
+                    </select>
+
+                    <input
+                      type="text"
+                      placeholder="Or type target questions (e.g. Q12, Q13, Q15)"
+                      value={rule.targetQuestion || ""}
+                      onChange={(e) => updateRuleItem(rIdx, "targetQuestion", e.target.value)}
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-mono text-slate-800 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
   const [surveyTitle, setSurveyTitle] = useState(() => {
     return selectedSurvey ? selectedSurvey.sur_title : "New Survey Form";
@@ -770,52 +948,10 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
                         )}
                       </div>
 
-                      {/* Right: Skip Logic rules */}
+                      {/* Right: Redesigned Multiple Skip Logic & Visibility Rules Engine */}
                       <div>
                         {q.type !== "section_header" && (
-                          <div className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100 space-y-3 text-xs">
-                            <p className="font-bold text-slate-700 flex items-center gap-1.5"><Settings2 size={13}/> Skip Logic & Visibility Rules</p>
-                            
-                            <div className="space-y-2.5">
-                              <div>
-                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">If Question</label>
-                                <select 
-                                  value={q.skipRule?.dependsOn || ""} 
-                                  onChange={(e) => updateQ(q.id, "skipRule", { ...q.skipRule, dependsOn: e.target.value })}
-                                  className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white"
-                                >
-                                  <option value="">Select question...</option>
-                                  {questions.filter(other => other.id !== q.id && other.type !== "section_header").map(other => (
-                                    <option key={other.id} value={other.id}>{other.title || other.id}</option>
-                                  ))}
-                                </select>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Is Equal To</label>
-                                  <input 
-                                    type="text" 
-                                    placeholder="e.g. Yes" 
-                                    value={q.skipRule?.value || ""} 
-                                    onChange={(e) => updateQ(q.id, "skipRule", { ...q.skipRule, value: e.target.value })}
-                                    className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Action</label>
-                                  <select 
-                                    value={q.skipRule?.action || "show"} 
-                                    onChange={(e) => updateQ(q.id, "skipRule", { ...q.skipRule, action: e.target.value })}
-                                    className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white"
-                                  >
-                                    <option value="show">Show question</option>
-                                    <option value="hide">Hide question</option>
-                                  </select>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
+                          <QuestionSkipRulesEditor q={q} questions={questions} updateQ={updateQ} />
                         )}
                       </div>
 

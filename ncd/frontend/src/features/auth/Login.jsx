@@ -32,6 +32,25 @@ export function Login({ goLanding, notify, onLoginSuccess }) {
       const data = await response.json();
 
       if (response.ok && data.status === 'success') {
+        const u = data.user || {};
+        const isAdminUser = u.role_id === 1 || u.role_id === '1' || String(u.role_name || '').toLowerCase() === 'admin' || String(u.role || '').toLowerCase() === 'admin';
+
+        if (role === "admin" && !isAdminUser) {
+          const errMsg = "Access Denied: DEO staff credentials cannot be used to log in to the Admin Portal. Please switch to the DEO Portal tab to sign in.";
+          setError(errMsg);
+          notify("error", "Access Denied", "DEO staff credentials cannot log in to Admin Portal.");
+          setSubmitting(false);
+          return;
+        }
+
+        if (role === "deo" && isAdminUser) {
+          const errMsg = "Access Denied: Administrator credentials cannot be used to log in to the DEO Portal. Please switch to the Admin Portal tab to sign in.";
+          setError(errMsg);
+          notify("error", "Access Denied", "Admin credentials cannot log in to DEO Portal.");
+          setSubmitting(false);
+          return;
+        }
+
         notify("success", "Authentication Successful", `Signed in as ${data.user.username}`);
         localStorage.setItem('ncd_token', data.token);
         localStorage.setItem('ncd_user', JSON.stringify(data.user));

@@ -94,3 +94,30 @@ Phase -1 Correction need to improve
 7. In admin panel, under the Participant Directory & Multi-Role Audit
 when a Field Supervisor initate the survey it will automatically create a participant need to show that create participant id in the participant directory in the admin panel. where need to add views participant response, Location, date of survey, created by Field Supervisor. and need to track the status also one which section the particpant is currently under which user. eg nurse, doctor, counselor, CMC, FS.. and which user completed, in which user queue they are pending. 
 
+Validation Logics
+
+1. If Q11 is opted to code 2 or 3, skip to Q13.
+2. If Q14 is opted to code 2 Skip to Q17.
+3. If Q17 is opted to code 1 skip to Q24 and if opted to code 2 answer Q18 & Q19 the skip to Q24.and if opted to code 3 skip Q18 & Q19 answer Q20 to Q23 
+
+4. If Q25 is opted code 1 skip to Q33, if opted code 2 answer Q26 then skip to Q33, if opted code 3 skip Q26 and answeer Q27 onwards.
+5. Q30 if below threshold, skip to Q33. if positive , administer the full AUDIT (Note: Auto-calculated. Positive is 4 or more for mens, 3 or more for womens and transgender participants)
+6. If Q33 is opted code 1 or 5 skip to Q37, if opted code 2 or 3 answer Q34 then skip to Q37, If opted code 4 answer to Q34 to Q36.
+
+7. If Q40 is opted code 2 skip to Q42.
+8. If Q43 is opted code 2 skip to Q44.
+9. If Q44 is opted code 2 skip to Q46.
+10. If Q46 is opted code 2 Skip to Q48.
+
+11. Q58 if opted code 2 or 3, skip to Q60,  Q59 is opted to code 2 or 3, skip to Q61, if both Q58 & Q59 are opted to 0 or 1, skip Q65.
+12. Q81 if not opted code 6 skip Q83.
+13. Q88 only if BMI at Q69 is below 20. if BMI is 20 or above, skip to Q89
+14. Q94 if opted to code 2 skip to section 15.
+15. Q97 if opted to code 1, Skip to Q107 and close the remaining attempts.otherwise procceed to attempt 2.
+16. Q103 if opted code 1 go to Q107. ANy other outcome closes the record as lost to follow-up and make Q104 compulsory.No fourth attempt is permitted and no date may be extended.
+
+Q27-Q29 are smilar to Q21-Q23, however the formatting is not the same way, we understand that the total score capturing to be there, please check so that we can make chnages to same accordingly
+
+Compulsory safety validation. The form cannot be submitted where PHQ-9 item 9 (Q64) is positive and the escalation field (Q65) is blank.
+Range checks at entry. Apply plausibility ranges to every numeric field, in particular waist-hip ratio (0.60 to 1.40), BMI (10 to 60), systolic BP (70 to 260), diastolic BP (40 to 160), RBS (30 to 600) and haemoglobin (3 to 20). Reject out-of-range values at entry, not at analysis.
+Auto-calculated fields. BMI, waist-hip ratio, average blood pressure, Heaviness of Smoking Index, AUDIT-C total and the Amber review date are calculated, not typed.

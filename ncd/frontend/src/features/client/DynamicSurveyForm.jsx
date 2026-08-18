@@ -5,6 +5,8 @@ import { saveToQueue } from "../../lib/db";
 import { api } from "../../lib/api";
 import { Mark } from "../../components/ui/Mark";
 
+import { isQuestionSkipped, getOptionCode, getOptionLabel } from "../../lib/logicEngine";
+
 // Helper to format Date to DD-MMM-YYYY
 function formatDateDDMMMYYYY(dateObj) {
   const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
@@ -89,88 +91,22 @@ const DEFAULT_SURVEY_QUESTIONS = [
   { id: "q18", title: "Q18. How long ago did you stop? (Former users only)", type: "dropdown", options: ["Less than 6 months", "6 to 12 months", "1 to 5 years", "More than 5 years"], required: false, section: 3 },
   { id: "q19", title: "Q19. For how many years did you use tobacco before stopping?", type: "dropdown", options: ["Less than 1 year", "1 to 5 years", "6 to 10 years", "11 to 20 years", "More than 20 years"], required: false, section: 3 },
   { id: "q20", title: "Q20. Which products do you currently use? (Current users only)", type: "multi_choice", options: ["Cigarette", "Bidi", "Hookah", "Cigar / pipe", "E-cigarette", "Gutkha", "Khaini", "Zarda", "Paan with tobacco", "Paan masala with tobacco", "Snuff", "Mishri / gul"], required: false, section: 3 },
-  { id: "q21", title: "Q21. How soon after waking do you first use tobacco?", type: "dropdown", options: ["Within 5 minutes", "6 to 30 minutes", "31 to 60 minutes", "After 60 minutes"], required: false, section: 3 },
-  { id: "q22", title: "Q22. How many times do you use tobacco in a day, all products together?", type: "dropdown", options: ["10 or fewer", "11 to 20", "21 to 30", "31 or more"], required: false, section: 3 },
-  { id: "q23", title: "Q23. Heaviness of Smoking Index total", type: "number", required: false, section: 3 },
+  { id: "q21", title: "Q21. How soon after waking do you first use tobacco?", type: "dropdown", options: [{ label: "Within 5 minutes (3 pts)", code: "3" }, { label: "6 to 30 minutes (2 pts)", code: "2" }, { label: "31 to 60 minutes (1 pt)", code: "1" }, { label: "After 60 minutes (0 pts)", code: "0" }], required: false, section: 3 },
+  { id: "q22", title: "Q22. How many times do you use tobacco in a day, all products together?", type: "dropdown", options: [{ label: "10 or fewer (0 pts)", code: "0" }, { label: "11 to 20 (1 pt)", code: "1" }, { label: "21 to 30 (2 pts)", code: "2" }, { label: "31 or more (3 pts)", code: "3" }], required: false, section: 3 },
+  { id: "q23", title: "Q23. Heaviness of Smoking Index (HSI) Total Score (Auto-calculated)", type: "number", required: false, section: 3 },
   { id: "q24", title: "Q24. Is anyone else in your household a current tobacco user?", type: "single_choice", options: ["Yes, smoked", "Yes, smokeless", "Yes, both", "No", "Don't know"], required: false, section: 3 },
 
   // Section 4: Alcohol Use
   { id: "sec_4", title: "SECTION 4 · ALCOHOL USE — STAFF NURSE", type: "section_header", section: 4 },
   { id: "q25", title: "Q25. Which best describes your alcohol use?", type: "single_choice", options: ["Never consumed", "Consumed in the past, stopped completely", "Currently consume"], required: true, section: 4 },
   { id: "q26", title: "Q26. If you stopped, how long ago?", type: "dropdown", options: ["Less than 6 months", "6 to 12 months", "1 to 5 years", "More than 5 years"], required: false, section: 4 },
-  { id: "q27", title: "Q27. How often do you have a drink containing alcohol?", type: "dropdown", options: ["Never", "Monthly or less", "Two to four times a month", "Two to three times a week", "Four or more times a week"], required: false, section: 4 },
-  { id: "q28", title: "Q28. How many standard drinks on a typical drinking day?", type: "dropdown", options: ["One or two", "Three or four", "Five or six", "Seven to nine", "Ten or more"], required: false, section: 4 },
-  { id: "q29", title: "Q29. How often do you have six or more standard drinks on one occasion?", type: "dropdown", options: ["Never", "Less than monthly", "Monthly", "Weekly", "Daily or almost daily"], required: false, section: 4 }
+  { id: "q27", title: "Q27. How often do you have a drink containing alcohol?", type: "dropdown", options: [{ label: "Never (0 pts)", code: "0" }, { label: "Monthly or less (1 pt)", code: "1" }, { label: "Two to four times a month (2 pts)", code: "2" }, { label: "Two to three times a week (3 pts)", code: "3" }, { label: "Four or more times a week (4 pts)", code: "4" }], required: false, section: 4 },
+  { id: "q28", title: "Q28. How many standard drinks on a typical drinking day?", type: "dropdown", options: [{ label: "1 or 2 (0 pts)", code: "0" }, { label: "3 or 4 (1 pt)", code: "1" }, { label: "5 or 6 (2 pts)", code: "2" }, { label: "7 to 9 (3 pts)", code: "3" }, { label: "10 or more (4 pts)", code: "4" }], required: false, section: 4 },
+  { id: "q29", title: "Q29. How often do you have six or more standard drinks on one occasion?", type: "dropdown", options: [{ label: "Never (0 pts)", code: "0" }, { label: "Less than monthly (1 pt)", code: "1" }, { label: "Monthly (2 pts)", code: "2" }, { label: "Weekly (3 pts)", code: "3" }, { label: "Daily or almost daily (4 pts)", code: "4" }], required: false, section: 4 },
+  { id: "q30", title: "Q30. AUDIT-C Total Score (Auto-calculated)", type: "number", required: false, section: 4 }
 ];
 
-function getOptionCode(opt, oIdx = 0) {
-  if (typeof opt === 'object' && opt !== null) {
-    return String(opt.code ?? (oIdx + 1));
-  }
-  const str = String(opt || '');
-  const match = str.match(/^(?:Code\s*)?(\d+)/i);
-  return match ? match[1] : String(oIdx + 1);
-}
 
-function getOptionLabel(opt) {
-  if (typeof opt === 'object' && opt !== null) {
-    return String(opt.label || '');
-  }
-  return String(opt || '');
-}
-
-function isQuestionSkipped(q, customQuestions, data) {
-  const titleStr = String(q.title || "").trim();
-  const qMatch = titleStr.match(/^Q(\d+)/i);
-  const qNum = qMatch ? parseInt(qMatch[1]) : null;
-
-  // Rule 1: Skip Q10 if Q9 Code 11 (Cancer) is NOT ticked
-  if (qNum === 10 || titleStr.toLowerCase().includes("q10")) {
-    const q9 = (customQuestions || []).find(item => {
-      const t = String(item.title || "").toLowerCase();
-      return t.startsWith("q9") || t.includes("doctor") || t.includes("following");
-    });
-    if (q9) {
-      const q9Val = data[`custom_${q9.id}`] || data[q9.id];
-      if (q9Val) {
-        const q9Arr = Array.isArray(q9Val) ? q9Val : [q9Val];
-        const q9Opts = Array.isArray(q9.options) ? q9.options : [];
-        
-        const hasCode11 = q9Arr.some(sel => {
-          const idx = q9Opts.findIndex(o => getOptionLabel(o) === getOptionLabel(sel));
-          const code = getOptionCode(sel, idx >= 0 ? idx : 10);
-          const label = getOptionLabel(sel).toLowerCase();
-          return code === "11" || label.includes("cancer") || label.includes("11");
-        });
-
-        if (!hasCode11) return true; // Skip Q10 only when Q9 is answered and Cancer is not ticked
-      }
-    }
-  }
-
-  // Rule 2: Skip Q12 if Q11 is 2 or 3
-  if (qNum === 12 || titleStr.toLowerCase().includes("q12")) {
-    const q11 = (customQuestions || []).find(item => {
-      const t = String(item.title || "").toLowerCase();
-      return t.startsWith("q11") || t.includes("family history");
-    });
-    if (q11) {
-      const q11Val = data[`custom_${q11.id}`] || data[q11.id];
-      if (q11Val) {
-        const q11Opts = Array.isArray(q11.options) ? q11.options : [];
-        const idx = q11Opts.findIndex(o => getOptionLabel(o) === getOptionLabel(q11Val));
-        const code = getOptionCode(q11Val, idx >= 0 ? idx : 0);
-        const label = getOptionLabel(q11Val).toLowerCase();
-        
-        if (code === "2" || code === "3" || label.includes("no") || label.includes("don't know")) {
-          return true; // Skip Q12 only when Q11 is answered No/Don't know
-        }
-      }
-    }
-  }
-
-  return false;
-}
 
 export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   const getUserSafely = () => {
@@ -318,6 +254,143 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       }
     }
   }, [customQuestions, data.location]);
+
+  // Auto-calculate 6 core clinical fields: BMI, WHR, Avg BP, HSI (Q23), AUDIT-C (Q30), Amber Review Date
+  useEffect(() => {
+    setData(d => {
+      let updates = {};
+
+      // 1. BMI
+      const wt = parseFloat(d.weight || d.q67 || d.custom_q67 || 0);
+      const htCm = parseFloat(d.height || d.q68 || d.custom_q68 || 0);
+      if (wt > 0 && htCm > 0) {
+        const htM = htCm / 100;
+        const calcBmi = (wt / (htM * htM)).toFixed(2);
+        if (d.bmi !== calcBmi) {
+          updates.bmi = calcBmi;
+          updates.custom_bmi = calcBmi;
+          const q69Key = Object.keys(d).find(k => k.toLowerCase().includes("q69")) || "q69";
+          updates[q69Key] = calcBmi;
+        }
+      }
+
+      // 2. Waist-Hip Ratio (WHR)
+      const waist = parseFloat(d.waist || d.q70 || d.custom_q70 || 0);
+      const hip = parseFloat(d.hip || d.q71 || d.custom_q71 || 0);
+      if (waist > 0 && hip > 0) {
+        const calcWhr = (waist / hip).toFixed(2);
+        if (d.waist_hip_ratio !== calcWhr) {
+          updates.waist_hip_ratio = calcWhr;
+          updates.whr = calcWhr;
+          updates.custom_whr = calcWhr;
+          const q72Key = Object.keys(d).find(k => k.toLowerCase().includes("q72")) || "q72";
+          updates[q72Key] = calcWhr;
+        }
+      }
+
+      // 3. Average Blood Pressure (SBP & DBP)
+      const sbp1 = parseFloat(d.sys_bp_1 || d.sbp1 || 0);
+      const sbp2 = parseFloat(d.sys_bp_2 || d.sbp2 || 0);
+      const dbp1 = parseFloat(d.dia_bp_1 || d.dbp1 || 0);
+      const dbp2 = parseFloat(d.dia_bp_2 || d.dbp2 || 0);
+
+      if (sbp1 > 0 && sbp2 > 0) {
+        const avgSbp = Math.round((sbp1 + sbp2) / 2);
+        if (d.avg_sys_bp !== avgSbp) {
+          updates.avg_sys_bp = avgSbp;
+          updates.sys_bp = avgSbp;
+          updates.custom_sys_bp = avgSbp;
+        }
+      }
+      if (dbp1 > 0 && dbp2 > 0) {
+        const avgDbp = Math.round((dbp1 + dbp2) / 2);
+        if (d.avg_dia_bp !== avgDbp) {
+          updates.avg_dia_bp = avgDbp;
+          updates.dia_bp = avgDbp;
+          updates.custom_dia_bp = avgDbp;
+        }
+      }
+
+      // 4. Heaviness of Smoking Index (HSI - Q23)
+      let hsiScore = 0;
+      const q21Val = d.q21 || d.custom_q21;
+      const q22Val = d.q22 || d.custom_q22;
+
+      if (q21Val) {
+        const str = typeof q21Val === 'object' ? (q21Val.code || q21Val.label || '') : String(q21Val);
+        const l = str.toLowerCase();
+        if (l.includes("within 5") || l.includes("3 pts") || str === "3") hsiScore += 3;
+        else if (l.includes("6 to 30") || l.includes("2 pts") || str === "2") hsiScore += 2;
+        else if (l.includes("31 to 60") || l.includes("1 pt") || str === "1") hsiScore += 1;
+      }
+      if (q22Val) {
+        const str = typeof q22Val === 'object' ? (q22Val.code || q22Val.label || '') : String(q22Val);
+        const l = str.toLowerCase();
+        if (l.includes("31 or more") || l.includes("3 pts") || str === "3") hsiScore += 3;
+        else if (l.includes("21 to 30") || l.includes("2 pts") || str === "2") hsiScore += 2;
+        else if (l.includes("11 to 20") || l.includes("1 pt") || str === "1") hsiScore += 1;
+      }
+
+      const q23Key = Object.keys(d).find(k => k.toLowerCase().includes("q23")) || "custom_q23";
+      if (d[q23Key] !== hsiScore) {
+        updates.q23 = hsiScore;
+        updates.custom_q23 = hsiScore;
+        updates[q23Key] = hsiScore;
+      }
+
+      // 5. AUDIT-C Total (Q30)
+      let auditScore = 0;
+      const q27Val = d.q27 || d.custom_q27;
+      const q28Val = d.q28 || d.custom_q28;
+      const q29Val = d.q29 || d.custom_q29;
+
+      const parsePoints = (v) => {
+        if (!v) return 0;
+        const str = typeof v === 'object' ? (v.code ?? v.label ?? '') : String(v);
+        const ptMatch = str.match(/(\d+)\s*pt/i) || str.match(/code\s*(\d+)/i) || str.match(/^(\d+)/);
+        if (ptMatch) return parseInt(ptMatch[1], 10);
+        const l = str.toLowerCase();
+        if (l.includes("never") || l.includes("one or two") || l.includes("1 or 2")) return 0;
+        if (l.includes("monthly or less") || l.includes("less than monthly") || l.includes("three or four") || l.includes("3 or 4")) return 1;
+        if (l.includes("two to four") || l.includes("2 to 4") || l.includes("monthly") || l.includes("five or six") || l.includes("5 or 6")) return 2;
+        if (l.includes("two to three") || l.includes("2 to 3") || l.includes("weekly") || l.includes("seven to nine") || l.includes("7 to 9")) return 3;
+        if (l.includes("four or more") || l.includes("4 or more") || l.includes("daily") || l.includes("ten or more") || l.includes("10 or more")) return 4;
+        return 0;
+      };
+
+      auditScore += parsePoints(q27Val);
+      auditScore += parsePoints(q28Val);
+      auditScore += parsePoints(q29Val);
+
+      const q30Key = Object.keys(d).find(k => k.toLowerCase().includes("q30")) || "custom_q30";
+      if (d[q30Key] !== auditScore) {
+        updates.q30 = auditScore;
+        updates.custom_q30 = auditScore;
+        updates[q30Key] = auditScore;
+      }
+
+      // 6. Amber Review Date (+14 days from screening date)
+      const baseDate = d.raw_date ? new Date(d.raw_date) : new Date();
+      const amberDt = new Date(baseDate);
+      amberDt.setDate(amberDt.getDate() + 14);
+      const amberFormatted = formatDateDDMMMYYYY(amberDt);
+
+      if (d.amber_review_date !== amberFormatted) {
+        updates.amber_review_date = amberFormatted;
+        updates.custom_amber_review_date = amberFormatted;
+      }
+
+      if (Object.keys(updates).length === 0) return d;
+      return { ...d, ...updates };
+    });
+  }, [
+    data.weight, data.height, data.custom_q67, data.custom_q68,
+    data.waist, data.hip, data.custom_q70, data.custom_q71,
+    data.sys_bp_1, data.sys_bp_2, data.dia_bp_1, data.dia_bp_2,
+    data.q21, data.custom_q21, data.q22, data.custom_q22,
+    data.q27, data.custom_q27, data.q28, data.custom_q28, data.q29, data.custom_q29,
+    data.raw_date
+  ]);
 
   useEffect(() => {
     const userString = localStorage.getItem('ncd_user') || localStorage.getItem('icc_user');
@@ -562,8 +635,51 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     setQPage(0);
   };
 
+  const validatePlausibilityRanges = () => {
+    const checks = [
+      { keys: ["waist_hip_ratio", "whr", "custom_whr", "q72", "custom_q72"], min: 0.60, max: 1.40, label: "Waist-Hip Ratio" },
+      { keys: ["bmi", "custom_bmi", "q69", "custom_q69"], min: 10.0, max: 60.0, label: "BMI" },
+      { keys: ["sys_bp", "systolic", "sbp", "custom_sys_bp", "sys_bp_1", "sys_bp_2"], min: 70, max: 260, label: "Systolic Blood Pressure (mmHg)" },
+      { keys: ["dia_bp", "diastolic", "dbp", "custom_dia_bp", "dia_bp_1", "dia_bp_2"], min: 40, max: 160, label: "Diastolic Blood Pressure (mmHg)" },
+      { keys: ["rbs", "blood_sugar", "custom_rbs"], min: 30, max: 600, label: "Random Blood Sugar (RBS mg/dL)" },
+      { keys: ["hb", "haemoglobin", "custom_hb"], min: 3.0, max: 20.0, label: "Haemoglobin (Hb g/dL)" },
+      { keys: ["age", "custom_age"], min: 18, max: 120, label: "Age (years)" }
+    ];
+
+    for (const check of checks) {
+      for (const key of check.keys) {
+        const val = data[key];
+        if (val !== undefined && val !== null && val !== "") {
+          const num = parseFloat(val);
+          if (!isNaN(num) && (num < check.min || num > check.max)) {
+            notify("error", "Plausibility Range Error", `${check.label} must be between ${check.min} and ${check.max}. Entered value: ${num}`);
+            return false;
+          }
+        }
+      }
+    }
+    return true;
+  };
+
   const handleSubmitRoleForm = async (e) => {
     e.preventDefault();
+
+    // 1. Compulsory Safety Validation: PHQ-9 Item 9 (Q64) positive requires Q65 escalation
+    const q64Val = data.q64 || data.custom_q64;
+    const q65Val = data.q65 || data.custom_q65;
+    if (q64Val !== undefined && q64Val !== null && q64Val !== "" && q64Val !== "0" && q64Val !== "Not at all" && q64Val !== "0 pts") {
+      const isQ65Blank = q65Val === undefined || q65Val === null || q65Val === "" || (Array.isArray(q65Val) && q65Val.length === 0);
+      if (isQ65Blank) {
+        notify("error", "Compulsory Safety Warning", "PHQ-9 Item 9 (Q64) indicates self-harm risk. The form CANNOT be submitted where Q65 Escalation Protocol field is blank.");
+        return;
+      }
+    }
+
+    // 2. Plausibility Range Checks at entry
+    if (!validatePlausibilityRanges()) {
+      return;
+    }
+
     setSubmitting(true);
     notify("info", "Submitting", `Saving ${data.user_role} clinical module entry...`);
 

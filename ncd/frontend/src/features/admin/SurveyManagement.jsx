@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Search, Plus, FileText, Play, BarChart2, Copy, Loader2, Settings, Trash2, BookOpen, Edit, SlidersHorizontal, Layers, Eye, ClipboardList, ClipboardCheck, Stethoscope, Menu } from "lucide-react";
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
+import { getDefaultSkipRulesForQuestion } from "../../lib/logicEngine";
 
 export function SurveyManagement({ notify, setNavTab, setSelectedSurvey, onOpenMobileMenu }) {
   const [surveys, setSurveys] = useState([]);
@@ -247,6 +248,49 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey, onOpenM
               </div>
 
               <div className="p-6 overflow-y-auto space-y-4 flex-1">
+                {/* Active Skip & Branching Logic Rules */}
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-950 font-mono space-y-2">
+                  <h4 className="font-bold uppercase tracking-wider text-[11px] text-amber-900 flex items-center gap-1.5">
+                    ⚙️ Active Skip & Branching Logic Rules:
+                  </h4>
+                  <ul className="list-disc pl-4 space-y-1 text-[11px] font-medium text-amber-900/90">
+                    <li><strong>Rule 1 (Q11):</strong> If Q11 is opted to Code 2 or 3 → <em>Skip Q12 (Jump straight to Q13)</em>.</li>
+                    <li><strong>Rule 2 (Q14):</strong> If Q14 is opted to Code 2 → <em>Skip Q15 & Q16 (Jump straight to Q17)</em>.</li>
+                    <li><strong>Rule 3 (Q17):</strong>
+                      <div className="pl-2 mt-0.5 space-y-0.5">
+                        <p>• Code 1 → <em>Skip Q18 to Q23 (Jump straight to Q24)</em></p>
+                        <p>• Code 2 → <em>Answer Q18 & Q19, Skip Q20 to Q23 (Jump to Q24)</em></p>
+                        <p>• Code 3 → <em>Skip Q18 & Q19, Answer Q20 to Q23</em></p>
+                      </div>
+                    </li>
+                    <li><strong>Rule 4 (Q25):</strong>
+                      <div className="pl-2 mt-0.5 space-y-0.5">
+                        <p>• Code 1 → <em>Skip Q26 to Q32 (Jump to Q33)</em></p>
+                        <p>• Code 2 → <em>Answer Q26, Skip Q27 to Q32 (Jump to Q33)</em></p>
+                        <p>• Code 3 → <em>Skip Q26, Answer Q27 onwards</em></p>
+                      </div>
+                    </li>
+                    <li><strong>Rule 5 (Q30 AUDIT-C Score):</strong> If below threshold (Male &lt; 4, Female/Trans &lt; 3) → <em>Skip Q31 & Q32 (Jump to Q33)</em>. If positive, administer full AUDIT.</li>
+                    <li><strong>Rule 6 (Q33):</strong>
+                      <div className="pl-2 mt-0.5 space-y-0.5">
+                        <p>• Code 1 or 5 → <em>Skip Q34 to Q36 (Jump to Q37)</em></p>
+                        <p>• Code 2 or 3 → <em>Answer Q34, Skip Q35 & Q36 (Jump to Q37)</em></p>
+                        <p>• Code 4 → <em>Answer Q34 to Q36</em></p>
+                      </div>
+                    </li>
+                    <li><strong>Rule 7 (Q40):</strong> If Q40 is opted to Code 2 → <em>Skip Q41 (Jump to Q42)</em>.</li>
+                    <li><strong>Rule 8 (Q43):</strong> If Q43 is opted to Code 2 → <em>Skip to Q44</em>.</li>
+                    <li><strong>Rule 9 (Q44):</strong> If Q44 is opted to Code 2 → <em>Skip Q45 (Jump to Q46)</em>.</li>
+                    <li><strong>Rule 10 (Q46):</strong> If Q46 is opted to Code 2 → <em>Skip Q47 (Jump to Q48)</em>.</li>
+                    <li><strong>Rule 11 (Q58 & Q59):</strong> Q58 Code 2/3 → <em>Skip Q59 (Jump to Q60)</em>. Q59 Code 2/3 → <em>Skip Q60 (Jump to Q61)</em>. Both Q58 & Q59 0/1 → <em>Skip Q65</em>.</li>
+                    <li><strong>Rule 12 (Q81):</strong> If NOT Code 6 → <em>Skip Q83</em>.</li>
+                    <li><strong>Rule 13 (Q88 BMI):</strong> Only if BMI &lt; 20. If BMI &ge; 20 → <em>Skip to Q89</em>.</li>
+                    <li><strong>Rule 14 (Q94):</strong> If Code 2 → <em>Skip to Section 15</em>.</li>
+                    <li><strong>Rule 15 (Q97):</strong> If Code 1 → <em>Skip to Q107 & close remaining attempts</em>; otherwise proceed to Attempt 2.</li>
+                    <li><strong>Rule 16 (Q103):</strong> If Code 1 → <em>Go to Q107</em>. Any other outcome closes record as Lost to Follow-up & makes Q104 compulsory (Max 3 attempts, no 4th attempt).</li>
+                  </ul>
+                </div>
+
                 {(() => {
                   let schemaQs = [];
                   if (viewingCodebookSurvey.sur_url) {
@@ -264,10 +308,22 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey, onOpenM
 
                   return schemaQs.map((q, idx) => {
                     const opts = Array.isArray(q.options) ? q.options : [];
+                    const qRules = Array.isArray(q.skipRules) && q.skipRules.length > 0
+                      ? q.skipRules
+                      : (q.skipRule && q.skipRule.dependsOn ? [q.skipRule] : getDefaultSkipRulesForQuestion(q.title || q.id));
+
                     return (
                       <div key={idx} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-xs font-bold text-slate-900 font-mono">{q.title || `Question ${idx + 1}`}</h4>
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-xs font-bold text-slate-900 font-mono">{q.title || `Question ${idx + 1}`}</h4>
+                            {qRules.length > 0 && (
+                              <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-lg bg-amber-100 text-amber-950 border border-amber-300 flex items-center gap-1">
+                                <span>⚡ {qRules.length} Skip Logic:</span>
+                                <em>{qRules[0].description || `If ${qRules[0].dependsOn} is ${qRules[0].value} → ${qRules[0].action}`}</em>
+                              </span>
+                            )}
+                          </div>
                           <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700 uppercase">{q.type}</span>
                         </div>
                         {opts.length === 0 ? (

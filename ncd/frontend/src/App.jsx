@@ -71,7 +71,8 @@ function MainApp() {
       if (token && userStr && userStr !== 'undefined' && userStr !== 'null') {
         const user = JSON.parse(userStr);
         if (user && typeof user === 'object') {
-          if (user.role_id === 1 || user.role_id === '1') {
+          const isAdmin = user.role_id === 1 || user.role_id === '1' || String(user.role_name || '').toLowerCase() === 'admin';
+          if (isAdmin) {
             return "admin";
           }
           return "client";
@@ -87,7 +88,8 @@ function MainApp() {
   const { push } = useToasts();
 
   const handleLoginSuccess = (token, user) => {
-    if (user && (user.role_id === 1 || user.role_id === '1')) {
+    const isAdmin = user && (user.role_id === 1 || user.role_id === '1' || String(user.role_name || '').toLowerCase() === 'admin');
+    if (isAdmin) {
       setView("admin");
     } else {
       setView("client");
