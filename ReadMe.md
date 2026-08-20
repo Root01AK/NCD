@@ -98,7 +98,7 @@ Validation Logics
 
 1. If Q11 is opted to code 2 or 3, skip to Q13.
 2. If Q14 is opted to code 2 Skip to Q17.
-3. If Q17 is opted to code 1 skip to Q24 and if opted to code 2 answer Q18 & Q19 the skip to Q24.and if opted to code 3 skip Q18 & Q19 answer Q20 to Q23 
+3. If Q17 is opted to code 1 skip and go to Q24 and if opted to code 2 answer Q18 & Q19 the skip to Q24.and if opted to code 3 skip Q18 & Q19 answer the Q20 to Q23 
 
 4. If Q25 is opted code 1 skip to Q33, if opted code 2 answer Q26 then skip to Q33, if opted code 3 skip Q26 and answeer Q27 onwards.
 5. Q30 if below threshold, skip to Q33. if positive , administer the full AUDIT (Note: Auto-calculated. Positive is 4 or more for mens, 3 or more for womens and transgender participants)
@@ -121,3 +121,36 @@ Q27-Q29 are smilar to Q21-Q23, however the formatting is not the same way, we un
 Compulsory safety validation. The form cannot be submitted where PHQ-9 item 9 (Q64) is positive and the escalation field (Q65) is blank.
 Range checks at entry. Apply plausibility ranges to every numeric field, in particular waist-hip ratio (0.60 to 1.40), BMI (10 to 60), systolic BP (70 to 260), diastolic BP (40 to 160), RBS (30 to 600) and haemoglobin (3 to 20). Reject out-of-range values at entry, not at analysis.
 Auto-calculated fields. BMI, waist-hip ratio, average blood pressure, Heaviness of Smoking Index, AUDIT-C total and the Amber review date are calculated, not typed.
+
+
+
+Production Creds
+
+Counselor
+Couns
+Co001
+
+Field Supervisor
+FS
+Fs001
+
+Staff Nurse
+SN1
+Sf001
+
+
+Admin
+admin_user
+admin123
+
+
+
+If Input is 1222 - 4 digit for Q1. Age: * (Need to though the error)
+
+
+Q23. Heaviness of Smoking Index total (Q21 + Q22): 
+       / 6
+Auto-calculated. A score of 4 or more indicates high dependence and routes to cessation counselling at Q111.
+
+
+Section 4 · Alcohol use (AUDIT-C, with full AUDIT on a positive screen)

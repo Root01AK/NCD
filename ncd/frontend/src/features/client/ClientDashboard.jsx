@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Wifi, WifiOff, FileText, ArrowRight, LogOut, Loader2, Home, FolderSync, ClipboardCheck, UserCircle2, RefreshCw, MapPin, Database, Award, Shield, UserCheck, CheckCircle2, AlertCircle, Search, Download, Eye, X, Menu } from "lucide-react";
+import { Wifi, WifiOff, FileText, ArrowRight, LogOut, Loader2, Home, FolderSync, ClipboardCheck, UserCircle2, RefreshCw, MapPin, Database, Award, Shield, UserCheck, CheckCircle2, AlertCircle, Search, Download, Eye, X, Menu, Trash2 } from "lucide-react";
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { getQueue, deleteFromQueue } from "../../lib/db";
@@ -565,12 +565,30 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                 </button>
 
                 <button
+                  onClick={async () => {
+                    if (window.confirm("Are you sure you want to clear all pending offline records from queue?")) {
+                      for (const item of syncQueue) {
+                        if (item.local_id) await deleteFromQueue(item.local_id);
+                      }
+                      await loadQueue();
+                      notify("info", "Queue Cleared", "Removed all local offline records.");
+                    }
+                  }}
+                  disabled={syncQueue.length === 0}
+                  className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-red-700 bg-red-50 border border-red-200 hover:bg-red-100 disabled:opacity-50 transition-all shadow-2xs cursor-pointer"
+                  title="Clear all pending local records"
+                >
+                  <Trash2 size={13} className="text-red-600" />
+                  <span>Clear Queue</span>
+                </button>
+
+                <button
                   onClick={handleSync}
                   disabled={syncing || syncQueue.length === 0}
                   className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 transition-all shadow-2xs cursor-pointer"
                 >
                   <RefreshCw size={13} className={syncing ? "animate-spin" : ""} />
-                  <span>{syncing ? "Syncing..." : "Sync Now"}</span>
+                  <span>{syncing ? "Sync Now..." : "Sync Now"}</span>
                 </button>
               </div>
             </div>
@@ -582,7 +600,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                 type="text"
                 value={syncSearch}
                 onChange={(e) => setSyncSearch(e.target.value)}
-                placeholder="Search offline queue by Participant ID, Name, Center..."
+                placeholder="Search offline queue by Participant ID, Center..."
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-amber-400 shadow-2xs"
               />
               {syncSearch && (
@@ -613,8 +631,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                     try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
                   }
                   const pid = item.participant_id || item.mem_scrn_part_id || raw.participant_id || raw.mem_scrn_part_id || 'N/A';
-                  const name = (item.fullName && item.fullName !== "Unnamed Participant") ? item.fullName : (raw.fullName || item.mem_scrn_q16 || pid);
-                  const age = item.age || raw.age || item.mem_scrn_q1 || "45";
+                  const age = item.age || raw.age || item.mem_scrn_q1 || "";
                   const gender = item.gender || raw.gender || (item.mem_scrn_q2 == "1" ? "Male" : "Female");
                   const loc = item.location || raw.location || item.mem_scrn_q17 || user.assigned_location || 'Dharavi';
                   const phone = item.contact_number || raw.contact_number || "N/A";
@@ -624,18 +641,17 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-bold text-slate-900 text-sm font-mono">
-                            {name}
+                            {pid}
                           </p>
                           <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-mono">
                             Pending Sync
                           </span>
                         </div>
                         <p className="text-xs text-slate-500 font-mono">
-                          ID: <span className="font-bold text-slate-800">{pid}</span>
+                          Center: <span className="font-bold text-slate-800">{loc}</span>
                           {age ? ` • Age: ${age} yrs` : ''} 
                           {gender ? ` • Gender: ${gender}` : ''}
                           {phone && phone !== 'N/A' ? ` • Phone: ${phone}` : ''}
-                          • Center: <span className="font-bold text-slate-800">{loc}</span>
                         </p>
                         {item.timestamp && (
                           <p className="text-[10px] text-slate-400 font-mono">
@@ -646,12 +662,27 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
 
                       <div className="flex items-center gap-2 shrink-0">
                         <button
-                          onClick={() => setSelectedQaModalItem({ ...item, pid, name, age, gender, loc, phone, raw })}
+                          onClick={() => setSelectedQaModalItem({ ...item, pid, age, gender, loc, phone, raw })}
                           className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all border border-slate-200 cursor-pointer shadow-2xs"
                           title="View Question & Answer Details"
                         >
                           <Eye size={13} className="text-slate-600" />
                           <span>View Q&A</span>
+                        </button>
+
+                        <button
+                          onClick={async () => {
+                            if (item.local_id) {
+                              await deleteFromQueue(item.local_id);
+                              await loadQueue();
+                              notify("info", "Record Removed", `Deleted ${pid} from local queue.`);
+                            }
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold transition-all border border-red-200 cursor-pointer shadow-2xs"
+                          title="Delete record from local queue"
+                        >
+                          <Trash2 size={13} className="text-red-600" />
+                          <span>Delete</span>
                         </button>
                       </div>
                     </div>
@@ -668,31 +699,27 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
           <div className="w-full max-w-2xl bg-white rounded-3xl p-6 shadow-2xl border border-slate-200 max-h-[85vh] flex flex-col space-y-4">
             
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <FileText size={20} className="text-amber-600" />
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 font-mono">
-                    {selectedQaModalItem.fullName || selectedQaModalItem.participant_id || "Participant Q&A"}
-                  </h3>
-                  <p className="text-[11px] text-slate-500 font-mono">
-                    Participant ID: {selectedQaModalItem.participant_id || "N/A"} • Location: {selectedQaModalItem.location || user.assigned_location || "Dharavi"}
-                  </p>
-                </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase font-mono tracking-widest text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                  Offline Sync Queue Detail
+                </span>
+                <h3 className="text-lg font-black text-slate-900 mt-1 font-mono">
+                  {selectedQaModalItem.pid || selectedQaModalItem.participant_id || "Participant Record"}
+                </h3>
               </div>
               <button 
                 onClick={() => setSelectedQaModalItem(null)}
-                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-              {/* Primary Metadata Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-mono">
+            <div className="overflow-y-auto space-y-4 pr-1 text-slate-800">
+              <div className="grid grid-cols-3 gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100 text-xs font-mono">
                 <div>
                   <span className="text-slate-400 text-[10px] uppercase font-bold block">Participant ID</span>
-                  <span className="font-extrabold text-slate-900">{selectedQaModalItem.participant_id || "N/A"}</span>
+                  <span className="font-extrabold text-slate-900">{selectedQaModalItem.pid || selectedQaModalItem.participant_id || "N/A"}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 text-[10px] uppercase font-bold block">Screening Date</span>
@@ -700,34 +727,67 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                 </div>
                 <div>
                   <span className="text-slate-400 text-[10px] uppercase font-bold block">Contact Number</span>
-                  <span className="font-extrabold text-slate-900">{selectedQaModalItem.contact_number || "Optional / None"}</span>
+                  <span className="font-extrabold text-slate-900">{selectedQaModalItem.contact_number || selectedQaModalItem.phone || "N/A"}</span>
                 </div>
               </div>
 
               <h4 className="text-xs font-extrabold uppercase font-mono tracking-wider text-slate-400 pt-2 border-t border-slate-100">
-                Recorded Questions & Answers ({Object.keys(selectedQaModalItem).filter(k => k.startsWith("custom_") || k.startsWith("q")).length} Fields)
+                Recorded Questions & Answers
               </h4>
 
               {/* Dynamic Q&A List */}
               <div className="space-y-2">
-                {Object.entries(selectedQaModalItem)
-                  .filter(([key]) => key !== "local_id" && key !== "timestamp" && key !== "status")
-                  .map(([key, value], idx) => {
-                    const formatVal = (val) => {
-                      if (Array.isArray(val)) return val.map(v => typeof v === 'object' ? (v.label || JSON.stringify(v)) : String(v)).join(", ");
-                      if (typeof val === 'object' && val !== null) return val.label || JSON.stringify(val);
-                      return String(val || "N/A");
-                    };
+                {(() => {
+                  const LABEL_MAP = {
+                    q1: "Q1. Age", q_0: "Q1. Age", custom_q1: "Q1. Age", custom_q_0: "Q1. Age",
+                    q2: "Q2. Gender", q_1: "Q2. Gender", custom_q2: "Q2. Gender", custom_q_1: "Q2. Gender",
+                    q3: "Q3. Site", q_2: "Q3. Site", custom_q3: "Q3. Site", custom_q_2: "Q3. Site",
+                    q4: "Q4. Primary Occupation", q_3: "Q4. Primary Occupation", custom_q4: "Q4. Primary Occupation", custom_q_3: "Q4. Primary Occupation",
+                    q5: "Q5. Education Level", q_4: "Q5. Education Level", custom_q5: "Q5. Education Level", custom_q_4: "Q5. Education Level",
+                    q6: "Q6. Monthly Household Income", q_5: "Q6. Monthly Household Income", custom_q6: "Q6. Monthly Household Income", custom_q_5: "Q6. Monthly Household Income",
+                    q7: "Q7. Type of Housing", q_6: "Q7. Type of Housing", custom_q7: "Q7. Type of Housing", custom_q_6: "Q7. Type of Housing",
+                    q8: "Q8. Residence Duration", q_7: "Q8. Residence Duration", custom_q8: "Q8. Residence Duration", custom_q_7: "Q8. Residence Duration"
+                  };
 
-                    const labelName = key.startsWith("custom_") ? `Custom Field (${key.replace("custom_", "")})` : key.toUpperCase();
+                  const hiddenKeys = [
+                    "local_id", "timestamp", "status", "fullName", "NAME", "RAW", 
+                    "rawPayload", "Q23", "Q30", "q23", "q30", "custom_q23", "custom_q30",
+                    "mem_scrn_q16", "AMBER_REVIEW_DATE", "custom_amber_review_date",
+                    "user_name", "user_role", "pid", "loc", "phone", "raw",
+                    "participant_id", "PARTICIPANT_ID", "screening_date", "SCREENING_DATE",
+                    "raw_date", "RAW_DATE", "contact_number", "CONTACT_NUMBER",
+                    "location", "LOCATION", "age", "AGE", "gender", "GENDER",
+                    "mem_scrn_part_id", "mem_scrn_q1", "mem_scrn_q2", "mem_scrn_q17",
+                    "submitted_by_role", "submitted_at"
+                  ];
 
-                    return (
-                      <div key={idx} className="p-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row justify-between gap-1 text-xs">
-                        <span className="font-bold text-slate-700 font-mono shrink-0">{labelName}:</span>
-                        <span className="font-black text-slate-900 font-mono break-all text-right">{formatVal(value)}</span>
-                      </div>
-                    );
-                  })}
+                  const seenLabels = new Set();
+                  const entries = Object.entries(selectedQaModalItem)
+                    .filter(([key, val]) => {
+                      if (hiddenKeys.includes(key)) return false;
+                      if (val === "N/A" || val === null || val === undefined || val === "") return false;
+                      const displayLabel = LABEL_MAP[key.toLowerCase()] || (key.startsWith("custom_") ? `Field (${key.replace("custom_", "")})` : key.toUpperCase());
+                      if (seenLabels.has(displayLabel)) return false;
+                      seenLabels.add(displayLabel);
+                      return true;
+                    })
+                    .map(([key, value]) => {
+                      const displayLabel = LABEL_MAP[key.toLowerCase()] || (key.startsWith("custom_") ? `Field (${key.replace("custom_", "")})` : key.toUpperCase());
+                      const formatVal = (val) => {
+                        if (Array.isArray(val)) return val.map(v => typeof v === 'object' ? (v.label || JSON.stringify(v)) : String(v)).join(", ");
+                        if (typeof val === 'object' && val !== null) return val.label || JSON.stringify(val);
+                        return String(val);
+                      };
+                      return { label: displayLabel, valStr: formatVal(value) };
+                    });
+
+                  return entries.map((item, idx) => (
+                    <div key={idx} className="p-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row justify-between gap-1 text-xs">
+                      <span className="font-bold text-slate-700 font-mono shrink-0">{item.label}:</span>
+                      <span className="font-black text-slate-900 font-mono break-all text-right">{item.valStr}</span>
+                    </div>
+                  ));
+                })()}
               </div>
             </div>
 

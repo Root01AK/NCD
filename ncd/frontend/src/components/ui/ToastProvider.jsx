@@ -74,7 +74,7 @@ function ToastStack({ toasts, dismiss }) {
 
   return (
     <div
-      className="fixed top-5 right-5 z-[9999] flex flex-col gap-2.5 max-w-[360px] w-full px-3 sm:px-0 pointer-events-none"
+      className="fixed bottom-6 right-6 z-[9999] flex flex-col-reverse gap-2.5 max-w-[360px] w-full px-3 sm:px-0 pointer-events-none"
       aria-live="polite"
     >
       {toasts.map((t) => {

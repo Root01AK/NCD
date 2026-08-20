@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { FileText, ChevronLeft, ChevronDown, Check, Calendar, Phone, User, ShieldCheck, ArrowRight, Save, MapPin, Activity, Stethoscope, HeartPulse, Brain, Link2, CheckCircle2, UserCheck, AlertCircle, LayoutGrid, CheckSquare, ListFilter, X } from "lucide-react";
+import { FileText, ChevronLeft, ChevronDown, Check, Calendar, Phone, User, ShieldCheck, Shield, Clock, PlusCircle, ArrowRight, Save, MapPin, Activity, Stethoscope, HeartPulse, Brain, Link2, CheckCircle2, UserCheck, AlertCircle, LayoutGrid, CheckSquare, ListFilter, X, PauseCircle, Play, Trash2, Bookmark } from "lucide-react";
 import { T } from "../../lib/theme";
-import { saveToQueue } from "../../lib/db";
+import { saveToQueue, getQueue } from "../../lib/db";
 import { api } from "../../lib/api";
 import { Mark } from "../../components/ui/Mark";
 
@@ -14,6 +14,49 @@ function formatDateDDMMMYYYY(dateObj) {
   const m = months[dateObj.getMonth()];
   const y = dateObj.getFullYear();
   return `${d < 10 ? '0' + d : d}-${m}-${y}`;
+}
+
+export async function isContactNumberDuplicate(contactDigits, currentParticipantId) {
+  if (!contactDigits || contactDigits.length !== 10) return false;
+
+  // 1. Check localStorage registry
+  try {
+    const rawRegistry = localStorage.getItem('ncd_contact_number_registry');
+    const registry = rawRegistry ? JSON.parse(rawRegistry) : {};
+    if (registry[contactDigits] && registry[contactDigits] !== currentParticipantId) {
+      return registry[contactDigits];
+    }
+  } catch (e) {}
+
+  // 2. Check IndexedDB queue
+  try {
+    const queue = await getQueue();
+    if (Array.isArray(queue)) {
+      for (const item of queue) {
+        let raw = {};
+        if (item.mem_scrn_q30) {
+          try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
+        }
+        const itemPid = item.participant_id || item.mem_scrn_part_id || raw.participant_id || 'N/A';
+        const itemPhone = String(item.contact_number || raw.contact_number || "").replace(/\D/g, "");
+        if (itemPhone === contactDigits && itemPid !== currentParticipantId) {
+          return itemPid;
+        }
+      }
+    }
+  } catch (e) {}
+
+  return false;
+}
+
+export function registerContactNumber(contactDigits, participantId) {
+  if (!contactDigits || contactDigits.length !== 10) return;
+  try {
+    const rawRegistry = localStorage.getItem('ncd_contact_number_registry');
+    const registry = rawRegistry ? JSON.parse(rawRegistry) : {};
+    registry[contactDigits] = participantId;
+    localStorage.setItem('ncd_contact_number_registry', JSON.stringify(registry));
+  } catch (e) {}
 }
 
 export function getlocationPrefix(loc = "Dharavi") {
@@ -50,6 +93,32 @@ export function generateParticipantID(loc = "Dharavi") {
   const counterKey = `ncd_participant_seq_${prefix}`;
   let currentSeq = parseInt(localStorage.getItem(counterKey) || "1", 10);
   if (isNaN(currentSeq) || currentSeq > 9999) currentSeq = 1;
+
+  // Scan localStorage history to prevent duplicate IDs across restarts
+  try {
+    const usedIdsRaw = localStorage.getItem('ncd_used_participant_ids');
+    const usedIds = usedIdsRaw ? JSON.parse(usedIdsRaw) : [];
+    const prefixPattern = new RegExp(`^NCD${prefix}(\\d{4})$`, 'i');
+    
+    let maxSeqInHistory = 0;
+    if (Array.isArray(usedIds)) {
+      usedIds.forEach(id => {
+        const m = String(id).match(prefixPattern);
+        if (m) {
+          const num = parseInt(m[1], 10);
+          if (!isNaN(num) && num > maxSeqInHistory) {
+            maxSeqInHistory = num;
+          }
+        }
+      });
+    }
+
+    if (maxSeqInHistory >= currentSeq) {
+      currentSeq = maxSeqInHistory + 1;
+      localStorage.setItem(counterKey, String(currentSeq));
+    }
+  } catch (e) {}
+
   const padNum = String(currentSeq).padStart(4, '0');
   return `NCD${prefix}${padNum}`;
 }
@@ -59,7 +128,19 @@ export function incrementParticipantIDCounter(loc = "Dharavi") {
   const counterKey = `ncd_participant_seq_${prefix}`;
   let currentSeq = parseInt(localStorage.getItem(counterKey) || "1", 10);
   if (isNaN(currentSeq)) currentSeq = 1;
-  localStorage.setItem(counterKey, String(currentSeq + 1));
+  const nextSeq = currentSeq + 1;
+  localStorage.setItem(counterKey, String(nextSeq));
+
+  // Store in used IDs list
+  try {
+    const usedIdsRaw = localStorage.getItem('ncd_used_participant_ids');
+    const usedIds = usedIdsRaw ? JSON.parse(usedIdsRaw) : [];
+    const curId = `NCD${prefix}${String(currentSeq).padStart(4, '0')}`;
+    if (!usedIds.includes(curId)) {
+      usedIds.push(curId);
+      localStorage.setItem('ncd_used_participant_ids', JSON.stringify(usedIds));
+    }
+  } catch (e) {}
 }
 
 const DEFAULT_SURVEY_QUESTIONS = [
@@ -93,11 +174,11 @@ const DEFAULT_SURVEY_QUESTIONS = [
   { id: "q20", title: "Q20. Which products do you currently use? (Current users only)", type: "multi_choice", options: ["Cigarette", "Bidi", "Hookah", "Cigar / pipe", "E-cigarette", "Gutkha", "Khaini", "Zarda", "Paan with tobacco", "Paan masala with tobacco", "Snuff", "Mishri / gul"], required: false, section: 3 },
   { id: "q21", title: "Q21. How soon after waking do you first use tobacco?", type: "dropdown", options: [{ label: "Within 5 minutes (3 pts)", code: "3" }, { label: "6 to 30 minutes (2 pts)", code: "2" }, { label: "31 to 60 minutes (1 pt)", code: "1" }, { label: "After 60 minutes (0 pts)", code: "0" }], required: false, section: 3 },
   { id: "q22", title: "Q22. How many times do you use tobacco in a day, all products together?", type: "dropdown", options: [{ label: "10 or fewer (0 pts)", code: "0" }, { label: "11 to 20 (1 pt)", code: "1" }, { label: "21 to 30 (2 pts)", code: "2" }, { label: "31 or more (3 pts)", code: "3" }], required: false, section: 3 },
-  { id: "q23", title: "Q23. Heaviness of Smoking Index (HSI) Total Score (Auto-calculated)", type: "number", required: false, section: 3 },
+  { id: "q23", title: "Q23. Heaviness of Smoking Index total (Q21 + Q22):", type: "number", required: false, section: 3 },
   { id: "q24", title: "Q24. Is anyone else in your household a current tobacco user?", type: "single_choice", options: ["Yes, smoked", "Yes, smokeless", "Yes, both", "No", "Don't know"], required: false, section: 3 },
 
   // Section 4: Alcohol Use
-  { id: "sec_4", title: "SECTION 4 · ALCOHOL USE — STAFF NURSE", type: "section_header", section: 4 },
+  { id: "sec_4", title: "Section 4 · Alcohol use (AUDIT-C, with full AUDIT on a positive screen)", type: "section_header", section: 4 },
   { id: "q25", title: "Q25. Which best describes your alcohol use?", type: "single_choice", options: ["Never consumed", "Consumed in the past, stopped completely", "Currently consume"], required: true, section: 4 },
   { id: "q26", title: "Q26. If you stopped, how long ago?", type: "dropdown", options: ["Less than 6 months", "6 to 12 months", "1 to 5 years", "More than 5 years"], required: false, section: 4 },
   { id: "q27", title: "Q27. How often do you have a drink containing alcohol?", type: "dropdown", options: [{ label: "Never (0 pts)", code: "0" }, { label: "Monthly or less (1 pt)", code: "1" }, { label: "Two to four times a month (2 pts)", code: "2" }, { label: "Two to three times a week (3 pts)", code: "3" }, { label: "Four or more times a week (4 pts)", code: "4" }], required: false, section: 4 },
@@ -119,8 +200,10 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   const activeUser = getUserSafely();
   const isSupervisor = String(activeUser?.role_name || "").toLowerCase().includes("supervisor");
 
-  const [step, setStep] = useState(() => (participant ? 1 : 0));
+  const [step, setStep] = useState(0);
+  const [isSubmitted, setIsSubmitted] = useState(false);
   const [qPage, setQPage] = useState(0);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [viewModes, setViewModes] = useState({});
   const [openSingleDropdowns, setOpenSingleDropdowns] = useState({});
   const [openMultiDropdowns, setOpenMultiDropdowns] = useState({});
@@ -129,11 +212,68 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   const currentDateFormatted = formatDateDDMMMYYYY(new Date());
 
   const [availableParticipants, setAvailableParticipants] = useState([
-    { id: "DH-MUM-6589", age: 48, gender: "Male", location: "Dharavi", status: "Demographics Completed", bp: "135/88", glucose: "142" },
-    { id: "ML-MUM-4210", age: 42, gender: "Female", location: "Malvani", status: "Demographics Completed", bp: "120/80", glucose: "110" },
-    { id: "VS-MUM-5530", age: 55, gender: "Male", location: "Vashi", status: "Vitals Completed", bp: "148/95", glucose: "195" },
-    { id: "DH-MUM-3912", age: 39, gender: "Female", location: "Dharavi", status: "Demographics Completed", bp: "118/76", glucose: "105" }
+    { id: "NCDDH0001", age: "20", gender: "Transgender man", location: "Dharavi" },
+    { id: "NCDDH0002", age: "45", gender: "Male", location: "Dharavi" },
+    { id: "NCDML0001", age: "42", gender: "Female", location: "Malvani" },
+    { id: "NCDVA0001", age: "55", gender: "Male", location: "Vashi" }
   ]);
+
+  // Dynamically load queued / completed participants from local sync queue & API
+  useEffect(() => {
+    const loadQueueParticipants = async () => {
+      let list = [];
+      try {
+        const queue = await getQueue();
+        if (Array.isArray(queue) && queue.length > 0) {
+          queue.forEach(item => {
+            let raw = {};
+            if (item.mem_scrn_q30) {
+              try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
+            }
+            const pid = item.participant_id || item.mem_scrn_part_id || raw.participant_id || 'N/A';
+            const age = item.age || raw.age || item.mem_scrn_q1 || "45";
+            const gender = item.gender || raw.gender || (item.mem_scrn_q2 == "1" ? "Male" : "Female");
+            const loc = item.location || raw.location || item.mem_scrn_q17 || "Dharavi";
+
+            if (pid && pid !== 'N/A' && !list.some(x => x.id === pid)) {
+              list.push({
+                id: pid,
+                age: String(age),
+                gender: gender,
+                location: loc,
+                rawPayload: { ...item, ...raw }
+              });
+            }
+          });
+        }
+      } catch (e) { console.error(e); }
+
+      // Also try fetching from API queue endpoint
+      try {
+        const res = await api.get("/api/v1/screening/queue");
+        if (res && res.status === "success" && Array.isArray(res.data)) {
+          res.data.forEach(item => {
+            const pid = item.participant_id || item.mem_scrn_part_id || 'N/A';
+            if (pid && pid !== 'N/A' && !list.some(x => x.id === pid)) {
+              list.push({
+                id: pid,
+                age: String(item.age || item.mem_scrn_q1 || "45"),
+                gender: item.gender || (item.mem_scrn_q2 == "1" ? "Male" : "Female"),
+                location: item.location || item.mem_scrn_q17 || "Dharavi",
+                rawPayload: item
+              });
+            }
+          });
+        }
+      } catch (e) {}
+
+      if (list.length > 0) {
+        setAvailableParticipants(list);
+      }
+    };
+
+    loadQueueParticipants();
+  }, []);
   
   const [data, setData] = useState({
     participant_id: generateParticipantID("Dharavi"),
@@ -143,55 +283,83 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     fullName: "",
     age: "",
     gender: "Male",
-    marital_status: "Single",
-    education: "High School",
-    occupation: "Daily wage labourer",
-    housing_type: "Slum",
     location: "Dharavi",
-    address: "",
-    community_perception: "",
     user_name: "",
-    user_role: "Field Supervisor",
-    
-    // Staff Nurse Modules
-    medical_history: ["Hypertension"],
-    tobacco_use: "Non-user",
-    alcohol_use: "Occasional",
-    substance_use: "None",
-    diet_activity: "Moderate physical activity",
-    symptoms: "Occasional headache",
-    height_cm: "168",
-    weight_kg: "72",
-    bmi: "25.5",
-    bp_systolic: "135",
-    bp_diastolic: "88",
-    pulse_rate: "78",
-    random_blood_glucose: "142",
-    fasting_glucose: "110",
-    hba1c: "6.8",
-    total_cholesterol: "195",
-
-    // Doctor Modules
-    cvd_risk_assessment: "Moderate (10-20% 10-year risk)",
-    retinopathy_exam: "Normal",
-    oral_exam: "Normal mucosa",
-    breast_cervical_exam: "No palpable lumps",
-    overall_risk_rating: "Moderate Risk",
-    referral_hospital: "KEM Hospital, Parel",
-
-    // Counselor Modules
-    phq9_depression_score: "Minimal depression (Score: 4)",
-    gad7_anxiety_score: "Mild anxiety (Score: 5)",
-    health_counseling_notes: "Counselled on dietary salt reduction, daily 30-min walking, and medication compliance.",
-
-    // Case Coordinator Modules
-    referral_confirmation_date: currentDateFormatted,
-    opd_appointment_date: currentDateFormatted,
-    treatment_adherence_status: "Regular Adherence"
+    user_role: "Field Supervisor"
   });
 
   const [submitting, setSubmitting] = useState(false);
   const [customQuestions, setCustomQuestions] = useState([]);
+  const [activeDraft, setActiveDraft] = useState(null);
+  const [isPausedModalOpen, setIsPausedModalOpen] = useState(false);
+
+  // Check for saved paused draft session
+  useEffect(() => {
+    try {
+      const draftStr = localStorage.getItem('ncd_active_survey_draft');
+      if (draftStr) {
+        const parsed = JSON.parse(draftStr);
+        if (parsed && parsed.data && (parsed.participant_id === data.participant_id || !data.participant_id)) {
+          setActiveDraft(parsed);
+        }
+      }
+    } catch (e) {}
+  }, [data.participant_id]);
+
+  const handlePauseSession = (e) => {
+    if (e) e.preventDefault();
+    const draft = {
+      participant_id: data.participant_id || "PARTICIPANT_DRAFT",
+      page: qPage,
+      data: data,
+      updatedAt: new Date().toISOString()
+    };
+    localStorage.setItem('ncd_active_survey_draft', JSON.stringify(draft));
+    setActiveDraft(draft);
+    setIsPausedModalOpen(true);
+    if (notify) notify("info", `Survey session paused at Page ${qPage + 1}. Saved as draft.`);
+  };
+
+  const handleResumeDraft = () => {
+    if (activeDraft && activeDraft.data) {
+      setData(activeDraft.data);
+      if (activeDraft.page !== undefined) setQPage(activeDraft.page);
+      setActiveDraft(null);
+      if (notify) notify("success", `Resumed survey draft session at Page ${activeDraft.page + 1}!`);
+    }
+  };
+
+  const handleDiscardDraft = () => {
+    localStorage.removeItem('ncd_active_survey_draft');
+    setActiveDraft(null);
+    if (notify) notify("info", "Draft survey session discarded.");
+  };
+
+  // Protected Mode: Tab reload & close warning listener during active survey session
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (step === 1 && !submitting) {
+        // Automatically autosave current session as draft before page reload/leave
+        try {
+          const draft = {
+            participant_id: data.participant_id || "PARTICIPANT_DRAFT",
+            page: qPage,
+            data: data,
+            updatedAt: new Date().toISOString()
+          };
+          localStorage.setItem('ncd_active_survey_draft', JSON.stringify(draft));
+        } catch (err) {}
+
+        const warningMsg = "Protected Mode: You have an active survey session in progress. Progress has been autosaved as a draft. Are you sure you want to reload or leave?";
+        e.preventDefault();
+        e.returnValue = warningMsg;
+        return warningMsg;
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [step, submitting, data, qPage]);
 
   useEffect(() => {
     // 1. Check if participant has attached survey schema
@@ -336,6 +504,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         updates.q23 = hsiScore;
         updates.custom_q23 = hsiScore;
         updates[q23Key] = hsiScore;
+        updates.route_cessation_q111 = hsiScore >= 4;
+        updates.hsi_high_dependence = hsiScore >= 4;
       }
 
       // 5. AUDIT-C Total (Q30)
@@ -499,8 +669,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   const hasPrivilege = (modId) => userPrivileges.includes(modId);
   const isExistingParticipant = Boolean(data.participant_id && availableParticipants.some(p => p.id === data.participant_id));
   
-  const roleNameLower = (data.user_role || "Field Supervisor").toLowerCase();
-  const isFieldSupervisor = isSupervisor || roleNameLower.includes("supervisor") || roleNameLower.includes("field");
+  const roleNameLower = (activeUser?.role_name || activeUser?.role || data.user_role || "Field Supervisor").toLowerCase();
+  const isFieldSupervisor = roleNameLower.includes("field supervisor") || (roleNameLower.includes("supervisor") && !roleNameLower.includes("nurse") && !roleNameLower.includes("doctor") && !roleNameLower.includes("counselor") && !roleNameLower.includes("coordinator"));
   const isNurse = roleNameLower.includes("nurse");
   const isDoctor = roleNameLower.includes("doctor");
   const isCounselor = roleNameLower.includes("counselor");
@@ -515,8 +685,19 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     let qSec = q.section ? parseInt(q.section) : secTracker;
 
     if (qMatch) {
-      const qNum = parseInt(qMatch[1]);
+      const qNum = parseInt(qMatch[1], 10);
       if (qNum >= 1 && qNum <= 8) qSec = 1;
+      else if (qNum >= 9 && qNum <= 16) qSec = 2;
+      else if (qNum >= 17 && qNum <= 24) qSec = 3;
+      else if (qNum >= 25 && qNum <= 32) qSec = 4;
+      else if (qNum >= 33 && qNum <= 39) qSec = 5;
+      else if (qNum >= 40 && qNum <= 48) qSec = 6;
+      else if (qNum >= 49 && qNum <= 65) qSec = 7;
+      else if (qNum >= 66 && qNum <= 75) qSec = 8;
+      else if (qNum >= 76 && qNum <= 84) qSec = 9;
+      else if (qNum >= 85 && qNum <= 89) qSec = 10;
+      else if (qNum >= 90 && qNum <= 96) qSec = 11;
+      else if (qNum >= 97) qSec = 12;
     } else if (
       idx < 8 ||
       titleLower.includes("age") || 
@@ -544,8 +725,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       return false; // Dynamically skip Q10 or Q12 based on Q9 / Q11 responses!
     }
 
-    if (isSupervisor) {
-      return qSec === 1; // Field Supervisor sees all Section 1 questions (Q1 to Q8)
+    if (isFieldSupervisor) {
+      return qSec === 1; // Field Supervisor strictly sees only Section 1 questions (Q1 to Q8)
     }
 
     if (qSec === 16 && !isExistingParticipant) {
@@ -556,14 +737,63 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   });
   const hasCustomQuestions = activeCustomQuestions.length > 0;
 
-  const set = (k) => (v) => setData((d) => ({ ...d, [k]: v }));
+  const set = (k) => (v) => {
+    setData((d) => ({ ...d, [k]: v }));
+    setFieldErrors((prev) => {
+      if (prev[k]) {
+        const copy = { ...prev };
+        delete copy[k];
+        return copy;
+      }
+      return prev;
+    });
+  };
+
+  const isAgeQuestion = (q) => {
+    if (!q) return false;
+    const qIdLower = String(q.id || "").toLowerCase().trim();
+    const titleLower = String(q.title || "").toLowerCase().trim();
+    if (qIdLower === "q1" || qIdLower === "q_0" || qIdLower === "custom_q1" || qIdLower === "custom_q_0") return true;
+    if (/^q1\.\s/i.test(titleLower) || /^q1\s/i.test(titleLower)) return true;
+    if (/\bage\b/i.test(titleLower) && !titleLower.includes("dosage") && !titleLower.includes("triage")) return true;
+    return false;
+  };
 
   const updateCustomField = (q, val) => {
+    const titleLower = (q.title || "").toLowerCase();
+    const isAgeField = isAgeQuestion(q);
+
+    if (isAgeField && val !== "" && val !== undefined && val !== null) {
+      const ageNum = parseInt(val, 10);
+      const strVal = String(val).trim();
+      if (isNaN(ageNum) || ageNum < 18 || ageNum > 100 || strVal.length > 3) {
+        const errStr = `Invalid Age: Entered value "${val}" is out of range. Age must be between 18 and 100 years. 4-digit input (e.g. 1222) is rejected.`;
+        setFieldErrors(prev => ({ ...prev, [q.id]: errStr }));
+      } else {
+        setFieldErrors(prev => {
+          if (prev[q.id]) {
+            const copy = { ...prev };
+            delete copy[q.id];
+            return copy;
+          }
+          return prev;
+        });
+      }
+    } else {
+      setFieldErrors(prev => {
+        if (prev[q.id]) {
+          const copy = { ...prev };
+          delete copy[q.id];
+          return copy;
+        }
+        return prev;
+      });
+    }
+
     setData(d => {
       const next = { ...d, [q.id]: val, [`custom_${q.id}`]: val };
-      const titleLower = (q.title || "").toLowerCase();
       if (titleLower.includes("name") || titleLower.includes("full name")) next.fullName = val;
-      if (titleLower.includes("age")) next.age = val;
+      if (isAgeField) next.age = val;
       if (titleLower.includes("gender")) next.gender = val;
       if (titleLower.includes("site") || titleLower.includes("location")) next.location = val;
       return next;
@@ -571,13 +801,13 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   };
 
   const handleDateChange = (e) => {
-    const rawVal = e.target.value;
-    if (rawVal) {
-      const dt = new Date(rawVal);
+    const newDate = e.target.value;
+    if (newDate) {
+      const formatted = formatDateDDMMMYYYY(newDate);
       setData(d => ({
         ...d,
-        raw_date: rawVal,
-        screening_date: formatDateDDMMMYYYY(dt)
+        raw_date: newDate,
+        screening_date: formatted
       }));
     }
   };
@@ -589,48 +819,120 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         ...d,
         ...(found.rawPayload || {}),
         participant_id: found.id,
-        fullName: found.name,
         age: String(found.age),
         gender: found.gender,
-        location: found.location
+        location: found.location,
+        user_role: activeUser?.role_name || activeUser?.role || d.user_role
       }));
-      notify("info", "Participant Selected", `Loaded details for ${found.name} (${found.id})`);
+      notify("info", "Participant Selected", `Loaded details for Participant ${found.id}. Proceeding to ${activeUser?.role_name || data.user_role || "Clinical"} modules.`);
+      setStep(1);
+      setQPage(0);
     }
   };
 
   const validateCurrentPageQuestions = () => {
     const activeQs = activeCustomQuestions;
     if (!activeQs || activeQs.length === 0) return true;
-    const questionsPerPage = 2;
-    const totalQPages = Math.ceil(activeQs.length / questionsPerPage);
-    const safeQPage = Math.min(qPage, totalQPages - 1);
-    const startIdx = safeQPage * questionsPerPage;
-    const currentBatch = activeQs.slice(startIdx, startIdx + questionsPerPage);
+
+    const pagesList = [];
+    let curP = [];
+    let qCount = 0;
+    activeQs.forEach(q => {
+      const isH = q.type === 'section_header' || String(q.id || '').startsWith('sec_');
+      if (isH) {
+        if (qCount > 0) {
+          if (curP.length > 0) pagesList.push(curP);
+          curP = [q];
+          qCount = 0;
+        } else {
+          curP.push(q);
+        }
+      } else {
+        curP.push(q);
+        qCount++;
+        if (qCount >= 2) {
+          pagesList.push(curP);
+          curP = [];
+          qCount = 0;
+        }
+      }
+    });
+    if (curP.length > 0) pagesList.push(curP);
+
+    const totalQPages = pagesList.length > 0 ? pagesList.length : 1;
+    const safeQPage = Math.min(qPage, Math.max(0, totalQPages - 1));
+    const currentBatch = pagesList[safeQPage] || [];
+
+    let newErrors = {};
+    let firstErrorMsg = null;
 
     for (const q of currentBatch) {
       if (q.type === 'section_header') continue;
       
       const val = data[q.id] !== undefined ? data[q.id] : data[`custom_${q.id}`];
-      const isEmpty = val === undefined || val === null || val === "" || (Array.isArray(val) && val.length === 0);
+      const isEmpty = val === undefined || 
+                      val === null || 
+                      val === "" || 
+                      (typeof val === 'string' && val.trim() === "") || 
+                      (Array.isArray(val) && val.length === 0);
       
       if (isEmpty) {
-        notify("error", "Mandatory Question", `Please answer mandatory question: "${q.title}" before moving forward.`);
-        return false;
+        const msg = `Please answer mandatory question: "${q.title}"`;
+        newErrors[q.id] = msg;
+        if (!firstErrorMsg) firstErrorMsg = msg;
+      } else {
+        const isAgeField = isAgeQuestion(q);
+        if (isAgeField) {
+          const ageNum = parseInt(val, 10);
+          const strVal = String(val).trim();
+          if (isNaN(ageNum) || ageNum < 18 || ageNum > 100 || strVal.length > 3) {
+            const msg = `Invalid Age: Entered value "${val}" is out of range. Age must be between 18 and 100 years. 4-digit input (e.g. 1222) is rejected.`;
+            newErrors[q.id] = msg;
+            if (!firstErrorMsg) firstErrorMsg = msg;
+          }
+        }
       }
     }
+
+    if (Object.keys(newErrors).length > 0) {
+      setFieldErrors(prev => ({ ...prev, ...newErrors }));
+      notify("error", "Question Required", firstErrorMsg || "Cannot leave mandatory questions empty. Please complete inline errors before proceeding.");
+      return false;
+    }
+
     return true;
   };
 
-  const handleProceedNext = (e) => {
+  const handleProceedNext = async (e) => {
     e.preventDefault();
-    if (!data.participant_id) {
-      notify("error", "Participant Required", "Please select a Participant ID from the dropdown or enter a valid Participant ID.");
+    let newErrors = {};
+
+    if (!data.participant_id || String(data.participant_id).trim() === "") {
+      newErrors.participant_id = "Please select or generate a valid Participant ID.";
+      notify("error", "Participant ID Required", newErrors.participant_id);
+    }
+
+    if (isFieldSupervisor) {
+      const contactDigits = String(data.contact_number || "").replace(/\D/g, "");
+      if (!contactDigits) {
+        newErrors.contact_number = "Contact Number is mandatory. Enter a 10-digit mobile number.";
+      } else if (contactDigits.length !== 10) {
+        newErrors.contact_number = `Contact Number must be EXACTLY 10 digits. Entered: ${contactDigits.length} digits.`;
+      } else {
+        const existingPid = await isContactNumberDuplicate(contactDigits, data.participant_id);
+        if (existingPid) {
+          newErrors.contact_number = `Duplicate Contact Number: Mobile ${contactDigits} is already registered to Participant ${existingPid}. Duplicate numbers are not accepted.`;
+        }
+      }
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setFieldErrors(prev => ({ ...prev, ...newErrors }));
+      const firstMsg = Object.values(newErrors)[0];
+      notify("error", "Validation Error", firstMsg);
       return;
     }
-    if (data.contact_number && String(data.contact_number).length < 10) {
-      notify("error", "Invalid Contact Number", "Contact Number must contain exactly 10 numeric digits.");
-      return;
-    }
+
     setStep(1);
     setQPage(0);
   };
@@ -643,7 +945,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       { keys: ["dia_bp", "diastolic", "dbp", "custom_dia_bp", "dia_bp_1", "dia_bp_2"], min: 40, max: 160, label: "Diastolic Blood Pressure (mmHg)" },
       { keys: ["rbs", "blood_sugar", "custom_rbs"], min: 30, max: 600, label: "Random Blood Sugar (RBS mg/dL)" },
       { keys: ["hb", "haemoglobin", "custom_hb"], min: 3.0, max: 20.0, label: "Haemoglobin (Hb g/dL)" },
-      { keys: ["age", "custom_age"], min: 18, max: 120, label: "Age (years)" }
+      { keys: ["age", "custom_age", "q1", "custom_q1"], min: 18, max: 100, label: "Age (years)" }
     ];
 
     for (const check of checks) {
@@ -696,6 +998,11 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       };
 
       await saveToQueue(payload);
+      const contactDigits = String(data.contact_number || "").replace(/\D/g, "");
+      if (contactDigits.length === 10) {
+        registerContactNumber(contactDigits, data.participant_id);
+      }
+      incrementParticipantIDCounter(data.location || "Dharavi");
 
       if (navigator.onLine) {
         try {
@@ -705,11 +1012,11 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         }
       }
 
-      const succMsg = isSupervisor 
+      const succMsg = isFieldSupervisor 
         ? `Participant ${data.participant_id} demographics saved & sent to Staff Nurse queue.`
         : `Participant ${data.participant_id} updated under ${data.user_role}.`;
-      notify("success", isSupervisor ? "Demographics Completed" : "Section Completed", succMsg);
-      onSubmit();
+      notify("success", isFieldSupervisor ? "Demographics Completed" : "Section Completed", succMsg);
+      setIsSubmitted(true);
     } catch (err) {
       console.error(err);
       notify("error", "Save Failed", "Could not save section entry.");
@@ -777,6 +1084,156 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
       {/* Main Form Body */}
       <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 pb-20">
+        {isSubmitted ? (
+          <div className="max-w-3xl mx-auto py-8 px-2 animate-in zoom-in-95 duration-300 space-y-6">
+            
+            {/* Hero Success Header (Brand Yellow Gradient & Success Green Tick) */}
+            <div className="bg-gradient-to-br from-[#f5d40b] via-[#f7dc38] to-[#e0c20a] rounded-3xl p-8 border border-amber-300/80 shadow-2xl relative overflow-hidden text-slate-900">
+              {/* Subtle ambient lighting blur */}
+              <div className="absolute top-0 right-0 w-80 h-80 bg-white/20 rounded-full blur-3xl pointer-events-none"></div>
+              <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none"></div>
+
+              <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-6">
+                <div className="relative shrink-0">
+                  <div className="w-16 h-16 rounded-2xl bg-emerald-600 border border-emerald-500 text-white flex items-center justify-center shadow-lg backdrop-blur-md">
+                    <CheckCircle2 size={34} />
+                  </div>
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500"></span>
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 flex-1">
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                    <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-slate-900 text-emerald-400 border border-slate-800 font-mono shadow-2xs">
+                      {isFieldSupervisor ? "Demographics Recorded" : "Section Saved"}
+                    </span>
+                  </div>
+
+                  <h2 className="text-2xl sm:text-3xl font-black text-slate-950 tracking-tight pt-1">
+                    {isFieldSupervisor ? "Screening Initiated Successfully!" : "Clinical Entry Transmitted!"}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-800 font-semibold leading-relaxed">
+                    Participant Record <span className="font-mono font-black text-[#f5d40b] bg-slate-900 px-2.5 py-0.5 rounded-lg shadow-2xs">{data.participant_id}</span> has been processed and saved.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Summary Metadata Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">Participant ID</span>
+                <p className="text-sm font-black text-slate-900 font-mono truncate">{data.participant_id}</p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">Screening Center</span>
+                <p className="text-sm font-bold text-slate-900 truncate">{data.location || "Dharavi"} Center</p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">Submitted By</span>
+                <p className="text-sm font-bold text-slate-900 truncate">{data.user_role}</p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">Current Queue</span>
+                <p className="text-xs font-black text-[#4a4a4c] bg-[#f5d40b]/30 px-2 py-1 rounded-lg border border-[#f5d40b]/50 inline-block font-mono truncate">
+                  {isFieldSupervisor ? "Staff Nurse Queue" : "Active Pipeline"}
+                </p>
+              </div>
+            </div>
+
+            {/* Multi-Role Clinical Pipeline Progress Tracker */}
+            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-2xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <Shield size={16} className="text-amber-600" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 font-mono">
+                    Participant Workflow Pipeline Progression
+                  </h3>
+                </div>
+                <span className="text-[11px] font-bold text-emerald-600 font-mono">Stage 1 of 4 Completed</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1">
+                <div className="p-3.5 rounded-2xl bg-emerald-50/80 border border-emerald-300 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-emerald-800 font-mono">Stage 1</span>
+                    <CheckCircle2 size={14} className="text-emerald-600" />
+                  </div>
+                  <p className="text-xs font-black text-emerald-950">Field Supervisor</p>
+                  <p className="text-[10px] font-bold text-emerald-700 font-mono">Demographics Completed</p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-300 space-y-1 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-amber-800 font-mono">Stage 2</span>
+                    <Clock size={14} className="text-amber-600 animate-pulse" />
+                  </div>
+                  <p className="text-xs font-black text-amber-950">Staff Nurse</p>
+                  <p className="text-[10px] font-bold text-amber-800 font-mono">Queued (Sections 2-7)</p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1 opacity-60">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 font-mono">Stage 3</span>
+                  </div>
+                  <p className="text-xs font-bold text-slate-700">Doctor Exam</p>
+                  <p className="text-[10px] font-medium text-slate-500 font-mono">Pending (Sections 8-11)</p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1 opacity-60">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 font-mono">Stage 4</span>
+                  </div>
+                  <p className="text-xs font-bold text-slate-700">Counselor / Linkage</p>
+                  <p className="text-[10px] font-medium text-slate-500 font-mono">Pending (Sections 12-16)</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+              <button
+                onClick={onSubmit}
+                className="w-full sm:w-1/2 py-3.5 px-6 rounded-2xl bg-[#f5d40b] text-[#4a4a4c] font-black text-xs hover:bg-[#e0c20a] transition-all shadow-md border border-[#e5c40a] cursor-pointer flex items-center justify-center gap-2 group"
+              >
+                <span>Return to Dashboard Workstation</span>
+                <ArrowRight size={16} className="group-hover:translate-x-0.5 transition-transform text-[#4a4a4c]" />
+              </button>
+
+              <button
+                onClick={() => {
+                  incrementParticipantIDCounter(data.location || "Dharavi");
+                  const nextId = generateParticipantID(data.location || "Dharavi");
+                  setIsSubmitted(false);
+                  setStep(0);
+                  setQPage(0);
+                  setData({
+                    participant_id: nextId,
+                    screening_date: currentDateFormatted,
+                    raw_date: new Date().toISOString().split('T')[0],
+                    contact_number: "",
+                    fullName: "",
+                    age: "",
+                    gender: "Male",
+                    location: data.location || "Dharavi",
+                    user_name: data.user_name || "",
+                    user_role: data.user_role || "Field Supervisor"
+                  });
+                }}
+                className="w-full sm:w-1/2 py-3.5 px-6 rounded-2xl bg-white hover:bg-slate-50 text-slate-900 font-bold text-xs transition-all border border-slate-300 shadow-2xs cursor-pointer flex items-center justify-center gap-2"
+              >
+                <PlusCircle size={16} className="text-amber-600" />
+                <span>Initiate Next Participant Screening</span>
+              </button>
+            </div>
+
+          </div>
+        ) : (
         <div className="max-w-6xl w-full mx-auto space-y-6">
 
           {/* STEP 0: PARTICIPANT SELECTION & INITIAL HEADER */}
@@ -814,7 +1271,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                     <option value="">-- Choose Participant ID to load Clinical Modules --</option>
                     {availableParticipants.map(p => (
                       <option key={p.id} value={p.id}>
-                        {p.id} — {p.name || 'Participant'} ({p.age} yrs, {p.gender}) [{p.location}]
+                        {p.id} ({p.age ? `${p.age} yrs` : 'Demographics Recorded'}, {p.gender || 'Completed'}) [{p.location || 'Dharavi'}]
                       </option>
                     ))}
                   </select>
@@ -823,11 +1280,13 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
               {/* Initial Participant Details Card (Field Supervisor only) */}
               {isFieldSupervisor && (
-                <div className="border border-slate-200 rounded-2xl bg-slate-50/80 text-slate-900 p-6 shadow-2xs">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 divide-y md:divide-y-0 md:divide-x divide-slate-200">
+                <div className="border border-slate-200 rounded-2xl bg-slate-50/80 text-slate-900 p-6 shadow-2xs space-y-6">
+                  
+                  {/* Row 1: Participant ID, Screening Date, Contact Number */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     
                     {/* Column 1: Participant ID */}
-                    <div className="pr-0 md:pr-4 pt-2 md:pt-0">
+                    <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 font-mono flex items-center gap-1.5">
                         <User size={13} className="text-amber-600" /> Participant ID *
                       </label>
@@ -835,17 +1294,23 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                         type="text" 
                         value={data.participant_id} 
                         onChange={(e) => set("participant_id")(e.target.value)}
-                        className="w-full bg-white border border-slate-300 text-slate-900 font-mono font-bold text-sm outline-none px-3.5 py-2 rounded-xl shadow-2xs focus:border-amber-500"
+                        className="w-full bg-white border border-slate-300 text-slate-900 font-mono font-bold text-sm outline-none px-3.5 py-2.5 rounded-xl shadow-2xs focus:border-amber-500"
                         placeholder="NCD-MUM-XXXXX"
                       />
+                      {fieldErrors.participant_id && (
+                        <p className="mt-1.5 text-xs font-bold text-red-600 flex items-center gap-1">
+                          <AlertCircle size={13} className="text-red-600 shrink-0" />
+                          <span>{fieldErrors.participant_id}</span>
+                        </p>
+                      )}
                     </div>
 
                     {/* Column 2: Screening Date */}
-                    <div className="pt-4 md:pt-0 pl-0 md:pl-6 pr-0 md:pr-4">
+                    <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 font-mono flex items-center gap-1.5">
                         <Calendar size={13} className="text-amber-600" /> Screening Date *
                       </label>
-                      <div className="flex items-center justify-between bg-white border border-slate-300 rounded-xl px-3.5 py-2 shadow-2xs relative">
+                      <div className="flex items-center justify-between bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 shadow-2xs relative">
                         <span className="text-slate-900 font-mono font-bold text-sm tracking-wide">
                           {data.screening_date}
                         </span>
@@ -864,27 +1329,41 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                     </div>
 
                     {/* Column 3: Contact Number */}
-                    <div className="pt-4 md:pt-0 pl-0 md:pl-6">
+                    <div>
                       <div className="flex items-center justify-between mb-2">
                         <label className="text-xs font-bold text-slate-700 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                          <Phone size={13} className="text-amber-600" /> Contact Number
+                          <Phone size={13} className="text-amber-600" /> Contact Number *
                         </label>
-                        <span className="text-slate-400 text-[10px] font-mono">(Optional)</span>
+                        <span className="text-amber-900 font-bold text-[10px] font-mono">(10 Digits)</span>
                       </div>
                       <input 
                         type="tel" 
-                        value={data.contact_number} 
+                        value={data.contact_number || ""} 
                         onChange={(e) => {
-                          const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 10);
-                          set("contact_number")(digitsOnly);
+                          const raw = e.target.value;
+                          if (/\D/.test(raw)) {
+                            notify("error", "Numeric Digits Only", "Contact Number must contain numbers 0-9 only.");
+                          }
+                          const digitsOnly = raw.replace(/\D/g, '');
+                          if (digitsOnly.length > 10) {
+                            notify("error", "Exceeded 10 Digits", "Contact Number cannot exceed 10 digits.");
+                          }
+                          set("contact_number")(digitsOnly.slice(0, 10));
                         }}
-                        placeholder="10-digit mobile number"
+                        placeholder="Enter 10-digit number"
                         maxLength={10}
-                        className="w-full bg-white border border-slate-300 text-slate-900 font-mono text-sm outline-none px-3.5 py-2 rounded-xl shadow-2xs focus:border-amber-500"
+                        className="w-full bg-white border border-slate-300 text-slate-900 font-mono text-sm outline-none px-3.5 py-2.5 rounded-xl shadow-2xs focus:border-amber-500"
                       />
+                      {fieldErrors.contact_number && (
+                        <p className="mt-1.5 text-xs font-bold text-red-600 flex items-center gap-1">
+                          <AlertCircle size={13} className="text-red-600 shrink-0" />
+                          <span>{fieldErrors.contact_number}</span>
+                        </p>
+                      )}
                     </div>
 
                   </div>
+
                 </div>
               )}
 
@@ -921,7 +1400,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
               className="bg-white rounded-3xl p-8 border border-slate-200 shadow-2xs space-y-6 animate-in fade-in duration-200"
             >
               
-              <div className="border-b border-slate-100 pb-4 flex items-center justify-between">
+              <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900">
                     {isSupervisor ? "Field Supervisor Screening & Demographics Form" : `${data.user_role} Clinical Entry Form`}
@@ -930,21 +1409,94 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                     Participant ID: <strong className="text-slate-900 font-bold">{data.participant_id}</strong> {data.age ? `• Age: ${data.age}` : ''} {data.gender ? `• ${data.gender}` : ''}
                   </p>
                 </div>
-                <span className="text-xs font-bold px-3 py-1 rounded-full bg-slate-900 text-white font-mono">
-                  Role: {data.user_role}
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handlePauseSession}
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs font-mono"
+                  >
+                    <PauseCircle size={14} className="text-amber-700" />
+                    <span>Pause Session</span>
+                  </button>
+                  <span className="text-xs font-bold px-3 py-1 rounded-full bg-slate-900 text-white font-mono">
+                    Role: {data.user_role}
+                  </span>
+                </div>
               </div>
+
+              {/* Active Survey Session Banner */}
+              {activeDraft && (
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs animate-in fade-in duration-200">
+                  <div className="flex items-center gap-2 font-mono text-xs">
+                    <PauseCircle size={18} className="text-amber-700 shrink-0" />
+                    <div>
+                      <span className="font-extrabold uppercase text-amber-900 block">Paused Session Found for {activeDraft.participant_id}</span>
+                      <span className="text-[11px] text-amber-800 font-medium">
+                        Saved on {new Date(activeDraft.updatedAt).toLocaleTimeString()} (Page {activeDraft.page + 1})
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleResumeDraft}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-amber-500 text-amber-950 hover:bg-amber-400 transition-colors shadow-2xs cursor-pointer flex items-center gap-1 font-mono"
+                    >
+                      <Play size={13} />
+                      <span>Resume Session</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDiscardDraft}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white text-slate-700 border border-slate-300 hover:bg-slate-100 transition-colors shadow-2xs cursor-pointer flex items-center gap-1 font-mono"
+                    >
+                      <Trash2 size={13} className="text-red-500" />
+                      <span>Discard</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Dynamic Survey Builder Questions Renderer */}
               {(() => {
                 const filteredCustomQuestions = activeCustomQuestions;
                 if (filteredCustomQuestions.length === 0) return null;
 
-                const questionsPerPage = 2;
-                const totalQPages = Math.ceil(filteredCustomQuestions.length / questionsPerPage);
-                const safeQPage = Math.min(qPage, totalQPages - 1);
-                const startIdx = safeQPage * questionsPerPage;
-                const currentBatch = filteredCustomQuestions.slice(startIdx, startIdx + questionsPerPage);
+                // Build section-aware page batches (so section headers are never stranded without their first question)
+                const qPagesList = [];
+                let currentPage = [];
+                let qCountOnPage = 0;
+
+                filteredCustomQuestions.forEach((q) => {
+                  const isHeader = q.type === 'section_header' || String(q.id || '').startsWith('sec_');
+                  
+                  if (isHeader) {
+                    if (qCountOnPage > 0) {
+                      if (currentPage.length > 0) qPagesList.push(currentPage);
+                      currentPage = [q];
+                      qCountOnPage = 0;
+                    } else {
+                      currentPage.push(q);
+                    }
+                  } else {
+                    currentPage.push(q);
+                    qCountOnPage++;
+                    if (qCountOnPage >= 2) {
+                      qPagesList.push(currentPage);
+                      currentPage = [];
+                      qCountOnPage = 0;
+                    }
+                  }
+                });
+
+                if (currentPage.length > 0) {
+                  qPagesList.push(currentPage);
+                }
+
+                const totalQPages = qPagesList.length > 0 ? qPagesList.length : 1;
+                const safeQPage = Math.min(qPage, Math.max(0, totalQPages - 1));
+                const startIdx = qPagesList.slice(0, safeQPage).reduce((acc, p) => acc + p.length, 0);
+                const currentBatch = qPagesList[safeQPage] || [];
 
                 return (
                   <div className="space-y-4 p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs">
@@ -954,7 +1506,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                         <FileText size={14} className="text-amber-600" /> Page {safeQPage + 1} of {totalQPages}
                       </span>
                       <span className="text-[11px] bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-full font-mono font-bold">
-                        Questions {startIdx + 1}–{Math.min(startIdx + questionsPerPage, filteredCustomQuestions.length)} of {filteredCustomQuestions.length}
+                        Batch {safeQPage + 1} of {totalQPages} • {filteredCustomQuestions.length} Total Items
                       </span>
                     </div>
 
@@ -963,17 +1515,20 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                       const qType = q.type || 'short_text';
                       const opts = Array.isArray(q.options) ? q.options : [];
                       
-                      if (qType === 'section_header') {
+                      if (qType === 'section_header' || String(q.id || '').startsWith('sec_')) {
                         return (
-                          <div key={q.id || absoluteIdx} className="pt-2 pb-1 border-b border-slate-100">
-                            <h3 className="text-xs font-black text-slate-900 tracking-tight uppercase font-mono">{q.title}</h3>
+                          <div key={q.id || absoluteIdx} className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-400/10 to-amber-500/5 border border-amber-300/80 shadow-2xs font-mono my-2">
+                            <h3 className="text-xs font-black text-amber-950 tracking-wider uppercase flex items-center gap-2">
+                              <Bookmark size={15} className="text-amber-600 shrink-0" />
+                              <span>{q.title}</span>
+                            </h3>
                           </div>
                         );
                       }
 
-                      // Determine view mode for question
+                      // Determine view mode for question (Defaults to Custom Dropdown for all sections)
                       const userMode = viewModes[q.id];
-                      const effectiveMode = userMode || (opts.length > 5 ? "dropdown" : "grid");
+                      const effectiveMode = userMode || (opts.length > 2 ? "dropdown" : "grid");
                       const qTitleDisplay = String(q.title || "").match(/^Q\d+/i) ? q.title : `${absoluteIdx + 1}. ${q.title}`;
 
                     return (
@@ -1019,7 +1574,63 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                           />
                         )}
 
-                        {(qType === 'number') && (
+                        {/* Custom Auto-Calculated HSI Card for Q23 */}
+                        {(q.id === "q23" || (q.title && q.title.toLowerCase().includes("q23"))) ? (
+                          <div className="space-y-3">
+                            <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-300 flex items-center justify-between shadow-2xs font-mono">
+                              <div>
+                                <span className="text-[10px] font-black uppercase text-amber-800 tracking-wider block">
+                                  Heaviness of Smoking Index (Q21 + Q22) Score
+                                </span>
+                                <div className="flex items-baseline gap-1.5 pt-1">
+                                  <span className="text-3xl font-black text-amber-950">
+                                    {data.q23 !== undefined ? data.q23 : (data.custom_q23 !== undefined ? data.custom_q23 : 0)}
+                                  </span>
+                                  <span className="text-base font-bold text-amber-700">/ 6</span>
+                                </div>
+                              </div>
+                              <span className="text-xs font-bold px-3 py-1 rounded-xl bg-white border border-amber-300 text-amber-900 shadow-2xs">
+                                Auto-Calculated
+                              </span>
+                            </div>
+
+                            {/* Clinical Dependence Level & Q111 Routing Alert */}
+                            {(() => {
+                              const score = parseInt(data.q23 !== undefined ? data.q23 : (data.custom_q23 !== undefined ? data.custom_q23 : 0), 10);
+                              if (score >= 4) {
+                                return (
+                                  <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-950 font-bold text-xs space-y-1 animate-in fade-in duration-200">
+                                    <div className="flex items-center gap-2 font-mono font-black text-red-700 uppercase">
+                                      <AlertCircle size={16} className="text-red-600 shrink-0" />
+                                      <span>High Nicotine Dependence (Score: {score} / 6)</span>
+                                    </div>
+                                    <p className="text-xs text-red-800 leading-relaxed font-medium">
+                                      A score of 4 or more indicates high dependence and automatically routes participant to tobacco cessation counselling at Q111.
+                                    </p>
+                                  </div>
+                                );
+                              } else if (score >= 1) {
+                                return (
+                                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 font-bold text-xs space-y-1 animate-in fade-in duration-200">
+                                    <div className="flex items-center gap-2 font-mono font-black text-amber-800 uppercase">
+                                      <CheckCircle2 size={16} className="text-amber-600 shrink-0" />
+                                      <span>Moderate / Low Dependence (Score: {score} / 6)</span>
+                                    </div>
+                                    <p className="text-xs text-amber-800 font-medium">
+                                      Routine tobacco cessation advice provided.
+                                    </p>
+                                  </div>
+                                );
+                              } else {
+                                return (
+                                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-slate-600 text-xs font-mono font-semibold">
+                                    Score: 0 / 6 — Low / No Nicotine Dependence
+                                  </div>
+                                );
+                              }
+                            })()}
+                          </div>
+                        ) : qType === 'number' ? (
                           <input 
                             type="number" 
                             placeholder="Enter numerical value..." 
@@ -1027,7 +1638,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                             onChange={(e) => updateCustomField(q, e.target.value)} 
                             className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-amber-400 font-mono shadow-2xs" 
                           />
-                        )}
+                        ) : null}
 
                         {/* Single Choice (Custom Dropdown vs Grid/Pills) */}
                         {(qType === 'dropdown' || qType === 'single_choice' || qType === 'radio') && (
@@ -1276,6 +1887,13 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                             </div>
                           )
                         )}
+
+                        {fieldErrors[q.id] && (
+                          <div className="mt-3 px-3.5 py-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold flex items-center gap-2 animate-in fade-in duration-150 shadow-2xs">
+                            <AlertCircle size={15} className="text-red-600 shrink-0" />
+                            <span>{fieldErrors[q.id]}</span>
+                          </div>
+                        )}
                       </div>
                     );
                     })}
@@ -1498,36 +2116,71 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
               {/* Question Pagination & Submit Controls */}
               {(() => {
-                const activeQs = activeCustomQuestions;
-                const totalQPages = activeQs.length > 0 ? Math.ceil(activeQs.length / 2) : 1;
+                const pagesList = [];
+                let curP = [];
+                let qCount = 0;
+                (activeCustomQuestions || []).forEach(q => {
+                  const isH = q.type === 'section_header' || String(q.id || '').startsWith('sec_');
+                  if (isH) {
+                    if (qCount > 0) {
+                      if (curP.length > 0) pagesList.push(curP);
+                      curP = [q];
+                      qCount = 0;
+                    } else {
+                      curP.push(q);
+                    }
+                  } else {
+                    curP.push(q);
+                    qCount++;
+                    if (qCount >= 2) {
+                      pagesList.push(curP);
+                      curP = [];
+                      qCount = 0;
+                    }
+                  }
+                });
+                if (curP.length > 0) pagesList.push(curP);
+
+                const totalQPages = pagesList.length > 0 ? pagesList.length : 1;
                 const safeQPage = Math.min(qPage, Math.max(0, totalQPages - 1));
 
                 return (
                   <div className="pt-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                    {safeQPage > 0 ? (
-                      <button 
-                        type="button" 
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setQPage(p => Math.max(0, p - 1));
-                        }} 
-                        className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 border border-slate-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                    <div className="flex items-center gap-2">
+                      {safeQPage > 0 ? (
+                        <button 
+                          type="button" 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setQPage(p => Math.max(0, p - 1));
+                          }} 
+                          className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 border border-slate-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                        >
+                          <ChevronLeft size={15} />
+                          <span>Previous Questions</span>
+                        </button>
+                      ) : (
+                        <button 
+                          type="button" 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setStep(0);
+                          }} 
+                          className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer text-center"
+                        >
+                          Back to Selection
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handlePauseSession}
+                        className="px-4 py-2.5 rounded-xl text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs font-mono"
                       >
-                        <ChevronLeft size={15} />
-                        <span>Previous Questions</span>
+                        <PauseCircle size={15} className="text-amber-700" />
+                        <span>Pause & Resume Later</span>
                       </button>
-                    ) : (
-                      <button 
-                        type="button" 
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setStep(0);
-                        }} 
-                        className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer text-center"
-                      >
-                        Back to Selection
-                      </button>
-                    )}
+                    </div>
 
                     {safeQPage < totalQPages - 1 ? (
                       <button 
@@ -1557,7 +2210,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                         <span>
                           {submitting 
                             ? "Submitting..." 
-                            : isSupervisor 
+                            : isFieldSupervisor 
                               ? "Submit Demographics & Send to Staff Nurse Queue" 
                               : `Submit ${data.user_role} Clinical Entry`}
                         </span>
@@ -1570,7 +2223,47 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
             </form>
           )}
 
+          {/* Pause Survey Session Confirmation Modal */}
+          {isPausedModalOpen && (
+            <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+              <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-slate-200 shadow-2xl space-y-4">
+                <div className="w-12 h-12 rounded-2xl bg-amber-100 border border-amber-300 text-amber-900 flex items-center justify-center mx-auto shadow-2xs">
+                  <PauseCircle size={28} className="text-amber-700" />
+                </div>
+                <div className="text-center space-y-1">
+                  <h3 className="text-base font-black text-slate-900 uppercase font-mono tracking-tight">Survey Session Paused</h3>
+                  <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                    Participant <strong className="text-slate-900 font-bold">{data.participant_id}</strong>'s screening progress is safely stored as a draft at <strong className="text-amber-900 font-bold">Page {qPage + 1}</strong>.
+                  </p>
+                </div>
+                <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs font-mono text-amber-900 text-center font-bold">
+                  You can safely return to the dashboard or resume anytime.
+                </div>
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsPausedModalOpen(false)}
+                    className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-amber-400 text-amber-950 hover:bg-amber-500 transition-colors shadow-2xs cursor-pointer font-mono"
+                  >
+                    Continue Editing
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPausedModalOpen(false);
+                      if (onCancel) onCancel();
+                    }}
+                    className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 transition-colors shadow-2xs cursor-pointer font-mono"
+                  >
+                    Back to Dashboard
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
+        )}
       </main>
 
       {/* Simple Clean Footer */}
