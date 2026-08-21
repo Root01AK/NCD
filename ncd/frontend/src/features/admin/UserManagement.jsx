@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Search, UserCircle2, Edit2, Trash2, ShieldCheck, Mail, ShieldAlert, X, Loader2, Layers, CheckCircle2, Check, RefreshCw, ChevronDown, ChevronUp, Lock, Menu } from "lucide-react";
+import { Plus, Search, UserCircle2, Edit2, Trash2, ShieldCheck, Mail, ShieldAlert, X, Loader2, Layers, CheckCircle2, Check, RefreshCw, ChevronDown, ChevronUp, Lock, Menu, Building2, MapPin } from "lucide-react";
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 
@@ -72,10 +72,13 @@ export const ROLE_KEY_MAP = {
   7: "deo"
 };
 
+export const TENANTS_LIST = ["Dharavi", "Malvani", "Vashi", "Kurla", "Ghatkopar", "Others"];
+
 export function UserManagement({ notify, onOpenMobileMenu }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState("table"); // 'table' or 'cards'
+  const [viewMode, setViewMode] = useState("table");
+  const [selectedTenant, setSelectedTenant] = useState("All");
   
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -89,14 +92,38 @@ export function UserManagement({ notify, onOpenMobileMenu }) {
     email: "",
     mobile: "",
     status: "1",
-    privileges: getDefaultModulesForRole("staff_nurse")
+    privileges: []
   });
 
   const [searchTerm, setSearchTerm] = useState("");
 
+  const [tenantsList, setTenantsList] = useState([]);
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState("All");
+
   useEffect(() => {
     fetchUsers();
+    fetchTenantLocations();
   }, []);
+
+  const fetchTenantLocations = async () => {
+    try {
+      const res = await api.get("/api/v1/location/index");
+      if (res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
+        const dynamicLocs = res.data.map(l => l.loc_name || l.loc_city).filter(Boolean);
+        const uniqueLocs = Array.from(new Set(dynamicLocs));
+        setTenantsList(uniqueLocs);
+        localStorage.setItem('ncd_locations_master', JSON.stringify(uniqueLocs));
+      }
+    } catch (e) {
+      try {
+        const stored = localStorage.getItem('ncd_locations_master');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) setTenantsList(parsed);
+        }
+      } catch (err) {}
+    }
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -233,7 +260,7 @@ export function UserManagement({ notify, onOpenMobileMenu }) {
           notify("success", "User Provisioned", `User '${cleanUsername}' created successfully. You can now log in with username '${cleanUsername}' and password '${cleanPassword}'.`);
           setShowForm(false);
           setEditingId(null);
-          setFormData({ username: "", password: "", role: "staff_nurse", location: "Dharavi", email: "", mobile: "", status: "1", privileges: getDefaultModulesForRole("staff_nurse") });
+          setFormData({ username: "", password: "", role: "staff_nurse", location: "Dharavi", email: "", mobile: "", status: "1", privileges: [] });
           fetchUsers();
         } else {
           const errMsg = res.message || (res.errors ? Object.values(res.errors).flat().join(", ") : "Failed to create user.");
@@ -253,11 +280,16 @@ export function UserManagement({ notify, onOpenMobileMenu }) {
     }));
   };
 
-  const filteredUsers = users.filter(u => 
-    (u.username && u.username.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (u.email && u.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (u.role && u.role.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredUsers = users.filter(u => {
+    const matchesTenant = selectedTenant === "All" || (u.location || u.loc_code || "").toLowerCase() === selectedTenant.toLowerCase();
+    const matchesRole = selectedRoleFilter === "All" || (u.role || "").toLowerCase() === selectedRoleFilter.toLowerCase();
+    const matchesSearch = 
+      (u.username && u.username.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (u.email && u.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (u.role && u.role.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (u.location && u.location.toLowerCase().includes(searchTerm.toLowerCase()));
+    return matchesTenant && matchesRole && matchesSearch;
+  });
 
   const getPrivilegeSummaryText = (privs) => {
     const list = Array.isArray(privs) ? privs : [];
@@ -284,10 +316,10 @@ export function UserManagement({ notify, onOpenMobileMenu }) {
             </button>
             <div>
               <h1 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight">
-                User Management & Access Control
+                Tenant (Location) & User Access Management
               </h1>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Provision staff user accounts and configure 16 screening section access privileges.
+              <p className="text-xs text-gray-500 mt-0.5 font-mono">
+                Map location tenants and provision dedicated staff role user accounts.
               </p>
             </div>
           </div>
@@ -295,7 +327,7 @@ export function UserManagement({ notify, onOpenMobileMenu }) {
           <button 
             onClick={() => {
               setEditingId(null);
-              setFormData({ username: "", password: "", role: "staff_nurse", email: "", mobile: "", status: "1", privileges: getDefaultModulesForRole("staff_nurse") });
+              setFormData({ username: "", password: "", role: "staff_nurse", location: selectedTenant !== "All" ? selectedTenant : (tenantsList[0] || ""), email: "", mobile: "", status: "1", privileges: [] });
               setShowForm(true);
             }}
             className="sm:hidden px-3.5 py-2 rounded-lg text-xs font-bold bg-gray-900 text-white hover:bg-black transition-colors flex items-center gap-1.5 shadow-xs shrink-0"
@@ -308,7 +340,7 @@ export function UserManagement({ notify, onOpenMobileMenu }) {
         <button 
           onClick={() => {
             setEditingId(null);
-            setFormData({ username: "", password: "", role: "staff_nurse", email: "", mobile: "", status: "1", privileges: getDefaultModulesForRole("staff_nurse") });
+            setFormData({ username: "", password: "", role: "staff_nurse", location: selectedTenant !== "All" ? selectedTenant : (tenantsList[0] || ""), email: "", mobile: "", status: "1", privileges: [] });
             setShowForm(true);
           }}
           className="hidden sm:flex px-4 py-2.5 rounded-lg text-xs font-semibold bg-gray-900 text-white hover:bg-black transition-colors items-center gap-1.5 shadow-xs cursor-pointer"
@@ -319,7 +351,74 @@ export function UserManagement({ notify, onOpenMobileMenu }) {
       </header>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-4">
+        
+        {/* Tenant Location Filter Pills */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none font-mono">
+          <span className="text-xs font-black uppercase text-slate-500 flex items-center gap-1 mr-1 shrink-0">
+            <Building2 size={15} className="text-amber-600" /> Tenant:
+          </span>
+          {["All", ...tenantsList].map(t => {
+            const isSel = selectedTenant === t;
+            const count = t === "All" ? users.length : users.filter(u => (u.location || u.loc_code || "").toLowerCase() === t.toLowerCase()).length;
+            return (
+              <button
+                key={t}
+                onClick={() => setSelectedTenant(t)}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-colors cursor-pointer shrink-0 border ${isSel ? 'bg-amber-400 text-amber-950 border-amber-500 shadow-2xs font-extrabold' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+              >
+                {t === "All" ? "All Tenants" : t} ({count})
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Assigned Role Filter Pills (Including Admin) */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none font-mono">
+          <span className="text-xs font-black uppercase text-slate-500 flex items-center gap-1 mr-1 shrink-0">
+            <ShieldCheck size={15} className="text-slate-600" /> Role:
+          </span>
+          {["All", "admin", "field_supervisor", "staff_nurse", "counselor", "doctor", "case_management_coordinator", "deo"].map(rk => {
+            const isSel = selectedRoleFilter === rk;
+            const label = rk === "All" ? "All Roles" : ROLE_CONFIGS[rk]?.label || rk;
+            const count = rk === "All" ? users.length : users.filter(u => (u.role || "").toLowerCase() === rk.toLowerCase()).length;
+            return (
+              <button
+                key={rk}
+                onClick={() => setSelectedRoleFilter(rk)}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-colors cursor-pointer shrink-0 border ${isSel ? 'bg-slate-900 text-white border-slate-950 shadow-2xs font-extrabold' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+              >
+                {label} ({count})
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Selected Tenant Summary Banner */}
+        {selectedTenant !== "All" && (
+          <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-300 text-amber-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-2.5">
+              <Building2 size={20} className="text-amber-700 shrink-0" />
+              <div>
+                <span className="font-extrabold uppercase text-amber-950 text-xs font-mono block">Tenant Location: {selectedTenant}</span>
+                <span className="text-[11px] text-amber-800 font-medium font-mono">
+                  {filteredUsers.length} Dedicated Staff User(s) Assigned to {selectedTenant}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {Object.keys(ROLE_CONFIGS).map(rk => {
+                const count = filteredUsers.filter(u => u.role === rk).length;
+                if (count === 0) return null;
+                return (
+                  <span key={rk} className="px-2.5 py-1 rounded-full bg-white text-slate-800 text-[11px] font-bold border border-amber-200 shadow-2xs font-mono">
+                    {ROLE_CONFIGS[rk].label}: {count}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
         
         {loading ? (
           <div className="flex justify-center p-16">
@@ -382,8 +481,19 @@ export function UserManagement({ notify, onOpenMobileMenu }) {
                         </td>
 
                         <td className="py-3.5 px-4">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200 font-mono">
-                            📍 {u.location || u.loc_code || 'Dharavi'}
+                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-black bg-amber-100 text-amber-950 border border-amber-300 font-mono shadow-2xs">
+                            <MapPin size={13} className="text-amber-700 shrink-0" />
+                            <span>
+                              {(() => {
+                                const l = String(u.location || 'Dharavi').trim().toLowerCase();
+                                if (l.includes("dharavi")) return "DH";
+                                if (l.includes("malvani")) return "ML";
+                                if (l.includes("vashi")) return "VA";
+                                if (l.includes("kurla")) return "KR";
+                                if (l.includes("ghatkopar")) return "GK";
+                                return String(u.location || 'DH').substring(0, 2).toUpperCase();
+                              })()}
+                            </span>
                           </span>
                         </td>
 
@@ -549,10 +659,9 @@ export function UserManagement({ notify, onOpenMobileMenu }) {
                     onChange={(e) => setFormData({...formData, location: e.target.value})}
                     className="w-full px-3 py-2 rounded-lg text-xs border border-gray-300 font-bold outline-none bg-white text-gray-900"
                   >
-                    <option value="Dharavi">Dharavi</option>
-                    <option value="Malvani">Malvani</option>
-                    <option value="Vashi">Vashi</option>
-                    <option value="Others">Others</option>
+                    {tenantsList.map(loc => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))}
                   </select>
                 </div>
 

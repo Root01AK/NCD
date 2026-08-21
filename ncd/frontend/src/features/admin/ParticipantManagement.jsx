@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Search, MapPin, Eye, FileText, CheckCircle, AlertTriangle, Loader2, UserCheck, Stethoscope, HeartPulse, Brain, Link2, Trash2, Edit3, Save, X, Plus, Code, RefreshCw } from "lucide-react";
+import { Search, MapPin, Eye, FileText, CheckCircle, AlertTriangle, Loader2, UserCheck, Stethoscope, HeartPulse, Brain, Link2, Trash2, Edit3, Save, X, Plus, Code, RefreshCw, SlidersHorizontal, Settings } from "lucide-react";
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
+import { getQueue } from "../../lib/db";
 
 function generateParticipantID(loc = "Dharavi") {
   const locLower = String(loc || "").toLowerCase();
@@ -35,126 +36,132 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
     participant_id: generateParticipantID("Dharavi")
   });
 
-  const locations = ["All", "Dharavi", "Malvani", "Vashi", "Others"];
+  const [locationsList, setLocationsList] = useState(["All", "Dharavi", "Malvani", "Vashi", "Others"]);
 
   useEffect(() => {
-    fetchParticipants();
+    let isMounted = true;
+    const load = async () => {
+      setLoading(true);
+      try {
+        await Promise.all([
+          fetchParticipants(isMounted),
+          fetchLocationsMaster(isMounted)
+        ]);
+      } catch (e) {
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    load();
+    return () => { isMounted = false; };
   }, [phase]);
 
-  const fetchParticipants = async () => {
-    setLoading(true);
+  const fetchLocationsMaster = async (isMounted = true) => {
     try {
-      const res = await api.get("/api/v1/dashboard/screeninglist");
-      if (res.status === 'success' && Array.isArray(res.data)) {
-        let rawList = res.data;
-
-        if (phase === "phase1") {
-          const p1Raw = rawList.filter(p => !p.submitted_by_role && p.phase !== 2 && p.phase !== 'phase2');
-          const mappedP1 = (p1Raw.length > 0 ? p1Raw : [
-            { mem_scrn_id: "1092", mem_scrn_part_id: "DH-MUM-1092", mem_scrn_q16: "DH-MUM-1092", mem_scrn_q1: "48", mem_scrn_q2: "1", mem_scrn_q17: "Dharavi", mem_scrn_q24: "0" },
-            { mem_scrn_id: "1095", mem_scrn_part_id: "ML-MUM-1095", mem_scrn_q16: "ML-MUM-1095", mem_scrn_q1: "42", mem_scrn_q2: "2", mem_scrn_q17: "Malvani", mem_scrn_q24: "0" },
-            { mem_scrn_id: "1096", mem_scrn_part_id: "VS-MUM-1096", mem_scrn_q16: "VS-MUM-1096", mem_scrn_q1: "55", mem_scrn_q2: "1", mem_scrn_q17: "Vashi", mem_scrn_q24: "1" }
-          ]).map((p, idx) => ({
-            local_id: p.mem_scrn_id || idx,
-            participant_id: p.mem_scrn_part_id || (p.mem_scrn_id ? `DH-MUM-${p.mem_scrn_id}` : `S-${1090 + idx}`),
-            fullName: p.mem_scrn_part_id || p.mem_scrn_q16 || (p.mem_scrn_id ? `DH-MUM-${p.mem_scrn_id}` : `S-${1090 + idx}`),
-            age: p.mem_scrn_q1 || "45",
-            gender: p.mem_scrn_q2 === "1" ? "Male" : p.mem_scrn_q2 === "2" ? "Female" : "Male",
-            location: p.mem_scrn_q17 || "Dharavi",
-            bp_sys: p.mem_scrn_q3 || "130",
-            bp_dia: p.mem_scrn_q4 || "85",
-            weight: p.mem_scrn_q5 || "70",
-            risk: p.mem_scrn_q24 == 1 ? "High Risk" : "Standard Risk",
-            raw_payload: p.mem_scrn_q30 ? p.mem_scrn_q30 : JSON.stringify(p, null, 2),
-            audit_trail: [
-              { role: "Phase I Baseline", action: "Historical Baseline Entry", user: "System Importer", timestamp: "Historical Record", status: "Archived Baseline" }
-            ]
-          }));
-          setParticipants(mappedP1);
-          return;
-        }
-
-        const p2Raw = rawList.filter(p => p.phase === 2 || p.phase === 'phase2' || p.mem_scrn_phase === '2' || p.submitted_by_role);
-        
-        // Also check local offline queue for Field Supervisor initiated participants
-        let localQueue = [];
-        try {
-          const qStr = localStorage.getItem('ncd_offline_queue');
-          if (qStr) {
-            const parsed = JSON.parse(qStr);
-            if (Array.isArray(parsed)) localQueue = parsed;
-          }
-        } catch (e) {}
-
-        const combinedList = [...localQueue, ...p2Raw];
-        const seenIds = new Set();
-        const mappedP2 = [];
-
-        combinedList.forEach((p, idx) => {
-          let extra = {};
-          if (p.mem_scrn_q30) {
-            try { extra = typeof p.mem_scrn_q30 === 'string' ? JSON.parse(p.mem_scrn_q30) : p.mem_scrn_q30; } catch(e) {}
-          }
-          const pId = p.participant_id || p.mem_scrn_part_id || extra.participant_id || (p.mem_scrn_id ? `NCDDH-${p.mem_scrn_id}` : `NCDDH000${idx + 1}`);
-          
-          if (!pId || seenIds.has(pId)) return;
-          seenIds.add(pId);
-
-          const roleName = p.submitted_by_role || extra.submitted_by_role || "Field Supervisor";
-          const userName = p.submitted_by_user || extra.user_name || p.user_name || "FS001 (Field Supervisor)";
-          const dateStr = p.screening_date || extra.screening_date || (p.submitted_at ? new Date(p.submitted_at).toLocaleDateString() : new Date().toLocaleDateString());
-
-          // Multi-Role Stage Tracker Logic
-          const isFsDone = true; // Initiated by FS
-          const isNurseDone = Boolean(extra.medical_history || extra.bp_systolic || p.mem_scrn_q9);
-          const isDoctorDone = Boolean(extra.cvd_risk_assessment || extra.overall_risk_rating);
-          const isCounselorDone = Boolean(extra.phq9_depression_score || extra.health_counseling_notes);
-          const isCmcDone = Boolean(extra.referral_confirmation_date || extra.treatment_adherence_status);
-
-          let currentPendingQueue = "Staff Nurse Queue";
-          if (!isNurseDone) currentPendingQueue = "Pending Staff Nurse Screening";
-          else if (!isDoctorDone) currentPendingQueue = "Pending Doctor Clinical Exam";
-          else if (!isCounselorDone) currentPendingQueue = "Pending Counselor Therapy";
-          else if (!isCmcDone) currentPendingQueue = "Pending Case Coordinator (CMC)";
-          else currentPendingQueue = "Completed All Stages";
-
-          mappedP2.push({
-            ...extra,
-            local_id: p.mem_scrn_id || p.local_id || idx,
-            participant_id: pId,
-            fullName: (p.fullName && p.fullName !== "Unnamed Participant") ? p.fullName : (extra.fullName || p.mem_scrn_q16 || pId),
-            age: p.age || p.mem_scrn_q1 || extra.age || "48",
-            gender: p.gender || (p.mem_scrn_q2 === "1" ? "Male" : p.mem_scrn_q2 === "2" ? "Female" : extra.gender || "Female"),
-            location: p.location || p.mem_scrn_q17 || extra.location || "Dharavi",
-            contact_number: p.contact_number || extra.contact_number || "N/A",
-            date_of_survey: dateStr,
-            created_by_role: roleName,
-            created_by_user: userName,
-            current_stage: currentPendingQueue,
-            is_fs_done: isFsDone,
-            is_nurse_done: isNurseDone,
-            is_doctor_done: isDoctorDone,
-            is_counselor_done: isCounselorDone,
-            is_cmc_done: isCmcDone,
-            risk: extra.overall_risk_rating || (p.mem_scrn_q24 == 1 ? "High Risk" : "Standard Risk"),
-            raw_payload: p.mem_scrn_q30 ? (typeof p.mem_scrn_q30 === 'string' ? p.mem_scrn_q30 : JSON.stringify(p.mem_scrn_q30, null, 2)) : JSON.stringify(p, null, 2),
-            audit_trail: [
-              { role: "Field Supervisor", action: "Initiated Participant Screening", user: userName, timestamp: dateStr, status: "Section 1 Demographics Completed" },
-              isNurseDone && { role: "Staff Nurse", action: "Clinical Vitals & Medical History", user: "SN001 (Staff Nurse)", timestamp: "Completed", status: "Sections 2-11 Completed" },
-              isDoctorDone && { role: "Doctor", action: "Clinical Exam & Risk Categorisation", user: "D001 (Doctor)", timestamp: "Completed", status: "Sections 12-13 Completed" },
-              isCounselorDone && { role: "Counselor", action: "Mental Health & Counseling", user: "C001 (Counselor)", timestamp: "Completed", status: "Section 15 Completed" },
-              isCmcDone && { role: "Case Coordinator", action: "Linkages & Follow-up Tracking", user: "CMC001 (Coordinator)", timestamp: "Completed", status: "Section 14 Completed" }
-            ].filter(Boolean)
-          });
-        });
-
-        setParticipants(mappedP2);
+      const apiPromise = api.get("/api/v1/location/index");
+      const timeoutPromise = new Promise(res => setTimeout(() => res(null), 800));
+      const res = await Promise.race([apiPromise, timeoutPromise]);
+      if (isMounted && res && res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
+        const dynamicLocs = res.data.map(l => l.loc_name || l.loc_city).filter(Boolean);
+        setLocationsList(["All", ...Array.from(new Set(dynamicLocs))]);
       }
+    } catch (e) {}
+  };
+
+  const fetchParticipants = async (isMounted = true) => {
+    try {
+      let idbQueue = [];
+      try { idbQueue = await getQueue(); } catch (err) {}
+
+      let localInitiated = [];
+      try {
+        const initStr = localStorage.getItem('ncd_local_initiated_participants') || localStorage.getItem('ncd_offline_queue');
+        if (initStr) {
+          const parsed = JSON.parse(initStr);
+          if (Array.isArray(parsed)) localInitiated = parsed;
+        }
+      } catch (e) {}
+
+      let apiList = [];
+      try {
+        const apiPromise = api.get("/api/v1/dashboard/screeninglist");
+        const timeoutPromise = new Promise(res => setTimeout(() => res(null), 800));
+        const res = await Promise.race([apiPromise, timeoutPromise]);
+        if (res && res.status === 'success' && Array.isArray(res.data)) {
+          apiList = res.data;
+        }
+      } catch (err) {}
+
+      const combinedList = [...localInitiated, ...idbQueue, ...apiList];
+      const seenIds = new Set();
+      const mappedList = [];
+
+      combinedList.forEach((p, idx) => {
+        let extra = {};
+        if (p.mem_scrn_q30) {
+          try { extra = typeof p.mem_scrn_q30 === 'string' ? JSON.parse(p.mem_scrn_q30) : p.mem_scrn_q30; } catch(e) {}
+        }
+        const realPId = p.participant_id || p.mem_scrn_part_id || extra.participant_id;
+        const hasData = Boolean(p.fullName || extra.fullName || p.mem_scrn_q16 || p.age || p.mem_scrn_q1 || extra.age);
+
+        // Exclude unpopulated empty DB stubs
+        if (!realPId && !hasData) return;
+        const pId = realPId || (p.mem_scrn_id ? `DH-MUM-${p.mem_scrn_id}` : `P-${idx + 1}`);
+        
+        if (!pId || seenIds.has(pId)) return;
+        seenIds.add(pId);
+
+        const roleName = p.submitted_by_role || extra.submitted_by_role || p.user_role || "Data Entry Operator";
+        const userName = p.submitted_by_user || extra.user_name || p.user_name || p.user_code || "Staff User";
+        const dateStr = p.screening_date || extra.screening_date || (p.submitted_at ? new Date(p.submitted_at).toLocaleDateString() : new Date().toLocaleDateString());
+
+        const isFsDone = true;
+        const isNurseDone = Boolean(extra.medical_history || extra.bp_systolic || p.mem_scrn_q9 || p.bp_sys);
+        const isDoctorDone = Boolean(extra.cvd_risk_assessment || extra.overall_risk_rating);
+        const isCounselorDone = Boolean(extra.phq9_depression_score || extra.health_counseling_notes);
+        const isCmcDone = Boolean(extra.referral_confirmation_date || extra.treatment_adherence_status);
+
+        let currentPendingQueue = "Pending Staff Nurse Screening";
+        if (!isNurseDone) currentPendingQueue = "Pending Staff Nurse Screening";
+        else if (!isDoctorDone) currentPendingQueue = "Pending Doctor Clinical Exam";
+        else if (!isCounselorDone) currentPendingQueue = "Pending Counselor Therapy";
+        else if (!isCmcDone) currentPendingQueue = "Pending Case Coordinator (CMC)";
+        else currentPendingQueue = "Completed All Stages";
+
+        mappedList.push({
+          ...extra,
+          local_id: p.mem_scrn_id || p.local_id || idx,
+          participant_id: pId,
+          fullName: (p.fullName && p.fullName !== "Unnamed Participant") ? p.fullName : (extra.fullName || p.mem_scrn_q16 || pId),
+          age: p.age || p.mem_scrn_q1 || extra.age || "-",
+          gender: p.gender || (p.mem_scrn_q2 === "1" ? "Male" : p.mem_scrn_q2 === "2" ? "Female" : extra.gender || "-"),
+          location: p.location || p.mem_scrn_q17 || extra.location || "-",
+          contact_number: p.contact_number || extra.contact_number || "-",
+          date_of_survey: dateStr,
+          created_by_role: roleName,
+          created_by_user: userName,
+          current_stage: currentPendingQueue,
+          is_fs_done: isFsDone,
+          is_nurse_done: isNurseDone,
+          is_doctor_done: isDoctorDone,
+          is_counselor_done: isCounselorDone,
+          is_cmc_done: isCmcDone,
+          risk: extra.overall_risk_rating || (p.mem_scrn_q24 == 1 ? "High Risk" : "Standard Risk"),
+          raw_payload: p.mem_scrn_q30 || p,
+          audit_trail: [
+            { role: roleName, action: "Initiated Participant Screening", user: userName, timestamp: dateStr, status: "Section 1 Demographics Completed" },
+            isNurseDone && { role: "Staff Nurse", action: "Clinical Vitals & Medical History", user: extra.nurse_user || userName, timestamp: "Completed", status: "Sections 2-11 Completed" },
+            isDoctorDone && { role: "Doctor", action: "Clinical Exam & Risk Categorisation", user: extra.doctor_user || "Doctor Account", timestamp: "Completed", status: "Sections 12-13 Completed" },
+            isCounselorDone && { role: "Counselor", action: "Mental Health & Counseling", user: extra.counselor_user || "Counselor Account", timestamp: "Completed", status: "Section 15 Completed" },
+            isCmcDone && { role: "Case Coordinator", action: "Linkages & Follow-up Tracking", user: extra.cmc_user || "Coordinator Account", timestamp: "Completed", status: "Section 14 Completed" }
+          ].filter(Boolean)
+        });
+      });
+
+      if (isMounted) setParticipants(mappedList);
     } catch (e) {
       console.error(e);
-      setParticipants([]);
-    } finally {
-      setLoading(false);
+      if (isMounted) setParticipants([]);
     }
   };
 
@@ -236,14 +243,32 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
     }
   };
 
-  const filteredParticipants = participants.filter((p) => {
-    const matchesSearch = 
-      (p.fullName && p.fullName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.participant_id && p.participant_id.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesLocation = 
-      selectedLocation === "All" || (p.location && p.location.toLowerCase().includes(selectedLocation.toLowerCase()));
-    return matchesSearch && matchesLocation;
-  });
+  const [sortBy, setSortBy] = useState("newest");
+  const [enableResumeButton, setEnableResumeButton] = useState(() => localStorage.getItem('ncd_setting_enable_resume_button') !== 'false');
+  const [phase1Unlocked, setPhase1Unlocked] = useState(() => localStorage.getItem('ncd_phase1_unlocked') === 'true');
+
+  const filteredParticipants = participants
+    .filter((p) => {
+      const matchesSearch = 
+        !searchTerm ||
+        (p.fullName && p.fullName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (p.participant_id && p.participant_id.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (p.location && p.location.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesLocation = 
+        selectedLocation === "All" || (p.location && p.location.toLowerCase().includes(selectedLocation.toLowerCase()));
+      return matchesSearch && matchesLocation;
+    })
+    .sort((a, b) => {
+      if (sortBy === "location") return String(a.location || "").localeCompare(String(b.location || ""));
+      if (sortBy === "participant_id") return String(a.participant_id || "").localeCompare(String(b.participant_id || ""));
+      if (sortBy === "risk") {
+        const isAHigh = String(a.risk || "").toLowerCase().includes("high");
+        const isBHigh = String(b.risk || "").toLowerCase().includes("high");
+        return isBHigh ? -1 : isAHigh ? 1 : 0;
+      }
+      if (sortBy === "oldest") return (a.local_id || 0) - (b.local_id || 0);
+      return (b.local_id || 0) - (a.local_id || 0);
+    });
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-gray-50/50">
@@ -276,7 +301,7 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
               onChange={(e) => setSelectedLocation(e.target.value)}
               className="bg-transparent text-xs font-bold text-slate-800 outline-none cursor-pointer"
             >
-              {locations.map(loc => <option key={loc} value={loc}>{loc === "All" ? "All Locations" : loc}</option>)}
+              {locationsList.map(loc => <option key={loc} value={loc}>{loc === "All" ? "All Locations" : loc}</option>)}
             </select>
           </div>
 
@@ -310,7 +335,47 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
       <div className="flex-1 flex overflow-hidden">
         
         {/* Participants List */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-6">
+          
+          {/* Location Filter Pills & Sort Dropdown Bar */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-3xl border border-slate-200 shadow-2xs font-mono">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none w-full sm:w-auto">
+              <span className="text-xs font-black uppercase text-slate-500 flex items-center gap-1 shrink-0 mr-1">
+                <MapPin size={14} className="text-amber-600" /> Location:
+              </span>
+              {locationsList.map(loc => {
+                const isSel = selectedLocation === loc;
+                const count = loc === "All" ? participants.length : participants.filter(p => (p.location || "").toLowerCase().includes(loc.toLowerCase())).length;
+                return (
+                  <button
+                    key={loc}
+                    onClick={() => setSelectedLocation(loc)}
+                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 border ${isSel ? 'bg-amber-400 text-amber-950 border-amber-500 shadow-2xs font-extrabold' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+                  >
+                    {loc === "All" ? "All Locations" : loc} ({count})
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+              <span className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
+                <SlidersHorizontal size={13} className="text-slate-600" /> Sort By:
+              </span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="bg-slate-100 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 outline-none cursor-pointer"
+              >
+                <option value="newest">Date (Newest First)</option>
+                <option value="oldest">Date (Oldest First)</option>
+                <option value="location">Location Center (A-Z)</option>
+                <option value="participant_id">Participant ID (A-Z)</option>
+                <option value="risk">High Risk Flagged First</option>
+              </select>
+            </div>
+          </div>
+
           {loading ? (
             <div className="flex justify-center p-12">
               <Loader2 className="animate-spin text-gray-400" size={32} />
@@ -386,6 +451,81 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
               })}
             </div>
           )}
+
+          {/* System Add-ons & Feature Controls Section */}
+          <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-2xs space-y-4 font-mono mt-8">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <Settings size={16} className="text-amber-600" /> System Add-ons & Feature Controls
+                </h3>
+                <p className="text-xs text-slate-500 font-normal mt-0.5">
+                  Operational add-ons, feature switches, and dataset security locks.
+                </p>
+              </div>
+              <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-950 border border-amber-300 uppercase">
+                Live Feature Admin
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Add-on 1: Survey Session Resume Button Switch */}
+              <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200 flex flex-col justify-between space-y-3">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-amber-950 uppercase tracking-wider block">1. Survey Session Resume Button</span>
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${enableResumeButton ? 'bg-emerald-100 text-emerald-950 border border-emerald-300' : 'bg-slate-200 text-slate-700'}`}>
+                      {enableResumeButton ? 'ACTIVE' : 'INACTIVE'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-amber-800 font-medium mt-1">
+                    Controls whether staff users can see the "Resume Session" button and draft pause banner in operational screening forms.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextVal = !enableResumeButton;
+                    setEnableResumeButton(nextVal);
+                    localStorage.setItem('ncd_setting_enable_resume_button', nextVal ? 'true' : 'false');
+                    if (notify) notify("success", "Feature Updated", `Survey Session Resume Button has been ${nextVal ? 'ENABLED' : 'DISABLED'}.`);
+                  }}
+                  className={`w-full py-2 rounded-xl text-xs font-black transition-all cursor-pointer border shadow-2xs font-mono ${enableResumeButton ? 'bg-amber-400 text-amber-950 border-amber-500 hover:bg-amber-500' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'}`}
+                >
+                  {enableResumeButton ? 'ENABLED (ON)' : 'DISABLED (OFF)'}
+                </button>
+              </div>
+
+              {/* Add-on 2: Phase I Baseline Dataset Access Lock System */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col justify-between space-y-3">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-900 uppercase tracking-wider block">2. Phase I Baseline Access Lock</span>
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${phase1Unlocked ? 'bg-emerald-100 text-emerald-950 border border-emerald-300' : 'bg-red-100 text-red-950 border border-red-300'}`}>
+                      {phase1Unlocked ? 'UNLOCKED' : 'LOCKED'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 font-medium mt-1">
+                    Lock or unlock access to historical Phase I baseline datasets across analytics, export, and phase selection filters.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextVal = !phase1Unlocked;
+                    setPhase1Unlocked(nextVal);
+                    localStorage.setItem('ncd_phase1_unlocked', String(nextVal));
+                    if (notify) notify(nextVal ? "success" : "info", nextVal ? "Phase I Unlocked" : "Phase I Locked", `Phase I baseline dataset access is now ${nextVal ? 'UNLOCKED' : 'LOCKED'}.`);
+                  }}
+                  className={`w-full py-2 rounded-xl text-xs font-black transition-all cursor-pointer border shadow-2xs font-mono ${phase1Unlocked ? 'bg-emerald-400 text-emerald-950 border-emerald-500 hover:bg-emerald-500' : 'bg-slate-900 text-white border-slate-950 hover:bg-black'}`}
+                >
+                  {phase1Unlocked ? 'UNLOCKED (ACCESSIBLE)' : 'LOCKED (RESTRICTED)'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Selected Participant Response Data & Multi-Role Audit Drawer */}

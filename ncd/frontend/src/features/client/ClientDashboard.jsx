@@ -32,23 +32,46 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
   const [syncQueue, setSyncQueue] = useState([]);
   const [syncing, setSyncing] = useState(false);
   const [syncSearch, setSyncSearch] = useState("");
+  const [selectedSyncLocation, setSelectedSyncLocation] = useState("All");
+  const [syncAgeGroupFilter, setSyncAgeGroupFilter] = useState("All");
+  const [syncGenderFilter, setSyncGenderFilter] = useState("All");
+  const [selectedSyncIds, setSelectedSyncIds] = useState([]);
   const [selectedQaModalItem, setSelectedQaModalItem] = useState(null);
 
-  const exportSyncQueueCSV = () => {
-    if (!syncQueue || syncQueue.length === 0) return;
+  const exportSyncQueueCSV = (customList = null) => {
+    let listToExport = customList;
+    
+    if (!listToExport) {
+      if (selectedSyncIds.length > 0) {
+        listToExport = syncQueue.filter(item => selectedSyncIds.includes(item.local_id));
+      } else {
+        listToExport = syncQueue;
+      }
+    }
+
+    if (!listToExport || listToExport.length === 0) {
+      notify("error", "No Records Found", "No offline queue records available to export.");
+      return;
+    }
     
     const headers = ["Local ID", "Participant ID", "Full Name", "Age", "Gender", "Location", "Screening Date", "Contact Number", "Saved Timestamp"];
-    const rows = syncQueue.map(item => [
-      item.local_id || "",
-      `"${item.participant_id || ''}"`,
-      `"${item.fullName || ''}"`,
-      item.age || "",
-      `"${item.gender || ''}"`,
-      `"${item.location || user.assigned_location || ''}"`,
-      `"${item.screening_date || ''}"`,
-      `"${item.contact_number || ''}"`,
-      `"${item.timestamp || ''}"`
-    ]);
+    const rows = listToExport.map(item => {
+      let raw = {};
+      if (item.mem_scrn_q30) {
+        try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
+      }
+      return [
+        item.local_id || "",
+        `"${item.participant_id || item.mem_scrn_part_id || raw.participant_id || ''}"`,
+        `"${item.fullName || raw.fullName || item.mem_scrn_q16 || ''}"`,
+        item.age || raw.age || item.mem_scrn_q1 || "",
+        `"${item.gender || raw.gender || (item.mem_scrn_q2 == '1' ? 'Male' : 'Female')}"`,
+        `"${item.location || raw.location || item.mem_scrn_q17 || localStorage.getItem('ncd_active_location') || ''}"`,
+        `"${item.screening_date || raw.screening_date || ''}"`,
+        `"${item.contact_number || raw.contact_number || ''}"`,
+        `"${item.timestamp || ''}"`
+      ];
+    });
 
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
     const encodedUri = encodeURI(csvContent);
@@ -58,7 +81,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    notify("success", "Export Completed", "Offline sync queue exported to CSV.");
+    notify("success", "Export Completed", `Exported ${listToExport.length} offline queue records to CSV.`);
   };
 
   const filteredSyncQueue = syncQueue.filter(item => {
@@ -84,7 +107,20 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
   };
 
   const parsedUser = getUserSafely();
-  const user = parsedUser || { username: 'DEO', role_name: 'Field Supervisor', role_id: 2, assigned_location: 'Dharavi' };
+  const [dbUser, setDbUser] = useState(null);
+
+  useEffect(() => {
+    // Fetch live user record directly from database
+    api.get('/api/v1/auth/me').then(res => {
+      if (res && res.status === 'success' && res.user) {
+        setDbUser(res.user);
+        localStorage.setItem('ncd_user', JSON.stringify(res.user));
+      }
+    }).catch(e => console.error("Could not fetch DB user profile", e));
+  }, []);
+
+  const user = dbUser || parsedUser || { username: 'DEO', role_name: 'Field Supervisor', role_id: 2, assigned_location: 'Dharavi' };
+  const dbLocation = user.assigned_location || user.location || user.tenant_name || user.loc_name || "Dharavi";
 
   // Dynamic user privilege configuration
   let userPrivileges = user.privileges;
@@ -252,7 +288,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
               {user.role_name || "DEO Portal"}
             </span>
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200 font-mono shadow-2xs">
-              <MapPin size={11} className="text-amber-600 shrink-0" /> {user.assigned_location || "Dharavi"}
+              <MapPin size={11} className="text-amber-600 shrink-0" /> {localStorage.getItem('ncd_active_location') || user.location || user.assigned_location || "Dharavi"}
             </span>
           </div>
         </div>
@@ -391,55 +427,99 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
         {currentTab === "dashboard" && (
           <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-200">
             
-            {/* Light Mode Header Metrics for Assigned Center */}
-            <div className="grid md:grid-cols-3 gap-4 sm:gap-6">
+            {/* Clean Clinical Workstation Header with Dynamic Greeting */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/80">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 font-mono">
+                    Phase II Active
+                  </span>
+                </div>
+                <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+                  Welcome, {user.full_name || user.username || "Field Supervisor"}
+                </h1>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Operational Screening Workstation  •  Assigned to <strong className="text-slate-800">{dbLocation} Center</strong>
+                </p>
+              </div>
+            </div>
+
+            {/* Perfectly Aligned 3-Card Metrics Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               
-              <div className="bg-white rounded-3xl p-5 border border-slate-200 flex items-center gap-4 shadow-2xs">
-                <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shrink-0">
-                  <Database size={22} />
+              {/* Card 1: Initiated Surveys */}
+              <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-amber-300 transition-all duration-200 flex items-center gap-4 group">
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 shrink-0 group-hover:scale-105 transition-transform">
+                  <FileText size={26} />
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Center Total Completions</p>
-                  <p className="text-2xl font-black text-slate-900">{completedRecords.length} Records</p>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-3xl p-5 border border-slate-200 flex items-center gap-4 shadow-2xs">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
-                  <CheckCircle2 size={22} />
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Synced to Admin Queue</p>
-                  <p className="text-2xl font-black text-slate-900">{completedRecords.length} Synced</p>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-3xl p-5 border border-slate-200 flex items-center gap-4 shadow-2xs">
-                <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center shrink-0">
-                  <MapPin size={22} className="text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Assigned Location</p>
-                  <p className="text-lg font-bold text-slate-900">
-                    Mumbai - {user.assigned_location || "Dharavi"} Center
+                <div className="space-y-1">
+                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 font-mono">Total Initiated</p>
+                  <p className="text-3xl font-black text-slate-900 font-mono tracking-tight">
+                    {(() => {
+                      let localInit = [];
+                      try {
+                        const initStr = localStorage.getItem('ncd_local_initiated_participants') || localStorage.getItem('ncd_offline_queue');
+                        if (initStr) {
+                          const parsed = JSON.parse(initStr);
+                          if (Array.isArray(parsed)) localInit = parsed;
+                        }
+                      } catch(e) {}
+                      const total = localInit.length + syncQueue.length + completedRecords.length;
+                      return total > 0 ? total : completedRecords.length;
+                    })()}
                   </p>
+                  <span className="text-[10px] font-bold text-amber-900 bg-amber-100/70 px-2 py-0.5 rounded-md font-mono inline-block">
+                    Demographics Active
+                  </span>
+                </div>
+              </div>
+
+              {/* Card 2: Offline Pending Sync Queue */}
+              <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-blue-300 transition-all duration-200 flex items-center gap-4 group">
+                <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 shrink-0 group-hover:scale-105 transition-transform">
+                  <FolderSync size={26} />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 font-mono">Pending Sync Queue</p>
+                  <p className="text-3xl font-black text-slate-900 font-mono tracking-tight">{syncQueue.length}</p>
+                  <span className="text-[10px] font-bold text-blue-900 bg-blue-100/70 px-2 py-0.5 rounded-md font-mono inline-block">
+                    {syncQueue.length > 0 ? 'Offline Queue Ready' : 'All Local Synced'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Card 3: Completed & Synced */}
+              <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-emerald-300 transition-all duration-200 flex items-center gap-4 group">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 shrink-0 group-hover:scale-105 transition-transform">
+                  <CheckCircle2 size={26} />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 font-mono">Completed & Synced</p>
+                  <p className="text-3xl font-black text-slate-900 font-mono tracking-tight">{completedRecords.length}</p>
+                  <span className="text-[10px] font-bold text-emerald-900 bg-emerald-100/70 px-2 py-0.5 rounded-md font-mono inline-block">
+                    Transmitted to Admin
+                  </span>
                 </div>
               </div>
 
             </div>
 
-            {/* Active Screening Survey Program Card */}
-            <div className="space-y-4">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                  Active Screening Program
-                </h2>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">Initiate participant screening & Demographics recording for {user.assigned_location || "Dharavi"} Center.</p>
+            {/* Active Screening Survey Program Suite */}
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                    Active Screening Program Suite
+                  </h2>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    Select a program to start participant screening & demographics entry for {localStorage.getItem('ncd_active_location') || user?.assigned_location || "Dharavi"} Center.
+                  </p>
+                </div>
               </div>
 
               {loading ? (
-                <div className="flex items-center justify-center py-20">
-                  <Loader2 className="animate-spin text-slate-400" size={32} />
+                <div className="flex items-center justify-center py-16 bg-white rounded-3xl border border-slate-200">
+                  <Loader2 className="animate-spin text-slate-400" size={28} />
                 </div>
               ) : (
                 <div className="grid md:grid-cols-2 gap-6">
@@ -447,32 +527,32 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                     <div
                       key={survey.sur_id || survey.sur_code}
                       onClick={() => openSurvey(survey)}
-                      className="bg-white hover:bg-amber-50/40 rounded-3xl p-6 shadow-2xs border border-slate-200 hover:border-amber-300 transition-all cursor-pointer group flex flex-col justify-between"
+                      className="bg-white hover:bg-amber-50/30 rounded-3xl p-6 shadow-2xs hover:shadow-md border border-slate-200 hover:border-amber-300 transition-all cursor-pointer group flex flex-col justify-between"
                     >
                       <div>
                         <div className="flex items-center justify-between mb-4">
-                          <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-amber-100 border border-amber-200 group-hover:scale-105 transition-transform">
-                            <FileText size={22} className="text-amber-800" />
+                          <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-amber-500/10 border border-amber-500/20 group-hover:scale-105 transition-transform">
+                            <FileText size={22} className="text-amber-600" />
                           </div>
-                          <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-slate-100 text-slate-600 font-mono">
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-mono border border-slate-200">
                             {survey.sur_code || "NCD-MUM-2026"}
                           </span>
                         </div>
 
                         <h3 className="text-xl font-bold text-slate-900 group-hover:text-amber-800 transition-colors leading-snug">
-                          {survey.sur_title || surveyTitle}
+                          {survey.sur_title || "MUMBAI'S NCD SURVEY — PHASE II"}
                         </h3>
                         <p className="text-xs text-slate-500 mt-1 font-medium">
-                          Non-Communicable Disease Screening for {user.assigned_location || "Dharavi"} Center.
+                          Non-Communicable Disease Screening for {localStorage.getItem('ncd_active_location') || user?.assigned_location || "Dharavi"} Center.
                         </p>
                       </div>
 
                       <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-800">
-                        <span className="flex items-center gap-1.5 text-amber-800 font-bold">
+                        <span className="flex items-center gap-1.5 text-amber-800 font-extrabold font-mono">
                           Start Assigned Screening Form
                         </span>
-                        <div className="w-9 h-9 rounded-full bg-slate-100 group-hover:bg-slate-900 group-hover:text-white flex items-center justify-center transition-colors shadow-2xs">
-                          <ArrowRight size={16} />
+                        <div className="w-8 h-8 rounded-full bg-slate-100 group-hover:bg-[#f5d40b] flex items-center justify-center transition-colors">
+                          <ArrowRight size={15} className="text-slate-600 group-hover:text-[#4a4a4c] transition-colors" />
                         </div>
                       </div>
                     </div>
@@ -554,8 +634,40 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
               </div>
 
               <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+                {selectedSyncIds.length > 0 && (
+                  <>
+                    <button
+                      onClick={async () => {
+                        if (window.confirm(`Are you sure you want to delete ${selectedSyncIds.length} selected offline records?`)) {
+                          for (const id of selectedSyncIds) {
+                            await deleteFromQueue(id);
+                          }
+                          setSelectedSyncIds([]);
+                          await loadQueue();
+                          notify("info", "Records Deleted", `Removed ${selectedSyncIds.length} selected records.`);
+                        }
+                      }}
+                      className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold text-red-700 bg-red-100 border border-red-300 hover:bg-red-200 transition-all shadow-2xs cursor-pointer"
+                    >
+                      <Trash2 size={13} className="text-red-700" />
+                      <span>Delete Selected ({selectedSyncIds.length})</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        const targetList = syncQueue.filter(item => selectedSyncIds.includes(item.local_id));
+                        exportSyncQueueCSV(targetList);
+                      }}
+                      className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold text-amber-950 bg-amber-300 border border-amber-400 hover:bg-amber-400 transition-all shadow-2xs cursor-pointer"
+                    >
+                      <Download size={13} className="text-amber-950" />
+                      <span>Export Selected ({selectedSyncIds.length}) CSV</span>
+                    </button>
+                  </>
+                )}
+
                 <button
-                  onClick={exportSyncQueueCSV}
+                  onClick={() => exportSyncQueueCSV()}
                   disabled={syncQueue.length === 0}
                   className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 transition-all shadow-2xs cursor-pointer"
                   title="Export offline queue records to CSV"
@@ -570,6 +682,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                       for (const item of syncQueue) {
                         if (item.local_id) await deleteFromQueue(item.local_id);
                       }
+                      setSelectedSyncIds([]);
                       await loadQueue();
                       notify("info", "Queue Cleared", "Removed all local offline records.");
                     }
@@ -593,6 +706,83 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
               </div>
             </div>
 
+            {/* Location-Wise Filter Pills & Age / Gender Dropdown Filters */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs font-mono">
+              
+              {/* Location Filter Pills */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none w-full sm:w-auto">
+                <span className="text-xs font-black uppercase text-slate-500 flex items-center gap-1 mr-1 shrink-0">
+                  <MapPin size={14} className="text-amber-600" /> Location:
+                </span>
+                {(() => {
+                  const uniqueLocs = Array.from(new Set(
+                    syncQueue.map(item => {
+                      let raw = {};
+                      if (item.mem_scrn_q30) {
+                        try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
+                      }
+                      return item.location || raw.location || item.mem_scrn_q17 || localStorage.getItem('ncd_active_location') || "Dharavi";
+                    }).filter(Boolean)
+                  ));
+                  const allTabs = ["All", ...uniqueLocs];
+                  
+                  return allTabs.map(loc => {
+                    const isSel = selectedSyncLocation === loc;
+                    const count = loc === "All" ? syncQueue.length : syncQueue.filter(item => {
+                      let raw = {};
+                      if (item.mem_scrn_q30) {
+                        try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
+                      }
+                      const l = item.location || raw.location || item.mem_scrn_q17 || localStorage.getItem('ncd_active_location') || "Dharavi";
+                      return l.toLowerCase() === loc.toLowerCase();
+                    }).length;
+
+                    return (
+                      <button
+                        key={loc}
+                        onClick={() => setSelectedSyncLocation(loc)}
+                        className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 border ${isSel ? 'bg-amber-400 text-amber-950 border-amber-500 shadow-2xs font-extrabold' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+                      >
+                        {loc === "All" ? "All Locations" : loc} ({count})
+                      </button>
+                    );
+                  });
+                })()}
+              </div>
+
+              {/* Age & Gender Dropdown Filters */}
+              <div className="flex items-center gap-2 flex-wrap shrink-0">
+                <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-300 rounded-xl px-2.5 py-1 text-xs font-bold">
+                  <span className="text-slate-500 uppercase text-[10px]">Gender:</span>
+                  <select
+                    value={syncGenderFilter}
+                    onChange={(e) => setSyncGenderFilter(e.target.value)}
+                    className="bg-transparent text-slate-900 outline-none cursor-pointer font-bold"
+                  >
+                    <option value="All">All Genders</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Transgender">Transgender</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-300 rounded-xl px-2.5 py-1 text-xs font-bold">
+                  <span className="text-slate-500 uppercase text-[10px]">Age:</span>
+                  <select
+                    value={syncAgeGroupFilter}
+                    onChange={(e) => setSyncAgeGroupFilter(e.target.value)}
+                    className="bg-transparent text-slate-900 outline-none cursor-pointer font-bold"
+                  >
+                    <option value="All">All Ages</option>
+                    <option value="under_30">Under 30 yrs</option>
+                    <option value="30_50">30 - 50 yrs</option>
+                    <option value="over_50">50+ yrs</option>
+                  </select>
+                </div>
+              </div>
+
+            </div>
+
             {/* Search Bar for Sync Queue */}
             <div className="relative">
               <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -600,7 +790,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                 type="text"
                 value={syncSearch}
                 onChange={(e) => setSyncSearch(e.target.value)}
-                placeholder="Search offline queue by Participant ID, Center..."
+                placeholder="Search offline queue by Participant ID, Center, Phone..."
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-amber-400 shadow-2xs"
               />
               {syncSearch && (
@@ -613,54 +803,150 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
               )}
             </div>
 
-            {filteredSyncQueue.length === 0 ? (
-              <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300">
-                <FolderSync size={48} className="mx-auto text-slate-300 mb-4" />
-                <p className="font-bold text-slate-800">
-                  {syncSearch ? "No Matching Offline Records" : "All Caught Up!"}
-                </p>
-                <p className="text-xs text-slate-500 mt-1">
-                  {syncSearch ? `No records found matching "${syncSearch}".` : `No pending offline survey entries for ${user.assigned_location || "Dharavi"}.`}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {filteredSyncQueue.map((item, index) => {
-                  let raw = {};
-                  if (item.mem_scrn_q30) {
-                    try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
-                  }
-                  const pid = item.participant_id || item.mem_scrn_part_id || raw.participant_id || raw.mem_scrn_part_id || 'N/A';
-                  const age = item.age || raw.age || item.mem_scrn_q1 || "";
-                  const gender = item.gender || raw.gender || (item.mem_scrn_q2 == "1" ? "Male" : "Female");
-                  const loc = item.location || raw.location || item.mem_scrn_q17 || user.assigned_location || 'Dharavi';
-                  const phone = item.contact_number || raw.contact_number || "N/A";
+            {(() => {
+              const queueToRender = syncQueue.filter(item => {
+                let raw = {};
+                if (item.mem_scrn_q30) {
+                  try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
+                }
+                const loc = item.location || raw.location || item.mem_scrn_q17 || localStorage.getItem('ncd_active_location') || "Dharavi";
+                const matchesLoc = selectedSyncLocation === "All" || loc.toLowerCase() === selectedSyncLocation.toLowerCase();
+                
+                const gender = item.gender || raw.gender || (item.mem_scrn_q2 == "1" ? "Male" : "Female");
+                const matchesGender = syncGenderFilter === "All" || String(gender).toLowerCase().includes(syncGenderFilter.toLowerCase());
 
-                  return (
-                    <div key={item.local_id || index} className="bg-white rounded-2xl p-4 border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shadow-2xs hover:border-slate-300 transition-all">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-bold text-slate-900 text-sm font-mono">
-                            {pid}
-                          </p>
-                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-mono">
-                            Pending Sync
-                          </span>
+                const ageNum = parseInt(item.age || raw.age || item.mem_scrn_q1 || 0);
+                let matchesAge = true;
+                if (syncAgeGroupFilter === "under_30") matchesAge = ageNum > 0 && ageNum < 30;
+                else if (syncAgeGroupFilter === "30_50") matchesAge = ageNum >= 30 && ageNum <= 50;
+                else if (syncAgeGroupFilter === "over_50") matchesAge = ageNum > 50;
+
+                const pid = item.participant_id || item.mem_scrn_part_id || raw.participant_id || raw.mem_scrn_part_id || '';
+                const phone = item.contact_number || raw.contact_number || "";
+                
+                const matchesSearch = !syncSearch || (
+                  pid.toLowerCase().includes(syncSearch.toLowerCase()) ||
+                  loc.toLowerCase().includes(syncSearch.toLowerCase()) ||
+                  phone.toLowerCase().includes(syncSearch.toLowerCase())
+                );
+
+                return matchesLoc && matchesGender && matchesAge && matchesSearch;
+              });
+
+              const allVisibleSelected = queueToRender.length > 0 && queueToRender.every(i => selectedSyncIds.includes(i.local_id));
+
+              if (queueToRender.length === 0) {
+                return (
+                  <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300">
+                    <FolderSync size={48} className="mx-auto text-slate-300 mb-4" />
+                    <p className="font-bold text-slate-800">
+                      {syncSearch || selectedSyncLocation !== "All" || syncGenderFilter !== "All" || syncAgeGroupFilter !== "All" ? "No Matching Offline Records" : "All Caught Up!"}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      No pending offline survey entries match the selected filters or search query.
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-3">
+                  {/* Select All Checkbox & Export Filtered Button Bar */}
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-slate-100 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-700">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={allVisibleSelected}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            const visIds = queueToRender.map(i => i.local_id).filter(Boolean);
+                            setSelectedSyncIds(prev => Array.from(new Set([...prev, ...visIds])));
+                          } else {
+                            const visIdsSet = new Set(queueToRender.map(i => i.local_id));
+                            setSelectedSyncIds(prev => prev.filter(id => !visIdsSet.has(id)));
+                          }
+                        }}
+                        className="w-4 h-4 rounded text-amber-500 focus:ring-amber-400 cursor-pointer"
+                      />
+                      <span>Select All Filtered Records ({queueToRender.length})</span>
+                    </label>
+
+                    <button
+                      onClick={() => exportSyncQueueCSV(queueToRender)}
+                      className="flex items-center gap-1 text-amber-900 hover:text-amber-950 font-bold cursor-pointer"
+                    >
+                      <Download size={12} />
+                      <span>Export Filtered ({queueToRender.length})</span>
+                    </button>
+                  </div>
+
+                  {queueToRender.map((item, index) => {
+                    let raw = {};
+                    if (item.mem_scrn_q30) {
+                      try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
+                    }
+                    const pid = item.participant_id || item.mem_scrn_part_id || raw.participant_id || raw.mem_scrn_part_id || 'N/A';
+                    const age = item.age || raw.age || item.mem_scrn_q1 || "";
+                    const gender = item.gender || raw.gender || (item.mem_scrn_q2 == "1" ? "Male" : "Female");
+                    const loc = item.location || raw.location || item.mem_scrn_q17 || localStorage.getItem('ncd_active_location') || 'Dharavi';
+                    const phone = item.contact_number || raw.contact_number || "N/A";
+
+                    const isChecked = selectedSyncIds.includes(item.local_id);
+
+                    const locShortCode = (() => {
+                      const l = String(loc).trim().toLowerCase();
+                      if (l.includes("dharavi")) return "DH";
+                      if (l.includes("malvani")) return "ML";
+                      if (l.includes("vashi")) return "VA";
+                      if (l.includes("kurla")) return "KR";
+                      if (l.includes("ghatkopar")) return "GK";
+                      return String(loc).substring(0, 2).toUpperCase();
+                    })();
+
+                    return (
+                      <div key={item.local_id || index} className={`bg-white rounded-2xl p-4 border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 transition-all ${isChecked ? 'border-amber-400 ring-2 ring-amber-400 bg-amber-50/20' : 'border-slate-200 hover:border-slate-300 shadow-2xs'}`}>
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedSyncIds(prev => [...prev, item.local_id]);
+                              } else {
+                                setSelectedSyncIds(prev => prev.filter(id => id !== item.local_id));
+                              }
+                            }}
+                            className="w-4 h-4 rounded text-amber-500 focus:ring-amber-400 cursor-pointer mt-1"
+                          />
+
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-bold text-slate-900 text-sm font-mono">
+                                {pid}
+                              </p>
+                              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 font-mono flex items-center gap-1">
+                                <MapPin size={10} className="text-amber-600" />
+                                <span>{loc} ({locShortCode})</span>
+                              </span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono">
+                                Pending Sync
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 font-mono">
+                              Center: <span className="font-bold text-slate-800">{loc}</span>
+                              {age ? ` • Age: ${age} yrs` : ''} 
+                              {gender ? ` • Gender: ${gender}` : ''}
+                              {phone && phone !== 'N/A' ? ` • Phone: ${phone}` : ''}
+                            </p>
+                            {item.timestamp && (
+                              <p className="text-[10px] text-slate-400 font-mono">
+                                Saved: {new Date(item.timestamp).toLocaleString()}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-xs text-slate-500 font-mono">
-                          Center: <span className="font-bold text-slate-800">{loc}</span>
-                          {age ? ` • Age: ${age} yrs` : ''} 
-                          {gender ? ` • Gender: ${gender}` : ''}
-                          {phone && phone !== 'N/A' ? ` • Phone: ${phone}` : ''}
-                        </p>
-                        {item.timestamp && (
-                          <p className="text-[10px] text-slate-400 font-mono">
-                            Saved: {new Date(item.timestamp).toLocaleString()}
-                          </p>
-                        )}
-                      </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-2 shrink-0">
                         <button
                           onClick={() => setSelectedQaModalItem({ ...item, pid, age, gender, loc, phone, raw })}
                           className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all border border-slate-200 cursor-pointer shadow-2xs"
@@ -689,9 +975,10 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                   );
                 })}
               </div>
-            )}
-          </div>
-        )}
+            );
+          })()}
+        </div>
+      )}
 
       {/* View Q&A Modal (Read Only) */}
       {selectedQaModalItem && (

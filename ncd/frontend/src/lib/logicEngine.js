@@ -616,18 +616,47 @@ export function isQuestionSkipped(q, allQuestions, formData) {
     return foundK ? formData[foundK] : null;
   };
 
+  // Explicit Rule 1: Q11 Family History Skip (Q12)
+  if (qNum === 12) {
+    const q11Val = getAnswer(11);
+    if (!q11Val) return true; // Hide Q12 until Q11 is answered!
+    const fullStr = (typeof q11Val === 'object' ? `${q11Val.code || ''} ${q11Val.label || ''}` : String(q11Val)).toLowerCase().trim();
+    if (fullStr.includes("no") || fullStr.includes("don't know") || fullStr.includes("code 2") || fullStr.includes("code 3") || fullStr.startsWith("2") || fullStr.startsWith("3") || fullStr === "2" || fullStr === "3") {
+      return true; // Skip Q12 if Q11 is No (Code 2) or Don't know (Code 3)
+    }
+    if (fullStr.includes("yes") || fullStr.includes("code 1") || fullStr.startsWith("1") || fullStr === "1") {
+      return false; // Show Q12 if Q11 is Yes (Code 1)
+    }
+  }
+
+  // Explicit Rule 2: Q14 Medication Skip (Q15 & Q16)
+  if (qNum === 15 || qNum === 16) {
+    const q14Val = getAnswer(14);
+    if (!q14Val) return true; // Hide Q15 & Q16 until Q14 is answered!
+    const fullStr = (typeof q14Val === 'object' ? `${q14Val.code || ''} ${q14Val.label || ''}` : String(q14Val)).toLowerCase().trim();
+    if (fullStr.includes("no") || fullStr.includes("code 2") || fullStr.startsWith("2") || fullStr === "2") {
+      return true; // Skip Q15 & Q16 if Q14 is No (Code 2)
+    }
+    if (fullStr.includes("yes") || fullStr.includes("code 1") || fullStr.startsWith("1") || fullStr === "1") {
+      return false; // Show Q15 & Q16 if Q14 is Yes (Code 1)
+    }
+  }
+
   // Explicit Rule 3: Q17 Tobacco Use Branching (Q18 to Q23)
   if (qNum !== null && qNum >= 18 && qNum <= 23) {
     const q17Val = getAnswer(17);
     if (!q17Val) {
       return true; // Hide Q18 to Q23 until Q17 is answered!
     }
-    const str = typeof q17Val === 'object' ? (q17Val.code || q17Val.label || '') : String(q17Val);
-    const l = str.toLowerCase().trim();
+    const fullStr = (typeof q17Val === 'object' ? `${q17Val.code || ''} ${q17Val.label || ''} ${q17Val.value || ''}` : String(q17Val)).toLowerCase().trim();
     let code17 = null;
-    if (l.includes("never") || str === "1" || l.includes("code 1") || l.startsWith("1")) code17 = "1";
-    else if (l.includes("past") || l.includes("stopped") || l.includes("former") || str === "2" || l.includes("code 2") || l.startsWith("2")) code17 = "2";
-    else if (l.includes("currently") || l.includes("current") || str === "3" || l.includes("code 3") || l.startsWith("3")) code17 = "3";
+    if (fullStr.includes("never") || fullStr.includes("code 1") || fullStr.startsWith("1") || fullStr === "1") {
+      code17 = "1";
+    } else if (fullStr.includes("past") || fullStr.includes("stopped") || fullStr.includes("former") || fullStr.includes("code 2") || fullStr.startsWith("2") || fullStr === "2") {
+      code17 = "2";
+    } else if (fullStr.includes("currently") || fullStr.includes("current") || fullStr.includes("code 3") || fullStr.startsWith("3") || fullStr === "3") {
+      code17 = "3";
+    }
 
     if (code17 === "1") {
       return true; // Code 1: Never used -> Skip Q18 to Q23 (Jump to Q24)
@@ -641,18 +670,6 @@ export function isQuestionSkipped(q, allQuestions, formData) {
       if (qNum >= 20 && qNum <= 23) return false; // Show Q20 to Q23
     }
     return true;
-  }
-
-  // Explicit Rule: Q14 Medication Skip (Q15 & Q16)
-  if (qNum === 15 || qNum === 16) {
-    const q14Val = getAnswer(14);
-    if (q14Val) {
-      const str = typeof q14Val === 'object' ? (q14Val.code || q14Val.label || '') : String(q14Val);
-      const l = str.toLowerCase();
-      if (l.includes("no") || str === "2" || l.includes("code 2")) {
-        return true; // Skip Q15 & Q16 if Q14 is No (Code 2)
-      }
-    }
   }
 
   // Explicit Rule 4: Q25 Alcohol Use Branching (Q26 to Q32)
@@ -715,6 +732,50 @@ export function isQuestionSkipped(q, allQuestions, formData) {
     const auditRes = calculateAuditCScore(formData);
     if (!auditRes.isPositive) {
       return true; // Skip Q31 & Q32 when AUDIT-C score is below positive threshold (Male < 4, Female/Trans < 3)
+    }
+  }
+
+  // Explicit Rule: Q40 Hypertension History Skip (Q41)
+  if (qNum === 41) {
+    const q40Val = getAnswer(40);
+    if (!q40Val) return true;
+    const fullStr = (typeof q40Val === 'object' ? `${q40Val.code || ''} ${q40Val.label || ''}` : String(q40Val)).toLowerCase().trim();
+    if (fullStr.includes("no") || fullStr.includes("code 2") || fullStr.startsWith("2") || fullStr === "2") return true;
+    if (fullStr.includes("yes") || fullStr.includes("code 1") || fullStr.startsWith("1") || fullStr === "1") return false;
+  }
+
+  // Explicit Rule: Q43 Diabetes History Skip (Q44, Q45)
+  if (qNum === 44 || qNum === 45) {
+    const q43Val = getAnswer(43);
+    if (!q43Val) return true;
+    const fullStr = (typeof q43Val === 'object' ? `${q43Val.code || ''} ${q43Val.label || ''}` : String(q43Val)).toLowerCase().trim();
+    if (fullStr.includes("no") || fullStr.includes("code 2") || fullStr.startsWith("2") || fullStr === "2") return true;
+  }
+
+  // Explicit Rule: Q44 On Diabetes Medication Skip (Q45)
+  if (qNum === 45) {
+    const q44Val = getAnswer(44);
+    if (q44Val) {
+      const fullStr = (typeof q44Val === 'object' ? `${q44Val.code || ''} ${q44Val.label || ''}` : String(q44Val)).toLowerCase().trim();
+      if (fullStr.includes("no") || fullStr.includes("code 2") || fullStr.startsWith("2") || fullStr === "2") return true;
+    }
+  }
+
+  // Explicit Rule: Q46 On Hypertension Medication Skip (Q47)
+  if (qNum === 47) {
+    const q46Val = getAnswer(46);
+    if (!q46Val) return true;
+    const fullStr = (typeof q46Val === 'object' ? `${q46Val.code || ''} ${q46Val.label || ''}` : String(q46Val)).toLowerCase().trim();
+    if (fullStr.includes("no") || fullStr.includes("code 2") || fullStr.startsWith("2") || fullStr === "2") return true;
+    if (fullStr.includes("yes") || fullStr.includes("code 1") || fullStr.startsWith("1") || fullStr === "1") return false;
+  }
+
+  // Explicit Rule: Q86 Skip (Q87)
+  if (qNum === 87) {
+    const q86Val = getAnswer(86);
+    if (q86Val) {
+      const fullStr = (typeof q86Val === 'object' ? `${q86Val.code || ''} ${q86Val.label || ''}` : String(q86Val)).toLowerCase().trim();
+      if (fullStr.includes("no") || fullStr.includes("code 2") || fullStr.startsWith("2") || fullStr === "2") return true;
     }
   }
 

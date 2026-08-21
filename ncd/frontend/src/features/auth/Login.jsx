@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { User, Lock, Eye, EyeOff, ArrowLeft, ShieldCheck, Loader2 } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { User, Lock, Eye, EyeOff, ArrowLeft, ShieldCheck, Loader2, MapPin } from "lucide-react";
 import { T } from "../../lib/theme";
 import { Mark } from "../../components/ui/Mark";
 
@@ -10,6 +10,25 @@ export function Login({ goLanding, notify, onLoginSuccess }) {
   const [error, setError] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [selectedLocation, setSelectedLocation] = useState("Dharavi");
+  const [locationsList, setLocationsList] = useState(["Dharavi", "Malvani", "Vashi"]);
+
+  useEffect(() => {
+    fetchLocationsMaster();
+  }, []);
+
+  const fetchLocationsMaster = async () => {
+    try {
+      const response = await fetch('/api/v1/location/index');
+      const data = await response.json();
+      if (data.status === 'success' && Array.isArray(data.data) && data.data.length > 0) {
+        const dynamicLocs = data.data.map(l => l.loc_name || l.loc_city).filter(Boolean);
+        const uniqueLocs = Array.from(new Set(dynamicLocs));
+        setLocationsList(uniqueLocs);
+        if (uniqueLocs.length > 0) setSelectedLocation(uniqueLocs[0]);
+      }
+    } catch (e) {}
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -52,6 +71,10 @@ export function Login({ goLanding, notify, onLoginSuccess }) {
         }
 
         notify("success", "Authentication Successful", `Signed in as ${data.user.username}`);
+        if (role === "deo") {
+          data.user.location = selectedLocation;
+          localStorage.setItem('ncd_active_location', selectedLocation);
+        }
         localStorage.setItem('ncd_token', data.token);
         localStorage.setItem('ncd_user', JSON.stringify(data.user));
         localStorage.setItem('icc_token', data.token);
@@ -138,6 +161,26 @@ export function Login({ goLanding, notify, onLoginSuccess }) {
           )}
 
           <div className="space-y-4">
+            {role === "deo" && (
+              <div className="animate-in fade-in duration-150">
+                <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider text-slate-600 font-mono">
+                  Assigned Location / Center
+                </label>
+                <div className="flex items-center gap-3 rounded-xl px-4 bg-white border border-slate-300 focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-100 transition-all shadow-2xs">
+                  <MapPin size={16} className="text-amber-600 shrink-0" />
+                  <select
+                    value={selectedLocation}
+                    onChange={(e) => setSelectedLocation(e.target.value)}
+                    className="w-full py-3 bg-transparent text-xs font-extrabold text-slate-900 outline-none cursor-pointer"
+                  >
+                    {locationsList.map(loc => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider text-slate-600 font-mono">
                 Username

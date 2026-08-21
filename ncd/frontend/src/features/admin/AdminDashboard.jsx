@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Search, ChevronDown, Filter, FileText, Settings, UserCircle2, ArrowUpRight, CheckCircle2, AlertCircle, LogOut, MapPin, Grid, Layers, PieChart, Bell, Download, Loader2, Users, Menu, X, Lock, Unlock } from "lucide-react";
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
+import { getQueue } from "../../lib/db";
 import { SurveyBuilder } from "./SurveyBuilder";
 import { SurveyManagement } from "./SurveyManagement";
 import { Analytics } from "./Analytics";
@@ -101,23 +102,56 @@ export function AdminDashboard({ notify, logout }) {
   const fetchQueue = async () => {
     setLoadingQueue(true);
     try {
-      const res = await api.get("/api/v1/dashboard/screeninglist");
-      if (res.status === 'success') {
-        let list = res.data || [];
-        if (selectedPhase === "phase1") {
-          // Historical baseline records for Phase 1
-          const p1 = list.filter(s => !s.submitted_by_role && s.phase !== 2 && s.phase !== 'phase2');
-          setQueueData(p1.length > 0 ? p1 : [
-            { mem_scrn_id: "P1-101", mem_scrn_part_id: "S-1092", mem_scrn_q16: "Karthik Raja", mem_scrn_q17: "Dharavi", mem_scrn_q24: "1", record_date: 1785000000 },
-            { mem_scrn_id: "P1-102", mem_scrn_part_id: "S-1095", mem_scrn_q16: "Meena M.", mem_scrn_q17: "Malvani", mem_scrn_q24: "0", record_date: 1785100000 },
-            { mem_scrn_id: "P1-103", mem_scrn_part_id: "S-1096", mem_scrn_q16: "Suresh Kumar", mem_scrn_q17: "Vashi", mem_scrn_q24: "1", record_date: 1785200000 }
-          ]);
-        } else {
-          // Live entries submitted during active Phase 2 program
-          const p2 = list.filter(s => s.phase === 2 || s.phase === 'phase2' || s.mem_scrn_phase === '2' || s.submitted_by_role);
-          setQueueData(p2);
+      let apiList = [];
+      try {
+        const res = await api.get("/api/v1/dashboard/screeninglist");
+        if (res.status === 'success' && Array.isArray(res.data)) {
+          apiList = res.data;
         }
-      }
+      } catch (e) {}
+
+      let idbQueue = [];
+      try {
+        idbQueue = await getQueue();
+      } catch (e) {}
+
+      let localInitiated = [];
+      try {
+        const initStr = localStorage.getItem('ncd_local_initiated_participants') || localStorage.getItem('ncd_offline_queue');
+        if (initStr) {
+          const parsed = JSON.parse(initStr);
+          if (Array.isArray(parsed)) localInitiated = parsed;
+        }
+      } catch (e) {}
+
+      const combined = [...localInitiated, ...idbQueue, ...apiList];
+      const seenIds = new Set();
+      const dedupedQueue = [];
+
+      combined.forEach((item, idx) => {
+        let extra = {};
+        if (item.mem_scrn_q30) {
+          try { extra = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
+        }
+        const realPId = item.participant_id || item.mem_scrn_part_id || extra.participant_id;
+        const hasData = Boolean(item.fullName || extra.fullName || item.mem_scrn_q16 || item.age || item.mem_scrn_q1 || extra.age);
+
+        // Exclude unpopulated empty DB stubs
+        if (!realPId && !hasData) return;
+        const pId = realPId || (item.mem_scrn_id ? `DH-MUM-${item.mem_scrn_id}` : `P-${idx + 1}`);
+        if (!pId || seenIds.has(pId)) return;
+        seenIds.add(pId);
+        
+        dedupedQueue.push({
+          ...item,
+          mem_scrn_part_id: pId,
+          mem_scrn_q16: item.fullName || extra.fullName || item.mem_scrn_q16 || pId,
+          mem_scrn_q17: item.location || extra.location || item.mem_scrn_q17 || "-",
+          mem_scrn_q24: extra.overall_risk_rating === "High Risk" || item.risk === "High Risk" || item.mem_scrn_q24 == 1 ? "1" : "0"
+        });
+      });
+
+      setQueueData(dedupedQueue);
     } catch (error) {
       console.error("Failed to fetch queue data:", error);
       setQueueData([]);

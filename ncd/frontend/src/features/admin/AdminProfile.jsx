@@ -300,6 +300,33 @@ export function AdminProfile({ notify, user, phase1Unlocked, togglePhase1Lock })
           </form>
         </div>
 
+        {/* Survey Feature Settings Module */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs space-y-4">
+          <h3 className="text-sm font-bold text-gray-900 pb-3 border-b border-gray-100 flex items-center justify-between">
+            <span>Survey Feature Settings & Controls</span>
+            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 uppercase">Live Config</span>
+          </h3>
+          
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl bg-amber-50/60 border border-amber-200 gap-3">
+            <div className="space-y-0.5">
+              <span className="text-xs font-bold text-amber-950 block">Survey Session Resume Button</span>
+              <span className="text-[11px] text-amber-800 font-medium">Enable or disable the "Resume Session" button and paused draft banner across operational screening forms.</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const current = localStorage.getItem('ncd_setting_enable_resume_button') !== 'false';
+                const nextVal = !current;
+                localStorage.setItem('ncd_setting_enable_resume_button', nextVal ? 'true' : 'false');
+                notify("success", "Setting Updated", `Survey Resume Button has been ${nextVal ? 'ENABLED' : 'DISABLED'}.`);
+              }}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer border shadow-2xs font-mono shrink-0 ${localStorage.getItem('ncd_setting_enable_resume_button') !== 'false' ? 'bg-amber-400 text-amber-950 border-amber-500 hover:bg-amber-500' : 'bg-slate-200 text-slate-700 border-slate-300 hover:bg-slate-300'}`}
+            >
+              {localStorage.getItem('ncd_setting_enable_resume_button') !== 'false' ? 'ENABLED (ON)' : 'DISABLED (OFF)'}
+            </button>
+          </div>
+        </div>
+
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs">
           <div className="flex items-center justify-between pb-3 mb-4 border-b border-gray-100 flex-wrap gap-2">
             <div className="flex items-center gap-2">

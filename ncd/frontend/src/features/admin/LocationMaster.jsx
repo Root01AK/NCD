@@ -14,8 +14,8 @@ export function LocationMaster({ notify }) {
     loc_id: "",
     loc_code: "",
     loc_name: "",
-    loc_state: "Maharashtra",
-    loc_district: "Mumbai",
+    loc_state: "",
+    loc_district: "",
     loc_city: "",
     loc_status: "1"
   });
@@ -182,7 +182,7 @@ export function LocationMaster({ notify }) {
           <button 
             onClick={() => {
               setEditingId(null);
-              setFormData({ loc_id: "", loc_code: "", loc_name: "", loc_state: "Maharashtra", loc_district: "Mumbai", loc_city: "", loc_status: "1" });
+              setFormData({ loc_id: "", loc_code: "", loc_name: "", loc_state: "", loc_district: "", loc_city: "", loc_status: "1" });
               setShowForm(true);
             }}
             className="px-4 py-2 rounded-lg text-xs font-semibold bg-gray-900 text-white hover:bg-black transition-colors flex items-center gap-1.5 shadow-xs"

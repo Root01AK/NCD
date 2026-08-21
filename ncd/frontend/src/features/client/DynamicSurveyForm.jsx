@@ -275,18 +275,42 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     loadQueueParticipants();
   }, []);
   
+  const getActiveLocation = () => {
+    try {
+      const activeLoc = localStorage.getItem('ncd_active_location');
+      if (activeLoc) return activeLoc;
+      const userStr = localStorage.getItem('ncd_user') || localStorage.getItem('icc_user');
+      if (userStr) {
+        const u = JSON.parse(userStr);
+        if (u && (u.location || u.loc_code)) return u.location || u.loc_code;
+      }
+    } catch (e) {}
+    return "Dharavi";
+  };
+
+  const activeCenterLoc = getActiveLocation();
+  
   const [data, setData] = useState({
-    participant_id: generateParticipantID("Dharavi"),
+    participant_id: generateParticipantID(activeCenterLoc),
     screening_date: currentDateFormatted,
     raw_date: new Date().toISOString().split('T')[0],
     contact_number: "",
     fullName: "",
     age: "",
     gender: "Male",
-    location: "Dharavi",
+    location: activeCenterLoc,
     user_name: "",
-    user_role: "Field Supervisor"
+    user_role: "Staff Nurse"
   });
+
+  useEffect(() => {
+    const loc = getActiveLocation();
+    setData(prev => ({
+      ...prev,
+      location: loc,
+      participant_id: generateParticipantID(loc)
+    }));
+  }, []);
 
   const [submitting, setSubmitting] = useState(false);
   const [customQuestions, setCustomQuestions] = useState([]);
@@ -850,7 +874,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       } else {
         curP.push(q);
         qCount++;
-        if (qCount >= 2) {
+        if (qCount >= 1) {
           pagesList.push(curP);
           curP = [];
           qCount = 0;
@@ -998,6 +1022,16 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       };
 
       await saveToQueue(payload);
+      
+      // Instantly update local initiated participants registry for real-time Admin Participant Directory sync
+      try {
+        const existingStr = localStorage.getItem('ncd_local_initiated_participants');
+        const existingList = existingStr ? JSON.parse(existingStr) : [];
+        const updatedList = [payload, ...existingList.filter(p => (p.participant_id || p.mem_scrn_part_id) !== payload.participant_id)];
+        localStorage.setItem('ncd_local_initiated_participants', JSON.stringify(updatedList));
+        localStorage.setItem('ncd_offline_queue', JSON.stringify(updatedList));
+      } catch (err) {}
+
       const contactDigits = String(data.contact_number || "").replace(/\D/g, "");
       if (contactDigits.length === 10) {
         registerContactNumber(contactDigits, data.participant_id);
@@ -1041,7 +1075,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
           <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-slate-200">
             <span className="text-xs font-extrabold text-slate-900 font-mono tracking-tight">
-              {data.user_role} Clinical Entry
+              {data.user_role} • {activeUser?.user_code || activeUser?.username || activeUser?.user_name || data.user_name || "SN001"}
             </span>
           </div>
         </div>
@@ -1293,8 +1327,9 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                       <input 
                         type="text" 
                         value={data.participant_id} 
-                        onChange={(e) => set("participant_id")(e.target.value)}
-                        className="w-full bg-white border border-slate-300 text-slate-900 font-mono font-bold text-sm outline-none px-3.5 py-2.5 rounded-xl shadow-2xs focus:border-amber-500"
+                        readOnly
+                        disabled
+                        className="w-full bg-slate-100 border border-slate-300 text-slate-700 font-mono font-bold text-sm outline-none px-3.5 py-2.5 rounded-xl shadow-2xs cursor-not-allowed select-none"
                         placeholder="NCD-MUM-XXXXX"
                       />
                       {fieldErrors.participant_id && (
@@ -1403,21 +1438,23 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
               <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900">
-                    {isSupervisor ? "Field Supervisor Screening & Demographics Form" : `${data.user_role} Clinical Entry Form`}
+                    {data.user_role} • {activeUser?.user_code || activeUser?.username || activeUser?.user_name || data.user_name || "SN001"}
                   </h2>
                   <p className="text-xs text-slate-500 mt-1 font-medium font-mono">
                     Participant ID: <strong className="text-slate-900 font-bold">{data.participant_id}</strong> {data.age ? `• Age: ${data.age}` : ''} {data.gender ? `• ${data.gender}` : ''}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handlePauseSession}
-                    className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs font-mono"
-                  >
-                    <PauseCircle size={14} className="text-amber-700" />
-                    <span>Pause Session</span>
-                  </button>
+                  {localStorage.getItem('ncd_setting_enable_resume_button') !== 'false' && (
+                    <button
+                      type="button"
+                      onClick={handlePauseSession}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs font-mono"
+                    >
+                      <PauseCircle size={14} className="text-amber-700" />
+                      <span>Pause Session</span>
+                    </button>
+                  )}
                   <span className="text-xs font-bold px-3 py-1 rounded-full bg-slate-900 text-white font-mono">
                     Role: {data.user_role}
                   </span>
@@ -1425,7 +1462,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
               </div>
 
               {/* Active Survey Session Banner */}
-              {activeDraft && (
+              {activeDraft && localStorage.getItem('ncd_setting_enable_resume_button') !== 'false' && (
                 <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs animate-in fade-in duration-200">
                   <div className="flex items-center gap-2 font-mono text-xs">
                     <PauseCircle size={18} className="text-amber-700 shrink-0" />
@@ -1462,7 +1499,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                 const filteredCustomQuestions = activeCustomQuestions;
                 if (filteredCustomQuestions.length === 0) return null;
 
-                // Build section-aware page batches (so section headers are never stranded without their first question)
+                // Build section-aware page batches (1 Question per page for precise skip logic)
                 const qPagesList = [];
                 let currentPage = [];
                 let qCountOnPage = 0;
@@ -1481,7 +1518,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                   } else {
                     currentPage.push(q);
                     qCountOnPage++;
-                    if (qCountOnPage >= 2) {
+                    if (qCountOnPage >= 1) {
                       qPagesList.push(currentPage);
                       currentPage = [];
                       qCountOnPage = 0;
@@ -1503,10 +1540,10 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                     {/* Clean Page Indicator */}
                     <div className="text-xs font-bold text-slate-700 font-mono border-b border-slate-100 pb-2.5 flex items-center justify-between">
                       <span className="flex items-center gap-1.5 text-slate-900 font-extrabold uppercase">
-                        <FileText size={14} className="text-amber-600" /> Page {safeQPage + 1} of {totalQPages}
+                        <FileText size={14} className="text-amber-600" /> Question Page {safeQPage + 1} of {totalQPages}
                       </span>
                       <span className="text-[11px] bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-full font-mono font-bold">
-                        Batch {safeQPage + 1} of {totalQPages} • {filteredCustomQuestions.length} Total Items
+                        Question {safeQPage + 1} of {totalQPages}
                       </span>
                     </div>
 
@@ -1526,15 +1563,15 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                         );
                       }
 
-                      // Determine view mode for question (Defaults to Custom Dropdown for all sections)
+                      // Determine view mode for question (Defaults to Grid layout first for all options)
                       const userMode = viewModes[q.id];
-                      const effectiveMode = userMode || (opts.length > 2 ? "dropdown" : "grid");
+                      const effectiveMode = userMode || "grid";
                       const qTitleDisplay = String(q.title || "").match(/^Q\d+/i) ? q.title : `${absoluteIdx + 1}. ${q.title}`;
 
                     return (
                       <div key={q.id || absoluteIdx} className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-2xs space-y-4 hover:border-slate-300 transition-all">
                         
-                        {/* Question Header & Layout View Switcher */}
+                        {/* Question Header & Layout View Switcher (First Grid, Second Dropdown) */}
                         <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
                           <label className="block text-xs sm:text-sm font-extrabold text-slate-900 leading-relaxed flex-1">
                             {qTitleDisplay} {q.required && <span className="text-red-500">*</span>}
@@ -1544,21 +1581,21 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                             <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200/80 shadow-2xs shrink-0 font-mono">
                               <button
                                 type="button"
-                                title="Dropdown View"
-                                onClick={() => setViewModes(prev => ({ ...prev, [q.id]: "dropdown" }))}
-                                className={`px-2.5 py-1 rounded-lg text-[10px] flex items-center gap-1 transition-all cursor-pointer ${effectiveMode === "dropdown" ? 'bg-[#f5d40b] text-[#4a4a4c] font-black shadow-2xs' : 'text-slate-500 font-bold hover:bg-slate-200/60'}`}
-                              >
-                                <ChevronDown size={12} />
-                                <span>Dropdown</span>
-                              </button>
-                              <button
-                                type="button"
                                 title="Grid / Pills View"
                                 onClick={() => setViewModes(prev => ({ ...prev, [q.id]: "grid" }))}
                                 className={`px-2.5 py-1 rounded-lg text-[10px] flex items-center gap-1 transition-all cursor-pointer ${effectiveMode === "grid" ? 'bg-[#f5d40b] text-[#4a4a4c] font-black shadow-2xs' : 'text-slate-500 font-bold hover:bg-slate-200/60'}`}
                               >
                                 <LayoutGrid size={12} />
                                 <span>Grid</span>
+                              </button>
+                              <button
+                                type="button"
+                                title="Dropdown View"
+                                onClick={() => setViewModes(prev => ({ ...prev, [q.id]: "dropdown" }))}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] flex items-center gap-1 transition-all cursor-pointer ${effectiveMode === "dropdown" ? 'bg-[#f5d40b] text-[#4a4a4c] font-black shadow-2xs' : 'text-slate-500 font-bold hover:bg-slate-200/60'}`}
+                              >
+                                <ChevronDown size={12} />
+                                <span>Dropdown</span>
                               </button>
                             </div>
                           )}
@@ -2132,7 +2169,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                   } else {
                     curP.push(q);
                     qCount++;
-                    if (qCount >= 2) {
+                    if (qCount >= 1) {
                       pagesList.push(curP);
                       curP = [];
                       qCount = 0;
@@ -2172,14 +2209,16 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                         </button>
                       )}
 
-                      <button
-                        type="button"
-                        onClick={handlePauseSession}
-                        className="px-4 py-2.5 rounded-xl text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs font-mono"
-                      >
-                        <PauseCircle size={15} className="text-amber-700" />
-                        <span>Pause & Resume Later</span>
-                      </button>
+                      {localStorage.getItem('ncd_setting_enable_resume_button') !== 'false' && (
+                        <button
+                          type="button"
+                          onClick={handlePauseSession}
+                          className="px-4 py-2.5 rounded-xl text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs font-mono"
+                        >
+                          <PauseCircle size={15} className="text-amber-700" />
+                          <span>Pause & Resume Later</span>
+                        </button>
+                      )}
                     </div>
 
                     {safeQPage < totalQPages - 1 ? (

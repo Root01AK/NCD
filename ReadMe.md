@@ -154,3 +154,23 @@ Auto-calculated. A score of 4 or more indicates high dependence and routes to ce
 
 
 Section 4 · Alcohol use (AUDIT-C, with full AUDIT on a positive screen)
+
+
+Q11 Logic is not working
+Q14 Logic not working
+Q17 two logic is workign fine but the if opted to code 3 skip Q18 & Q19 answer the Q20 and follow
+
+Q25 choice 1 logic work but other two not working
+Q33 logic issue
+Q40 
+Q42
+Q44
+Q46
+Q58
+Q59
+Q65
+Q81
+Q86
+
+
+When click the "Create User" btn it show the modal of user previlages to creating but it all select need to a fresh not selecting stuff. While login we have toggle switch concept for login to admin & DEO right, In DEO login UI section we need a dropdown menu to select the location and login. 
