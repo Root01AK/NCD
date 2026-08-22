@@ -148,7 +148,7 @@ const DEFAULT_SURVEY_QUESTIONS = [
   { id: "sec_1", title: "SECTION 1 · DEMOGRAPHICS — FIELD SUPERVISOR", type: "section_header", section: 1 },
   { id: "q1", title: "Q1. Age", type: "number", required: true, section: 1 },
   { id: "q2", title: "Q2. Gender", type: "single_choice", options: ["Male", "Female", "Transgender women", "Transgender man", "Prefer not to say"], required: true, section: 1 },
-  { id: "q3", title: "Q3. Site", type: "dropdown", options: ["Dharavi", "Malvani", "Vashi", "Other project site"], required: true, section: 1 },
+  { id: "q3", title: "Q3. Site", type: "dropdown", options: ["Dharavi", "Malvani", "Vashi"], required: true, section: 1 },
   { id: "q4", title: "Q4. Primary Occupation", type: "dropdown", options: ["Unemployed, seeking work", "Unemployed, not seeking work", "Daily wage labourer", "Construction worker", "Domestic worker", "Street vendor / hawker", "Shop assistant / retail", "Driver / transport worker", "Artisan / craft worker", "Tailor / garment worker", "Factory / industrial worker", "Waste picker / sanitation worker", "Security guard", "Cook / food service", "Salaried, private sector", "Salaried, government", "Self-employed / small business", "Housewife / home-based work", "Student", "Retired", "Unable to work due to illness or disability", "Sex work", "Not stated"], required: false, section: 1 },
   { id: "q5", title: "Q5. Education Level", type: "dropdown", options: ["No formal education", "Primary (classes 1 to 5)", "Middle (classes 6 to 8)", "Secondary (classes 9 to 10)", "Higher secondary (classes 11 to 12)", "ITI / diploma / vocational", "Graduate", "Postgraduate", "Not stated"], required: false, section: 1 },
   { id: "q6", title: "Q6. Current Monthly Household Income (₹)", type: "dropdown", options: ["No income", "10,000 or below", "10,001 to 20,000", "20,001 to 30,000", "Above 30,000", "Not stated"], required: false, section: 1 },
@@ -207,6 +207,23 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   const [viewModes, setViewModes] = useState({});
   const [openSingleDropdowns, setOpenSingleDropdowns] = useState({});
   const [openMultiDropdowns, setOpenMultiDropdowns] = useState({});
+
+  const [resumeFeatureEnabled, setResumeFeatureEnabled] = useState(
+    () => localStorage.getItem('ncd_setting_enable_resume_button') !== 'false'
+  );
+
+  useEffect(() => {
+    const handleSettingChange = () => {
+      const isEn = localStorage.getItem('ncd_setting_enable_resume_button') !== 'false';
+      setResumeFeatureEnabled(isEn);
+    };
+    window.addEventListener('ncd_resume_setting_changed', handleSettingChange);
+    window.addEventListener('storage', handleSettingChange);
+    return () => {
+      window.removeEventListener('ncd_resume_setting_changed', handleSettingChange);
+      window.removeEventListener('storage', handleSettingChange);
+    };
+  }, []);
 
   // Auto Participant ID in DH-MUM-0001 format & Current Date
   const currentDateFormatted = formatDateDDMMMYYYY(new Date());
@@ -452,15 +469,17 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     setData(d => {
       let updates = {};
 
-      // 1. BMI
-      const wt = parseFloat(d.weight || d.q67 || d.custom_q67 || 0);
-      const htCm = parseFloat(d.height || d.q68 || d.custom_q68 || 0);
+      // 1. BMI Calculation: Q67 (Height in cm) & Q68 (Weight in kg) -> Q69 (BMI)
+      const htCm = parseFloat(d.q67 || d.custom_q67 || d.height || 0);
+      const wt = parseFloat(d.q68 || d.custom_q68 || d.weight || 0);
       if (wt > 0 && htCm > 0) {
         const htM = htCm / 100;
         const calcBmi = (wt / (htM * htM)).toFixed(2);
-        if (d.bmi !== calcBmi) {
+        if (d.bmi !== calcBmi || d.custom_q69 !== calcBmi) {
           updates.bmi = calcBmi;
           updates.custom_bmi = calcBmi;
+          updates.q69 = calcBmi;
+          updates.custom_q69 = calcBmi;
           const q69Key = Object.keys(d).find(k => k.toLowerCase().includes("q69")) || "q69";
           updates[q69Key] = calcBmi;
         }
@@ -715,13 +734,17 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       else if (qNum >= 17 && qNum <= 24) qSec = 3;
       else if (qNum >= 25 && qNum <= 32) qSec = 4;
       else if (qNum >= 33 && qNum <= 39) qSec = 5;
-      else if (qNum >= 40 && qNum <= 48) qSec = 6;
-      else if (qNum >= 49 && qNum <= 65) qSec = 7;
-      else if (qNum >= 66 && qNum <= 75) qSec = 8;
-      else if (qNum >= 76 && qNum <= 84) qSec = 9;
-      else if (qNum >= 85 && qNum <= 89) qSec = 10;
-      else if (qNum >= 90 && qNum <= 96) qSec = 11;
-      else if (qNum >= 97) qSec = 12;
+      else if (qNum >= 40 && qNum <= 47) qSec = 6;
+      else if (qNum >= 48 && qNum <= 57) qSec = 7;
+      else if (qNum >= 58 && qNum <= 65) qSec = 8;
+      else if (qNum >= 66 && qNum <= 72) qSec = 9;
+      else if (qNum >= 73 && qNum <= 80) qSec = 10;
+      else if (qNum >= 81 && qNum <= 88) qSec = 11;
+      else if (qNum >= 89 && qNum <= 93) qSec = 12;
+      else if (qNum >= 94 && qNum <= 96) qSec = 13;
+      else if (qNum >= 97 && qNum <= 106) qSec = 14;
+      else if (qNum >= 107 && qNum <= 112) qSec = 15;
+      else if (qNum >= 113) qSec = 16;
     } else if (
       idx < 8 ||
       titleLower.includes("age") || 
@@ -816,6 +839,16 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
     setData(d => {
       const next = { ...d, [q.id]: val, [`custom_${q.id}`]: val };
+      
+      // Save question number alias keys (e.g. q11, custom_q11) for instant logic engine lookup
+      const titleStr = String(q.title || "").trim();
+      const m = titleStr.match(/^Q(\d+)/i) || String(q.id || "").match(/^q(\d+)/i);
+      if (m) {
+        const qNumStr = m[1];
+        next[`q${qNumStr}`] = val;
+        next[`custom_q${qNumStr}`] = val;
+      }
+
       if (titleLower.includes("name") || titleLower.includes("full name")) next.fullName = val;
       if (isAgeField) next.age = val;
       if (titleLower.includes("gender")) next.gender = val;
@@ -1283,34 +1316,66 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                     Select an existing participant record or verify Participant ID, screening date, and contact details to proceed.
                   </p>
                 </div>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200 font-mono shadow-2xs">
-                  <MapPin size={13} className="text-amber-600" /> Center: {data.location || "Dharavi"}
-                </span>
+                <div className="relative flex items-center gap-1.5 bg-amber-50 text-amber-950 border border-amber-300 rounded-xl px-3 py-1.5 text-xs font-mono font-bold shadow-2xs">
+                  <MapPin size={13} className="text-amber-700 shrink-0" />
+                  <span className="text-[11px] font-bold text-amber-900">Center:</span>
+                  <select
+                    value={data.location || "Dharavi"}
+                    onChange={(e) => {
+                      const selectedLoc = e.target.value;
+                      const newPid = generateParticipantID(selectedLoc);
+                      localStorage.setItem('ncd_active_location', selectedLoc);
+                      setData(prev => ({
+                        ...prev,
+                        location: selectedLoc,
+                        participant_id: newPid
+                      }));
+                      if (notify) notify("info", "Location Center Switched", `Switched center to ${selectedLoc}. Participant ID updated to ${newPid}.`);
+                    }}
+                    className="bg-transparent font-black text-amber-950 outline-none cursor-pointer text-xs font-mono pr-1"
+                    title="Switch Workstation Location Center"
+                  >
+                    <option value="Dharavi">Dharavi Center (DH)</option>
+                    <option value="Malvani">Malvani Center (ML)</option>
+                    <option value="Vashi">Vashi Center (VA)</option>
+                  </select>
+                </div>
               </div>
 
               {/* PARTICIPANT DROPDOWN SELECTOR FOR NON-SUPERVISOR ROLES ONLY */}
-              {!isFieldSupervisor && (
-                <div className="p-5 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold uppercase tracking-wider font-mono text-amber-950 flex items-center gap-1.5">
-                      <UserCheck size={14} className="text-amber-700" /> Select Participant from Queue / Database *
-                    </label>
-                    <span className="text-[11px] font-bold text-amber-800 font-mono">{availableParticipants.length} Records Available</span>
+              {!isFieldSupervisor && (() => {
+                const filteredParticipantsByLocation = availableParticipants.filter(p => {
+                  if (!data.location || data.location === "All") return true;
+                  const pLoc = String(p.location || "").toLowerCase().trim();
+                  const selLoc = String(data.location || "").toLowerCase().trim();
+                  const pPrefix = getlocationPrefix(p.location);
+                  const selPrefix = getlocationPrefix(data.location);
+                  return pLoc.includes(selLoc) || selLoc.includes(pLoc) || pPrefix === selPrefix || (p.id && p.id.includes(`NCD${selPrefix}`));
+                });
+
+                return (
+                  <div className="p-5 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold uppercase tracking-wider font-mono text-amber-950 flex items-center gap-1.5">
+                        <UserCheck size={14} className="text-amber-700" /> Select Participant from Queue / Database ({data.location}) *
+                      </label>
+                      <span className="text-[11px] font-bold text-amber-800 font-mono">{filteredParticipantsByLocation.length} Records Available</span>
+                    </div>
+                    <select 
+                      value={data.participant_id} 
+                      onChange={(e) => handleParticipantSelect(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl bg-white border border-amber-300 text-sm font-bold text-slate-900 font-mono outline-none shadow-2xs cursor-pointer focus:ring-2 focus:ring-amber-400"
+                    >
+                      <option value="">-- Choose Participant ID for {data.location} Center --</option>
+                      {filteredParticipantsByLocation.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.id} ({p.age ? `${p.age} yrs` : 'Demographics Recorded'}, {p.gender || 'Completed'}) [{p.location || data.location}]
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  <select 
-                    value={data.participant_id} 
-                    onChange={(e) => handleParticipantSelect(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-white border border-amber-300 text-sm font-bold text-slate-900 font-mono outline-none shadow-2xs cursor-pointer focus:ring-2 focus:ring-amber-400"
-                  >
-                    <option value="">-- Choose Participant ID to load Clinical Modules --</option>
-                    {availableParticipants.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.id} ({p.age ? `${p.age} yrs` : 'Demographics Recorded'}, {p.gender || 'Completed'}) [{p.location || 'Dharavi'}]
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Initial Participant Details Card (Field Supervisor only) */}
               {isFieldSupervisor && (
@@ -1445,7 +1510,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {localStorage.getItem('ncd_setting_enable_resume_button') !== 'false' && (
+                  {resumeFeatureEnabled && (
                     <button
                       type="button"
                       onClick={handlePauseSession}
@@ -1462,7 +1527,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
               </div>
 
               {/* Active Survey Session Banner */}
-              {activeDraft && localStorage.getItem('ncd_setting_enable_resume_button') !== 'false' && (
+              {activeDraft && resumeFeatureEnabled && (
                 <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs animate-in fade-in duration-200">
                   <div className="flex items-center gap-2 font-mono text-xs">
                     <PauseCircle size={18} className="text-amber-700 shrink-0" />
@@ -1601,17 +1666,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                           )}
                         </div>
                         
-                        {(qType === 'short_text') && (
-                          <input 
-                            type="text" 
-                            placeholder="Enter text response..." 
-                            value={data[`custom_${q.id}`] || data[q.id] || ''} 
-                            onChange={(e) => updateCustomField(q, e.target.value)} 
-                            className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-amber-400 shadow-2xs" 
-                          />
-                        )}
-
-                        {/* Custom Auto-Calculated HSI Card for Q23 */}
+                        {/* Custom Score Cards (Q23 HSI, Q61 GAD-7, Q64 PHQ-9, Q30 AUDIT-C) evaluated BEFORE short_text */}
                         {(q.id === "q23" || (q.title && q.title.toLowerCase().includes("q23"))) ? (
                           <div className="space-y-3">
                             <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-300 flex items-center justify-between shadow-2xs font-mono">
@@ -1631,7 +1686,6 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                               </span>
                             </div>
 
-                            {/* Clinical Dependence Level & Q111 Routing Alert */}
                             {(() => {
                               const score = parseInt(data.q23 !== undefined ? data.q23 : (data.custom_q23 !== undefined ? data.custom_q23 : 0), 10);
                               if (score >= 4) {
@@ -1667,12 +1721,157 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                               }
                             })()}
                           </div>
+                        ) : (q.id === "q61" || (q.title && (q.title.toLowerCase().includes("q61") || (q.title.toLowerCase().includes("gad") && q.title.toLowerCase().includes("score"))))) ? (
+                          <div className="rounded-2xl border border-slate-700 overflow-hidden shadow-md font-mono my-2 animate-in fade-in duration-200">
+                            <div className="bg-[#b4c6ff] text-slate-950 px-5 py-3 font-extrabold text-sm border-b border-slate-600">
+                              Q61. GAD-7 total score:
+                            </div>
+                            <div className="bg-[#242426] text-white px-5 py-4 flex items-center justify-between">
+                              <div className="flex items-baseline gap-2">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={21}
+                                  placeholder="___"
+                                  value={data[`custom_${q.id}`] !== undefined ? data[`custom_${q.id}`] : (data[q.id] !== undefined ? data[q.id] : '')}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val !== '') {
+                                      const num = parseInt(val, 10);
+                                      if (isNaN(num) || num < 0 || num > 21) {
+                                        setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Score: GAD-7 total score must be a number between 0 and 21." }));
+                                        if (notify) notify("error", "Invalid GAD-7 Score", "GAD-7 total score cannot exceed 21.");
+                                        return;
+                                      } else {
+                                        setFieldErrors(prev => ({ ...prev, [q.id]: null }));
+                                      }
+                                    } else {
+                                      setFieldErrors(prev => ({ ...prev, [q.id]: null }));
+                                    }
+                                    updateCustomField(q, val);
+                                  }}
+                                  className="w-24 bg-transparent font-black text-2xl text-amber-400 border-b-2 border-amber-400 text-center outline-none"
+                                />
+                                <span className="text-xl font-bold text-slate-300">/ 21</span>
+                              </div>
+                              <span className="text-xs font-mono font-bold px-3 py-1 rounded-lg bg-slate-800 text-amber-300 border border-slate-700">
+                                Score Input
+                              </span>
+                            </div>
+                            <div className="bg-[#32343a] text-slate-200 px-5 py-3 text-xs italic font-medium border-t border-slate-700 leading-relaxed">
+                              Bands: 0 to 4 minimal, 5 to 9 mild, 10 to 14 moderate, 15 to 21 severe. 10 or more is clinically significant.
+                            </div>
+                          </div>
+                        ) : (q.id === "q64" || (q.title && (q.title.toLowerCase().includes("q64") || (q.title.toLowerCase().includes("phq") && q.title.toLowerCase().includes("score"))))) ? (
+                          <div className="rounded-2xl border border-slate-700 overflow-hidden shadow-md font-mono my-2 animate-in fade-in duration-200">
+                            <div className="bg-[#b4c6ff] text-slate-950 px-5 py-3 font-extrabold text-sm border-b border-slate-600">
+                              Q64. PHQ-9 total score:
+                            </div>
+                            <div className="bg-[#242426] text-white px-5 py-4 flex items-center justify-between">
+                              <div className="flex items-baseline gap-2">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={27}
+                                  placeholder="___"
+                                  value={data[`custom_${q.id}`] !== undefined ? data[`custom_${q.id}`] : (data[q.id] !== undefined ? data[q.id] : '')}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val !== '') {
+                                      const num = parseInt(val, 10);
+                                      if (isNaN(num) || num < 0 || num > 27) {
+                                        setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Score: PHQ-9 total score must be a number between 0 and 27." }));
+                                        if (notify) notify("error", "Invalid PHQ-9 Score", "PHQ-9 total score cannot exceed 27.");
+                                        return;
+                                      } else {
+                                        setFieldErrors(prev => ({ ...prev, [q.id]: null }));
+                                      }
+                                    } else {
+                                      setFieldErrors(prev => ({ ...prev, [q.id]: null }));
+                                    }
+                                    updateCustomField(q, val);
+                                  }}
+                                  className="w-24 bg-transparent font-black text-2xl text-amber-400 border-b-2 border-amber-400 text-center outline-none"
+                                />
+                                <span className="text-xl font-bold text-slate-300">/ 27</span>
+                              </div>
+                              <span className="text-xs font-mono font-bold px-3 py-1 rounded-lg bg-slate-800 text-amber-300 border border-slate-700">
+                                Score Input
+                              </span>
+                            </div>
+                            <div className="bg-[#32343a] text-slate-200 px-5 py-3 text-xs italic font-medium border-t border-slate-700 leading-relaxed">
+                              Bands: 0 to 4 minimal, 5 to 9 mild, 10 to 14 moderate, 15 to 19 moderately severe, 20 to 27 severe. 10 or more is clinically significant.
+                            </div>
+                          </div>
+                        ) : (q.id === "q30" || (q.title && (q.title.toLowerCase().includes("q30") || (q.title.toLowerCase().includes("audit") && q.title.toLowerCase().includes("score"))))) ? (
+                          <div className="rounded-2xl border border-slate-700 overflow-hidden shadow-md font-mono my-2 animate-in fade-in duration-200">
+                            <div className="bg-[#b4c6ff] text-slate-950 px-5 py-3 font-extrabold text-sm border-b border-slate-600">
+                              Q30. AUDIT-C Total Score:
+                            </div>
+                            <div className="bg-[#242426] text-white px-5 py-4 flex items-center justify-between">
+                              <div className="flex items-baseline gap-2">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={12}
+                                  placeholder="___"
+                                  value={data[`custom_${q.id}`] !== undefined ? data[`custom_${q.id}`] : (data[q.id] !== undefined ? data[q.id] : '')}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val !== '') {
+                                      const num = parseInt(val, 10);
+                                      if (isNaN(num) || num < 0 || num > 12) {
+                                        setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Score: AUDIT-C total score must be a number between 0 and 12." }));
+                                        if (notify) notify("error", "Invalid AUDIT-C Score", "AUDIT-C total score cannot exceed 12.");
+                                        return;
+                                      } else {
+                                        setFieldErrors(prev => ({ ...prev, [q.id]: null }));
+                                      }
+                                    } else {
+                                      setFieldErrors(prev => ({ ...prev, [q.id]: null }));
+                                    }
+                                    updateCustomField(q, val);
+                                  }}
+                                  className="w-24 bg-transparent font-black text-2xl text-amber-400 border-b-2 border-amber-400 text-center outline-none"
+                                />
+                                <span className="text-xl font-bold text-slate-300">/ 12</span>
+                              </div>
+                              <span className="text-xs font-mono font-bold px-3 py-1 rounded-lg bg-slate-800 text-amber-300 border border-slate-700">
+                                Auto-Calculated
+                              </span>
+                            </div>
+                            <div className="bg-[#32343a] text-slate-200 px-5 py-3 text-xs italic font-medium border-t border-slate-700 leading-relaxed">
+                              Bands: Positive screen is 4 or more for men, 3 or more for women and transgender participants.
+                            </div>
+                          </div>
+                        ) : qType === 'short_text' ? (
+                          <input 
+                            type="text" 
+                            placeholder="Enter text response..." 
+                            value={data[`custom_${q.id}`] || data[q.id] || ''} 
+                            onChange={(e) => updateCustomField(q, e.target.value)} 
+                            className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-amber-400 shadow-2xs" 
+                          />
                         ) : qType === 'number' ? (
                           <input 
                             type="number" 
                             placeholder="Enter numerical value..." 
                             value={data[`custom_${q.id}`] || data[q.id] || ''} 
-                            onChange={(e) => updateCustomField(q, e.target.value)} 
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const isAgeQ = q.id === 'q1' || String(q.title || '').toLowerCase().includes('q1. age') || String(q.title || '').toLowerCase().includes('age');
+                              if (isAgeQ && val) {
+                                const numVal = parseInt(val, 10);
+                                if (numVal > 120 || val.length > 3) {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Age: Age must be a valid number between 1 and 120 years (cannot enter 4-digit values)." }));
+                                  if (notify) notify("error", "Invalid Age Input", "Age cannot exceed 3 digits or 120 years.");
+                                  return;
+                                } else {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: null }));
+                                }
+                              }
+                              updateCustomField(q, val);
+                            }} 
                             className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-amber-400 font-mono shadow-2xs" 
                           />
                         ) : null}
@@ -2209,7 +2408,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                         </button>
                       )}
 
-                      {localStorage.getItem('ncd_setting_enable_resume_button') !== 'false' && (
+                      {resumeFeatureEnabled && (
                         <button
                           type="button"
                           onClick={handlePauseSession}

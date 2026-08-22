@@ -121,6 +121,9 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
 
   const user = dbUser || parsedUser || { username: 'DEO', role_name: 'Field Supervisor', role_id: 2, assigned_location: 'Dharavi' };
   const dbLocation = user.assigned_location || user.location || user.tenant_name || user.loc_name || "Dharavi";
+  const [activeLocation, setActiveLocation] = useState(
+    () => localStorage.getItem('ncd_active_location') || dbLocation || "Dharavi"
+  );
 
   // Dynamic user privilege configuration
   let userPrivileges = user.privileges;
@@ -287,9 +290,24 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
             <span className="text-xs font-extrabold text-slate-900 font-mono tracking-tight">
               {user.role_name || "DEO Portal"}
             </span>
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200 font-mono shadow-2xs">
-              <MapPin size={11} className="text-amber-600 shrink-0" /> {localStorage.getItem('ncd_active_location') || user.location || user.assigned_location || "Dharavi"}
-            </span>
+            <div className="relative flex items-center gap-1.5 bg-amber-50 text-amber-950 border border-amber-300 rounded-xl px-2.5 py-1 text-xs font-mono font-bold shadow-2xs">
+              <MapPin size={12} className="text-amber-700 shrink-0" />
+              <select
+                value={activeLocation}
+                onChange={(e) => {
+                  const selected = e.target.value;
+                  setActiveLocation(selected);
+                  localStorage.setItem('ncd_active_location', selected);
+                  notify("info", "Center Location Switch", `Switched active workstation location to ${selected} Center.`);
+                }}
+                className="bg-transparent font-extrabold text-amber-950 outline-none cursor-pointer text-xs font-mono pr-1"
+                title="Select Workstation Location Center"
+              >
+                <option value="Dharavi">Dharavi Center</option>
+                <option value="Malvani">Malvani Center</option>
+                <option value="Vashi">Vashi Center</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -439,7 +457,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                   Welcome, {user.full_name || user.username || "Field Supervisor"}
                 </h1>
                 <p className="text-xs text-slate-500 font-medium mt-0.5">
-                  Operational Screening Workstation  •  Assigned to <strong className="text-slate-800">{dbLocation} Center</strong>
+                  Operational Screening Workstation  •  Active Center: <strong className="text-slate-900 font-bold">{activeLocation} Center</strong>
                 </p>
               </div>
             </div>

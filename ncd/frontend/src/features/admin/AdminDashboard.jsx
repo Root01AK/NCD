@@ -92,11 +92,9 @@ export function AdminDashboard({ notify, logout }) {
     }
   }, []);
 
-  // Fetch Queue Data when tab is selected or phase changes
+  // Fetch Queue Data on initial mount and whenever tab/phase changes
   useEffect(() => {
-    if (navTab === "queue") {
-      fetchQueue();
-    }
+    fetchQueue();
   }, [navTab, selectedPhase]);
 
   const fetchQueue = async () => {
@@ -236,7 +234,6 @@ export function AdminDashboard({ notify, logout }) {
             <option value="Dharavi">Dharavi</option>
             <option value="Malvani">Malvani</option>
             <option value="Vashi">Vashi</option>
-            <option value="Others">Others</option>
           </select>
         </div>
 

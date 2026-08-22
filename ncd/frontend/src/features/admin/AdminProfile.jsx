@@ -15,6 +15,10 @@ export function AdminProfile({ notify, user, phase1Unlocked, togglePhase1Lock })
   });
 
   const [saving, setSaving] = useState(false);
+  const [resettingDb, setResettingDb] = useState(false);
+  const [resumeButtonEnabled, setResumeButtonEnabled] = useState(
+    () => localStorage.getItem('ncd_setting_enable_resume_button') !== 'false'
+  );
 
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
@@ -53,6 +57,39 @@ export function AdminProfile({ notify, user, phase1Unlocked, togglePhase1Lock })
       notify("error", "Update Failed", "Could not update password.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleResetDatabase = async () => {
+    if (!window.confirm("CAUTION: Are you sure you want to PURGE and RESET all screening records in the database? This action will truncate screening data tables and clear local offline queues.")) {
+      return;
+    }
+
+    setResettingDb(true);
+    try {
+      // 1. Call Backend API endpoint to clear MySQL screening tables
+      const res = await api.get('/api/v1/dashboard/resetdatabase');
+      
+      // 2. Purge local offline queues & local storage caches
+      localStorage.removeItem('ncd_offline_queue');
+      localStorage.removeItem('ncd_used_participant_ids');
+      localStorage.removeItem('ncd_active_survey_draft');
+      localStorage.removeItem('ncd_participant_seq_DH');
+      localStorage.removeItem('ncd_participant_seq_ML');
+      localStorage.removeItem('ncd_participant_seq_VA');
+
+      if (res && res.status === 'success') {
+        notify("success", "Database Reset Complete", "All screening tables & local offline queues have been purged successfully!");
+      } else {
+        notify("info", "Local Queues Reset", "Local offline queues cleared. DB status: " + (res?.message || "Done"));
+      }
+    } catch (e) {
+      localStorage.removeItem('ncd_offline_queue');
+      localStorage.removeItem('ncd_used_participant_ids');
+      localStorage.removeItem('ncd_active_survey_draft');
+      notify("info", "Local Queues Cleared", "Local offline queues purged.");
+    } finally {
+      setResettingDb(false);
     }
   };
 
@@ -200,130 +237,111 @@ export function AdminProfile({ notify, user, phase1Unlocked, togglePhase1Lock })
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${phase1Unlocked ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-700'}`}>
-                {phase1Unlocked ? <Unlock size={20} className="text-amber-600" /> : <Lock size={20} className="text-slate-600" />}
-              </div>
+        {/* Unified System Features Deck & Operational Controls */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs space-y-5">
+          <div className="flex items-center justify-between pb-3 border-b border-gray-100 flex-wrap gap-2">
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                <Layers size={18} className="text-amber-600" />
+                <span>System Features Deck & Operational Controls</span>
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Centralized Feature Deck to enable/disable operational features and dataset security locks across the platform.
+              </p>
+            </div>
+            <span className="text-[10px] font-mono font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-950 border border-amber-300 uppercase">
+              Features Deck Control
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Feature 1: Survey Session Resume Button */}
+            <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-200 flex flex-col justify-between space-y-4">
               <div>
-                <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                  Phase I Baseline Dataset Access Lock System
-                  <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full font-mono ${phase1Unlocked ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-slate-100 text-slate-600 border border-slate-200'}`}>
-                    {phase1Unlocked ? 'Unlocked (Active)' : 'Locked (Default System State)'}
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-black text-amber-950 uppercase tracking-wider">1. Survey Session Resume Button</span>
+                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded font-mono ${resumeButtonEnabled ? 'bg-emerald-100 text-emerald-950 border border-emerald-300' : 'bg-slate-200 text-slate-700'}`}>
+                    {resumeButtonEnabled ? 'ACTIVE' : 'INACTIVE'}
                   </span>
-                </h3>
-                <p className="text-xs text-gray-500 mt-0.5 max-w-2xl leading-relaxed">
-                  By default, Phase I baseline records are locked to keep Phase II operational data clean. Toggle to temporarily unlock Phase I records across analytics, directory, and exports.
+                </div>
+                <p className="text-[11px] text-amber-800 leading-relaxed font-medium">
+                  Enable or disable the "Resume Session" button and draft pause banner across operational screening forms in DEO / Staff Nurse workstation.
                 </p>
               </div>
-            </div>
 
-            {togglePhase1Lock && (
               <button
                 type="button"
-                onClick={togglePhase1Lock}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-2 cursor-pointer border ${
-                  phase1Unlocked 
-                    ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100' 
-                    : 'bg-slate-900 text-white border-slate-800 hover:bg-black'
+                onClick={() => {
+                  const nextVal = !resumeButtonEnabled;
+                  setResumeButtonEnabled(nextVal);
+                  localStorage.setItem('ncd_setting_enable_resume_button', nextVal ? 'true' : 'false');
+                  window.dispatchEvent(new Event('ncd_resume_setting_changed'));
+                  notify("success", "Feature Updated", `Survey Resume Button has been ${nextVal ? 'ENABLED' : 'DISABLED'}.`);
+                }}
+                className={`w-full py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer border shadow-2xs font-mono flex items-center justify-center gap-2 ${
+                  resumeButtonEnabled ? 'bg-amber-400 text-amber-950 border-amber-500 hover:bg-amber-500' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
                 }`}
               >
-                {phase1Unlocked ? <Unlock size={14} className="text-amber-600" /> : <Lock size={14} className="text-amber-400" />}
-                <span>{phase1Unlocked ? "Lock Phase I Baseline Data" : "Unlock Phase I Baseline Data"}</span>
+                <span>{resumeButtonEnabled ? 'ENABLED (ON)' : 'DISABLED (OFF)'}</span>
               </button>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs">
-          <div className="flex items-center gap-2 pb-3 mb-4 border-b border-gray-100">
-            <Server size={18} className="text-gray-700" />
-            <h3 className="text-sm font-bold text-gray-900">
-              System SMTP Email Notifications
-            </h3>
-          </div>
-
-          <form onSubmit={handleSMTPUpdate} className="space-y-4 text-xs">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="md:col-span-3">
-                <label className="block font-semibold text-gray-700 mb-1">SMTP Host</label>
-                <input 
-                  type="text" 
-                  value={formData.smtp_host} 
-                  onChange={e => setFormData({...formData, smtp_host: e.target.value})}
-                  className="w-full px-3 py-2 rounded-lg text-xs border border-gray-300 focus:outline-none focus:border-gray-900"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1">Port</label>
-                <input 
-                  type="text" 
-                  value={formData.smtp_port} 
-                  onChange={e => setFormData({...formData, smtp_port: e.target.value})}
-                  className="w-full px-3 py-2 rounded-lg text-xs border border-gray-300 focus:outline-none focus:border-gray-900"
-                />
-              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Feature 2: Phase I Baseline Dataset Access Lock System */}
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between space-y-4">
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">SMTP Username</label>
-                <input 
-                  type="text" 
-                  value={formData.smtp_user} 
-                  onChange={e => setFormData({...formData, smtp_user: e.target.value})}
-                  className="w-full px-3 py-2 rounded-lg text-xs border border-gray-300 focus:outline-none focus:border-gray-900"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-black text-slate-900 uppercase tracking-wider">2. Phase I Baseline Access Lock</span>
+                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded font-mono ${phase1Unlocked ? 'bg-emerald-100 text-emerald-950 border border-emerald-300' : 'bg-red-100 text-red-950 border border-red-300'}`}>
+                    {phase1Unlocked ? 'UNLOCKED' : 'LOCKED'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
+                  Lock or unlock access to historical Phase I baseline records across analytics, participant directory, exports, and phase selection.
+                </p>
               </div>
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1">SMTP Password</label>
-                <input 
-                  type="password" 
-                  value={formData.smtp_pass} 
-                  placeholder="••••••••"
-                  onChange={e => setFormData({...formData, smtp_pass: e.target.value})}
-                  className="w-full px-3 py-2 rounded-lg text-xs border border-gray-300 focus:outline-none focus:border-gray-900"
-                />
-              </div>
-            </div>
 
-            <div className="pt-2">
-              <button 
-                type="submit"
-                disabled={saving}
-                className="px-4 py-2 rounded-lg text-xs font-semibold bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors shadow-2xs"
+              <button
+                type="button"
+                onClick={() => {
+                  if (togglePhase1Lock) togglePhase1Lock();
+                }}
+                className={`w-full py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer border shadow-2xs font-mono flex items-center justify-center gap-2 ${
+                  phase1Unlocked 
+                    ? 'bg-amber-400 text-amber-950 border-amber-500 hover:bg-amber-500' 
+                    : 'bg-slate-900 text-white border-slate-950 hover:bg-black'
+                }`}
               >
-                Save SMTP Settings
+                {phase1Unlocked ? <Unlock size={14} className="text-amber-950" /> : <Lock size={14} className="text-amber-400" />}
+                <span>{phase1Unlocked ? "UNLOCKED (ACCESSIBLE)" : "LOCKED (RESTRICTED)"}</span>
               </button>
             </div>
-          </form>
-        </div>
 
-        {/* Survey Feature Settings Module */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs space-y-4">
-          <h3 className="text-sm font-bold text-gray-900 pb-3 border-b border-gray-100 flex items-center justify-between">
-            <span>Survey Feature Settings & Controls</span>
-            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 uppercase">Live Config</span>
-          </h3>
-          
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl bg-amber-50/60 border border-amber-200 gap-3">
-            <div className="space-y-0.5">
-              <span className="text-xs font-bold text-amber-950 block">Survey Session Resume Button</span>
-              <span className="text-[11px] text-amber-800 font-medium">Enable or disable the "Resume Session" button and paused draft banner across operational screening forms.</span>
+            {/* Feature 3: Purge & Reset Screening Database */}
+            <div className="p-4 rounded-xl bg-red-50/70 border border-red-200 flex flex-col justify-between space-y-4 md:col-span-2">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-black text-red-950 uppercase tracking-wider flex items-center gap-1.5 font-mono">
+                    <Trash2 size={14} className="text-red-600" /> 3. Purge & Reset Screening Database
+                  </span>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded font-mono bg-red-100 text-red-800 border border-red-300 uppercase">
+                    SYSTEM RESET CONTROL
+                  </span>
+                </div>
+                <p className="text-[11px] text-red-800 leading-relaxed font-medium">
+                  Truncate all live screening records across backend database tables (<code className="bg-red-100 px-1 py-0.5 rounded text-red-950 font-bold">cms_mdhl</code>, <code className="bg-red-100 px-1 py-0.5 rounded text-red-950 font-bold">cms_apm</code>, <code className="bg-red-100 px-1 py-0.5 rounded text-red-950 font-bold">cms_vital</code>, etc.) and reset offline local storage queues.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={resettingDb}
+                onClick={handleResetDatabase}
+                className="w-full py-2.5 rounded-xl text-xs font-black bg-red-600 text-white border border-red-700 hover:bg-red-700 transition-all cursor-pointer shadow-2xs font-mono flex items-center justify-center gap-2"
+              >
+                {resettingDb ? <Loader2 size={14} className="animate-spin text-white" /> : <Trash2 size={14} className="text-white" />}
+                <span>{resettingDb ? "RESETTING DATABASE..." : "PURGE & RESET SCREENING DATABASE"}</span>
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                const current = localStorage.getItem('ncd_setting_enable_resume_button') !== 'false';
-                const nextVal = !current;
-                localStorage.setItem('ncd_setting_enable_resume_button', nextVal ? 'true' : 'false');
-                notify("success", "Setting Updated", `Survey Resume Button has been ${nextVal ? 'ENABLED' : 'DISABLED'}.`);
-              }}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer border shadow-2xs font-mono shrink-0 ${localStorage.getItem('ncd_setting_enable_resume_button') !== 'false' ? 'bg-amber-400 text-amber-950 border-amber-500 hover:bg-amber-500' : 'bg-slate-200 text-slate-700 border-slate-300 hover:bg-slate-300'}`}
-            >
-              {localStorage.getItem('ncd_setting_enable_resume_button') !== 'false' ? 'ENABLED (ON)' : 'DISABLED (OFF)'}
-            </button>
           </div>
         </div>
 

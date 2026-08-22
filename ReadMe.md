@@ -174,3 +174,9 @@ Q86
 
 
 When click the "Create User" btn it show the modal of user previlages to creating but it all select need to a fresh not selecting stuff. While login we have toggle switch concept for login to admin & DEO right, In DEO login UI section we need a dropdown menu to select the location and login. 
+
+
+
+Q61. GAD-7 total score:
+       / 21
+Bands: 0 to 4 minimal, 5 to 9 mild, 10 to 14 moderate, 15 to 21 severe. 10 or more is clinically significant.

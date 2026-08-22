@@ -52,8 +52,8 @@ export function calculateAuditCScore(formData) {
  */
 export function calculateBMIFromForm(formData) {
   if (!formData) return null;
-  const wt = parseFloat(formData.weight || formData.q67 || formData.custom_q67 || 0);
-  const htCm = parseFloat(formData.height || formData.q68 || formData.custom_q68 || 0);
+  const htCm = parseFloat(formData.q67 || formData.custom_q67 || formData.height || 0);
+  const wt = parseFloat(formData.q68 || formData.custom_q68 || formData.weight || 0);
 
   if (wt > 0 && htCm > 0) {
     const htM = htCm / 100;
@@ -599,19 +599,42 @@ export function isQuestionSkipped(q, allQuestions, formData) {
     qNum = parseInt(numMatch[1], 10);
   }
 
-  // Robust answer fetch helper from formData
+  // Robust answer fetch helper from formData (exact question number matching)
   const getAnswer = (num) => {
     if (!formData) return null;
+    const nStr = String(num);
     const keys = [
-      `q${num}`, `custom_q${num}`, `Q${num}`, `custom_Q${num}`, `mem_scrn_q${num}`,
-      `q_${num}`, `custom_q_${num}`
+      `q${nStr}`, `custom_q${nStr}`, `Q${nStr}`, `custom_Q${nStr}`, `mem_scrn_q${nStr}`,
+      `q_${nStr}`, `custom_q_${nStr}`
     ];
     for (const k of keys) {
       if (formData[k] !== undefined && formData[k] !== null && formData[k] !== "") return formData[k];
     }
+
+    // Also search allQuestions schema to match q.id by title starting with Q{num}
+    const qObj = (allQuestions || []).find(item => {
+      const t = String(item.title || "").trim();
+      const m = t.match(/^Q(\d+)/i);
+      return m && parseInt(m[1], 10) === parseInt(num, 10);
+    });
+
+    if (qObj) {
+      const candidateKeys = [qObj.id, `custom_${qObj.id}`];
+      for (const k of candidateKeys) {
+        if (k && formData[k] !== undefined && formData[k] !== null && formData[k] !== "") return formData[k];
+      }
+    }
+
     const foundK = Object.keys(formData).find(k => {
-      const kl = k.toLowerCase();
-      return kl.endsWith(`q${num}`) || kl.endsWith(`q_${num}`) || kl.includes(`q${num}`);
+      const kl = k.toLowerCase().trim();
+      return (
+        kl === `q${nStr}` ||
+        kl === `q_${nStr}` ||
+        kl === `custom_q${nStr}` ||
+        kl === `custom_q_${nStr}` ||
+        kl === `mem_scrn_q${nStr}` ||
+        new RegExp(`(?:^|[^a-z0-9])q_?${nStr}(?:[^0-9]|$)`, 'i').test(kl)
+      );
     });
     return foundK ? formData[foundK] : null;
   };
@@ -619,20 +642,26 @@ export function isQuestionSkipped(q, allQuestions, formData) {
   // Explicit Rule 1: Q11 Family History Skip (Q12)
   if (qNum === 12) {
     const q11Val = getAnswer(11);
-    if (!q11Val) return true; // Hide Q12 until Q11 is answered!
-    const fullStr = (typeof q11Val === 'object' ? `${q11Val.code || ''} ${q11Val.label || ''}` : String(q11Val)).toLowerCase().trim();
-    if (fullStr.includes("no") || fullStr.includes("don't know") || fullStr.includes("code 2") || fullStr.includes("code 3") || fullStr.startsWith("2") || fullStr.startsWith("3") || fullStr === "2" || fullStr === "3") {
-      return true; // Skip Q12 if Q11 is No (Code 2) or Don't know (Code 3)
+    if (!q11Val) return true; // Hide Q12 until Q11 is answered
+    const str = (typeof q11Val === 'object' ? `${q11Val.code || ''} ${q11Val.label || ''}` : String(q11Val)).toLowerCase().trim();
+    
+    // Code 1 (Yes) -> Move to Q12
+    if (str === "1" || str.includes("code 1") || str.startsWith("yes") || str.includes("yes")) {
+      return false; 
     }
-    if (fullStr.includes("yes") || fullStr.includes("code 1") || fullStr.startsWith("1") || fullStr === "1") {
-      return false; // Show Q12 if Q11 is Yes (Code 1)
+    
+    // Code 2 (No) or Code 3 (Don't know) -> Skip Q12 (Move to Q13)
+    if (str === "2" || str === "3" || str.includes("code 2") || str.includes("code 3") || str.startsWith("no") || str.includes("no") || str.includes("don't know")) {
+      return true;
     }
+    
+    return true; // Default skip Q12 if not Yes
   }
 
   // Explicit Rule 2: Q14 Medication Skip (Q15 & Q16)
   if (qNum === 15 || qNum === 16) {
     const q14Val = getAnswer(14);
-    if (!q14Val) return true; // Hide Q15 & Q16 until Q14 is answered!
+    if (!q14Val) return true; // Hide Q15 & Q16 until Q14 is answered
     const fullStr = (typeof q14Val === 'object' ? `${q14Val.code || ''} ${q14Val.label || ''}` : String(q14Val)).toLowerCase().trim();
     if (fullStr.includes("no") || fullStr.includes("code 2") || fullStr.startsWith("2") || fullStr === "2") {
       return true; // Skip Q15 & Q16 if Q14 is No (Code 2)
@@ -645,22 +674,14 @@ export function isQuestionSkipped(q, allQuestions, formData) {
   // Explicit Rule 3: Q17 Tobacco Use Branching (Q18 to Q23)
   if (qNum !== null && qNum >= 18 && qNum <= 23) {
     const q17Val = getAnswer(17);
-    if (!q17Val) {
-      return true; // Hide Q18 to Q23 until Q17 is answered!
-    }
-    const fullStr = (typeof q17Val === 'object' ? `${q17Val.code || ''} ${q17Val.label || ''} ${q17Val.value || ''}` : String(q17Val)).toLowerCase().trim();
+    if (!q17Val) return true; // Hide Q18 to Q23 until Q17 is answered
+    const fullStr = (typeof q17Val === 'object' ? `${q17Val.code || ''} ${q17Val.label || ''}` : String(q17Val)).toLowerCase().trim();
     let code17 = null;
-    if (fullStr.includes("never") || fullStr.includes("code 1") || fullStr.startsWith("1") || fullStr === "1") {
-      code17 = "1";
-    } else if (fullStr.includes("past") || fullStr.includes("stopped") || fullStr.includes("former") || fullStr.includes("code 2") || fullStr.startsWith("2") || fullStr === "2") {
-      code17 = "2";
-    } else if (fullStr.includes("currently") || fullStr.includes("current") || fullStr.includes("code 3") || fullStr.startsWith("3") || fullStr === "3") {
-      code17 = "3";
-    }
+    if (fullStr.includes("never") || fullStr.includes("code 1") || fullStr.startsWith("1") || fullStr === "1") code17 = "1";
+    else if (fullStr.includes("past") || fullStr.includes("stopped") || fullStr.includes("former") || fullStr.includes("code 2") || fullStr.startsWith("2") || fullStr === "2") code17 = "2";
+    else if (fullStr.includes("currently") || fullStr.includes("current") || fullStr.includes("code 3") || fullStr.startsWith("3") || fullStr === "3") code17 = "3";
 
-    if (code17 === "1") {
-      return true; // Code 1: Never used -> Skip Q18 to Q23 (Jump to Q24)
-    }
+    if (code17 === "1") return true; // Code 1: Never used -> Skip Q18 to Q23 (Jump to Q24)
     if (code17 === "2") {
       if (qNum === 18 || qNum === 19) return false; // Code 2: Former user -> Show Q18 & Q19
       if (qNum >= 20 && qNum <= 23) return true; // Skip Q20 to Q23 (Jump to Q24)
@@ -675,10 +696,8 @@ export function isQuestionSkipped(q, allQuestions, formData) {
   // Explicit Rule 4: Q25 Alcohol Use Branching (Q26 to Q32)
   if (qNum !== null && qNum >= 26 && qNum <= 32) {
     const q25Val = getAnswer(25);
-    if (!q25Val) {
-      return true; // Hide Q26 to Q32 until Q25 is answered!
-    }
-    const str = typeof q25Val === 'object' ? (q25Val.code || q25Val.label || '') : String(q25Val);
+    if (!q25Val) return true; // Hide Q26 to Q32 until Q25 is answered
+    const str = typeof q25Val === 'object' ? `${q25Val.code || ''} ${q25Val.label || ''}` : String(q25Val);
     const l = str.toLowerCase().trim();
     let code25 = null;
     if (l.includes("never") || str === "1" || l.includes("code 1") || l.startsWith("1")) code25 = "1";
@@ -692,12 +711,11 @@ export function isQuestionSkipped(q, allQuestions, formData) {
     }
     if (code25 === "3") {
       if (qNum === 26) return true; // Code 3: Current consumer -> Skip Q26
-      if (qNum >= 27 && qNum <= 32) {
-        if (qNum === 31 || qNum === 32) {
-          const auditRes = calculateAuditCScore(formData);
-          if (!auditRes.isPositive) return true; // Skip Q31 & Q32 if AUDIT-C below threshold
-        }
-        return false; // Show Q27 to Q30
+      if (qNum >= 27 && qNum <= 30) return false; // Show Q27 to Q30
+      if (qNum === 31 || qNum === 32) {
+        const auditRes = calculateAuditCScore(formData);
+        if (!auditRes.isPositive) return true; // Skip Q31 & Q32 if AUDIT-C below threshold
+        return false;
       }
     }
     return true;
@@ -706,10 +724,8 @@ export function isQuestionSkipped(q, allQuestions, formData) {
   // Explicit Rule 6: Q33 Diet & Physical Activity Branching (Q34 to Q36)
   if (qNum !== null && qNum >= 34 && qNum <= 36) {
     const q33Val = getAnswer(33);
-    if (!q33Val) {
-      return true; // Hide Q34 to Q36 until Q33 is answered!
-    }
-    const str = typeof q33Val === 'object' ? (q33Val.code || q33Val.label || '') : String(q33Val);
+    if (!q33Val) return true; // Hide Q34 to Q36 until Q33 is answered
+    const str = typeof q33Val === 'object' ? `${q33Val.code || ''} ${q33Val.label || ''}` : String(q33Val);
     const l = str.toLowerCase().trim();
     let code33 = null;
     if (str === "1" || l.includes("code 1") || l.startsWith("1")) code33 = "1";
@@ -731,11 +747,11 @@ export function isQuestionSkipped(q, allQuestions, formData) {
   if (qNum === 31 || qNum === 32) {
     const auditRes = calculateAuditCScore(formData);
     if (!auditRes.isPositive) {
-      return true; // Skip Q31 & Q32 when AUDIT-C score is below positive threshold (Male < 4, Female/Trans < 3)
+      return true; // Skip Q31 & Q32 when AUDIT-C score is below positive threshold
     }
   }
 
-  // Explicit Rule: Q40 Hypertension History Skip (Q41)
+  // Explicit Rule 7: Q40 Hypertension History Skip (Q41)
   if (qNum === 41) {
     const q40Val = getAnswer(40);
     if (!q40Val) return true;
@@ -744,30 +760,66 @@ export function isQuestionSkipped(q, allQuestions, formData) {
     if (fullStr.includes("yes") || fullStr.includes("code 1") || fullStr.startsWith("1") || fullStr === "1") return false;
   }
 
-  // Explicit Rule: Q43 Diabetes History Skip (Q44, Q45)
+  // Explicit Rule 8 & 9: Q43 Diabetes History Skip (Q44, Q45)
   if (qNum === 44 || qNum === 45) {
     const q43Val = getAnswer(43);
     if (!q43Val) return true;
     const fullStr = (typeof q43Val === 'object' ? `${q43Val.code || ''} ${q43Val.label || ''}` : String(q43Val)).toLowerCase().trim();
     if (fullStr.includes("no") || fullStr.includes("code 2") || fullStr.startsWith("2") || fullStr === "2") return true;
-  }
-
-  // Explicit Rule: Q44 On Diabetes Medication Skip (Q45)
-  if (qNum === 45) {
-    const q44Val = getAnswer(44);
-    if (q44Val) {
-      const fullStr = (typeof q44Val === 'object' ? `${q44Val.code || ''} ${q44Val.label || ''}` : String(q44Val)).toLowerCase().trim();
-      if (fullStr.includes("no") || fullStr.includes("code 2") || fullStr.startsWith("2") || fullStr === "2") return true;
+    if (qNum === 45) {
+      const q44Val = getAnswer(44);
+      if (!q44Val) return true;
+      const f44 = (typeof q44Val === 'object' ? `${q44Val.code || ''} ${q44Val.label || ''}` : String(q44Val)).toLowerCase().trim();
+      if (f44.includes("no") || f44.includes("code 2") || f44.startsWith("2") || f44 === "2") return true;
     }
+    return false;
   }
 
-  // Explicit Rule: Q46 On Hypertension Medication Skip (Q47)
+  // Explicit Rule 10: Q46 On Hypertension Medication Skip (Q47)
   if (qNum === 47) {
     const q46Val = getAnswer(46);
     if (!q46Val) return true;
     const fullStr = (typeof q46Val === 'object' ? `${q46Val.code || ''} ${q46Val.label || ''}` : String(q46Val)).toLowerCase().trim();
     if (fullStr.includes("no") || fullStr.includes("code 2") || fullStr.startsWith("2") || fullStr === "2") return true;
     if (fullStr.includes("yes") || fullStr.includes("code 1") || fullStr.startsWith("1") || fullStr === "1") return false;
+  }
+
+  // Explicit Rule 11: Q58 & Q59 (Follow-up Vitals)
+  if (qNum === 59) {
+    const q58Val = getAnswer(58);
+    if (q58Val) {
+      const f58 = (typeof q58Val === 'object' ? `${q58Val.code || ''} ${q58Val.label || ''}` : String(q58Val)).toLowerCase().trim();
+      if (f58.includes("code 2") || f58.includes("code 3") || f58.startsWith("2") || f58.startsWith("3") || f58 === "2" || f58 === "3") return true;
+    }
+  }
+
+  if (qNum === 60) {
+    const q59Val = getAnswer(59);
+    if (q59Val) {
+      const f59 = (typeof q59Val === 'object' ? `${q59Val.code || ''} ${q59Val.label || ''}` : String(q59Val)).toLowerCase().trim();
+      if (f59.includes("code 2") || f59.includes("code 3") || f59.startsWith("2") || f59.startsWith("3") || f59 === "2" || f59 === "3") return true;
+    }
+  }
+
+  if (qNum === 65) {
+    const q58Val = getAnswer(58);
+    const q59Val = getAnswer(59);
+    if (q58Val && q59Val) {
+      const f58 = (typeof q58Val === 'object' ? `${q58Val.code || ''} ${q58Val.label || ''}` : String(q58Val)).toLowerCase().trim();
+      const f59 = (typeof q59Val === 'object' ? `${q59Val.code || ''} ${q59Val.label || ''}` : String(q59Val)).toLowerCase().trim();
+      const is01_58 = f58.includes("0") || f58.includes("1") || f58.startsWith("0") || f58.startsWith("1");
+      const is01_59 = f59.includes("0") || f59.includes("1") || f59.startsWith("0") || f59.startsWith("1");
+      if (is01_58 && is01_59) return true;
+    }
+  }
+
+  // Explicit Rule 12: Q81 Skip (Q83)
+  if (qNum === 83) {
+    const q81Val = getAnswer(81);
+    if (!q81Val) return true;
+    const fullStr = (typeof q81Val === 'object' ? `${q81Val.code || ''} ${q81Val.label || ''}` : String(q81Val)).toLowerCase().trim();
+    if (!fullStr.includes("code 6") && !fullStr.startsWith("6") && fullStr !== "6") return true;
+    return false;
   }
 
   // Explicit Rule: Q86 Skip (Q87)
@@ -782,91 +834,7 @@ export function isQuestionSkipped(q, allQuestions, formData) {
   // Rule 13: BMI threshold check for Q88 (Skip Q88 if BMI >= 20)
   if (qNum === 88) {
     const bmi = calculateBMIFromForm(formData);
-    if (bmi !== null && bmi >= 20) {
-      return true;
-    }
-  }
-
-  // Rule 11: Combined Q58 & Q59 check for Q65
-  if (qNum === 65) {
-    const findQ = (num) => (allQuestions || []).find(item => {
-      const t = String(item.title || "").toLowerCase();
-      return t.startsWith(`q${num}`) || t.includes(`q${num}`);
-    });
-    const getCode = (parentQ) => {
-      if (!parentQ) return null;
-      const val = formData[`custom_${parentQ.id}`] !== undefined ? formData[`custom_${parentQ.id}`] : formData[parentQ.id];
-      if (val === undefined || val === null || val === "") return null;
-      const opts = Array.isArray(parentQ.options) ? parentQ.options : [];
-      const idx = opts.findIndex(o => getOptionLabel(o) === getOptionLabel(val));
-      return getOptionCode(val, idx >= 0 ? idx : 0);
-    };
-
-    const c58 = getCode(findQ(58));
-    const c59 = getCode(findQ(59));
-
-    if ((c58 === "0" || c58 === "1") && (c59 === "0" || c59 === "1")) {
-      return true; // Skip Q65 if both Q58 & Q59 are 0 or 1
-    }
-  }
-
-  // Rule 12: Q81 non-code 6 check for Q83
-  if (qNum === 83) {
-    const findQ = (num) => (allQuestions || []).find(item => String(item.title || "").toLowerCase().startsWith(`q${num}`));
-    const q81 = findQ(81);
-    if (q81) {
-      const val = formData[`custom_${q81.id}`] !== undefined ? formData[`custom_${q81.id}`] : formData[q81.id];
-      if (val) {
-        const opts = Array.isArray(q81.options) ? q81.options : [];
-        const idx = opts.findIndex(o => getOptionLabel(o) === getOptionLabel(val));
-        const code = getOptionCode(val, idx >= 0 ? idx : 0);
-        if (code !== "6") return true; // Skip Q83 if Q81 is NOT Code 6
-      }
-    }
-  }
-
-  // Rule 14: Q94 Code 2 check for Section 14 (Q95, Q96)
-  if (qNum === 95 || qNum === 96) {
-    const findQ = (num) => (allQuestions || []).find(item => String(item.title || "").toLowerCase().startsWith(`q${num}`));
-    const q94 = findQ(94);
-    if (q94) {
-      const val = formData[`custom_${q94.id}`] !== undefined ? formData[`custom_${q94.id}`] : formData[q94.id];
-      if (val) {
-        const opts = Array.isArray(q94.options) ? q94.options : [];
-        const idx = opts.findIndex(o => getOptionLabel(o) === getOptionLabel(val));
-        const code = getOptionCode(val, idx >= 0 ? idx : 0);
-        if (code === "2") return true; // Skip to Section 15
-      }
-    }
-  }
-
-  // Rule 15 & 16: Q97 & Q103 contact attempt outcomes
-  if (qNum >= 98 && qNum <= 106) {
-    const findQ = (num) => (allQuestions || []).find(item => String(item.title || "").toLowerCase().startsWith(`q${num}`));
-    const q97 = findQ(97);
-    if (q97) {
-      const val = formData[`custom_${q97.id}`] !== undefined ? formData[`custom_${q97.id}`] : formData[q97.id];
-      if (val) {
-        const opts = Array.isArray(q97.options) ? q97.options : [];
-        const idx = opts.findIndex(o => getOptionLabel(o) === getOptionLabel(val));
-        const code = getOptionCode(val, idx >= 0 ? idx : 0);
-        if (code === "1") return true; // Skip Q98-Q106, jump to Q107
-      }
-    }
-  }
-
-  if (qNum === 105 || qNum === 106) {
-    const findQ = (num) => (allQuestions || []).find(item => String(item.title || "").toLowerCase().startsWith(`q${num}`));
-    const q103 = findQ(103);
-    if (q103) {
-      const val = formData[`custom_${q103.id}`] !== undefined ? formData[`custom_${q103.id}`] : formData[q103.id];
-      if (val) {
-        const opts = Array.isArray(q103.options) ? q103.options : [];
-        const idx = opts.findIndex(o => getOptionLabel(o) === getOptionLabel(val));
-        const code = getOptionCode(val, idx >= 0 ? idx : 0);
-        if (code === "1") return true; // Skip Q105-Q106, jump to Q107
-      }
-    }
+    if (bmi !== null && bmi >= 20) return true;
   }
 
   // Gather rules: explicit q.skipRules array, fallback to default rules or single q.skipRule

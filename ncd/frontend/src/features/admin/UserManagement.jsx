@@ -72,7 +72,7 @@ export const ROLE_KEY_MAP = {
   7: "deo"
 };
 
-export const TENANTS_LIST = ["Dharavi", "Malvani", "Vashi", "Kurla", "Ghatkopar", "Others"];
+export const TENANTS_LIST = ["Dharavi", "Malvani", "Vashi", "Kurla", "Ghatkopar"];
 
 export function UserManagement({ notify, onOpenMobileMenu }) {
   const [users, setUsers] = useState([]);
@@ -655,10 +655,11 @@ export function UserManagement({ notify, onOpenMobileMenu }) {
                     Assigned Location *
                   </label>
                   <select 
-                    value={formData.location || "Dharavi"}
+                    value={formData.location || "All"}
                     onChange={(e) => setFormData({...formData, location: e.target.value})}
                     className="w-full px-3 py-2 rounded-lg text-xs border border-gray-300 font-bold outline-none bg-white text-gray-900"
                   >
+                    <option value="All">All Locations (Universal Access)</option>
                     {tenantsList.map(loc => (
                       <option key={loc} value={loc}>{loc}</option>
                     ))}

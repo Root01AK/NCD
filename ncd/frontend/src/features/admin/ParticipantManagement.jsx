@@ -36,7 +36,7 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
     participant_id: generateParticipantID("Dharavi")
   });
 
-  const [locationsList, setLocationsList] = useState(["All", "Dharavi", "Malvani", "Vashi", "Others"]);
+  const [locationsList, setLocationsList] = useState(["All", "Dharavi", "Malvani", "Vashi"]);
 
   useEffect(() => {
     let isMounted = true;
@@ -452,80 +452,6 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
             </div>
           )}
 
-          {/* System Add-ons & Feature Controls Section */}
-          <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-2xs space-y-4 font-mono mt-8">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <Settings size={16} className="text-amber-600" /> System Add-ons & Feature Controls
-                </h3>
-                <p className="text-xs text-slate-500 font-normal mt-0.5">
-                  Operational add-ons, feature switches, and dataset security locks.
-                </p>
-              </div>
-              <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-950 border border-amber-300 uppercase">
-                Live Feature Admin
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Add-on 1: Survey Session Resume Button Switch */}
-              <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200 flex flex-col justify-between space-y-3">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-amber-950 uppercase tracking-wider block">1. Survey Session Resume Button</span>
-                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${enableResumeButton ? 'bg-emerald-100 text-emerald-950 border border-emerald-300' : 'bg-slate-200 text-slate-700'}`}>
-                      {enableResumeButton ? 'ACTIVE' : 'INACTIVE'}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-amber-800 font-medium mt-1">
-                    Controls whether staff users can see the "Resume Session" button and draft pause banner in operational screening forms.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nextVal = !enableResumeButton;
-                    setEnableResumeButton(nextVal);
-                    localStorage.setItem('ncd_setting_enable_resume_button', nextVal ? 'true' : 'false');
-                    if (notify) notify("success", "Feature Updated", `Survey Session Resume Button has been ${nextVal ? 'ENABLED' : 'DISABLED'}.`);
-                  }}
-                  className={`w-full py-2 rounded-xl text-xs font-black transition-all cursor-pointer border shadow-2xs font-mono ${enableResumeButton ? 'bg-amber-400 text-amber-950 border-amber-500 hover:bg-amber-500' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'}`}
-                >
-                  {enableResumeButton ? 'ENABLED (ON)' : 'DISABLED (OFF)'}
-                </button>
-              </div>
-
-              {/* Add-on 2: Phase I Baseline Dataset Access Lock System */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col justify-between space-y-3">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-slate-900 uppercase tracking-wider block">2. Phase I Baseline Access Lock</span>
-                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${phase1Unlocked ? 'bg-emerald-100 text-emerald-950 border border-emerald-300' : 'bg-red-100 text-red-950 border border-red-300'}`}>
-                      {phase1Unlocked ? 'UNLOCKED' : 'LOCKED'}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-600 font-medium mt-1">
-                    Lock or unlock access to historical Phase I baseline datasets across analytics, export, and phase selection filters.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nextVal = !phase1Unlocked;
-                    setPhase1Unlocked(nextVal);
-                    localStorage.setItem('ncd_phase1_unlocked', String(nextVal));
-                    if (notify) notify(nextVal ? "success" : "info", nextVal ? "Phase I Unlocked" : "Phase I Locked", `Phase I baseline dataset access is now ${nextVal ? 'UNLOCKED' : 'LOCKED'}.`);
-                  }}
-                  className={`w-full py-2 rounded-xl text-xs font-black transition-all cursor-pointer border shadow-2xs font-mono ${phase1Unlocked ? 'bg-emerald-400 text-emerald-950 border-emerald-500 hover:bg-emerald-500' : 'bg-slate-900 text-white border-slate-950 hover:bg-black'}`}
-                >
-                  {phase1Unlocked ? 'UNLOCKED (ACCESSIBLE)' : 'LOCKED (RESTRICTED)'}
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Selected Participant Response Data & Multi-Role Audit Drawer */}
@@ -705,7 +631,6 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
                     <option value="Dharavi">Dharavi</option>
                     <option value="Malvani">Malvani</option>
                     <option value="Vashi">Vashi</option>
-                    <option value="Others">Others</option>
                   </select>
                 </div>
               </div>
@@ -779,7 +704,6 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
                     <option value="Dharavi">Dharavi</option>
                     <option value="Malvani">Malvani</option>
                     <option value="Vashi">Vashi</option>
-                    <option value="Others">Others</option>
                   </select>
                 </div>
               </div>

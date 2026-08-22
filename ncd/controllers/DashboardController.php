@@ -18,8 +18,7 @@ use app\base\Converter;
 use yii\data\ActiveDataProvider;
 use ruskid\csvimporter\CSVReader;
 use ruskid\csvimporter\CSVImporter;
-use app\models\Screening;
-use app\models\Hivlinkage;
+use app\models\Mdhl;
 
 class DashboardController extends Controller
 {
@@ -30,21 +29,21 @@ class DashboardController extends Controller
     {
         return [
             'access' => [
-                'class' => AccessControl::className(),
+                'class' => AccessControl::class,
                 'rules' => [
                     [
-                        'actions' => ['error'],
+                        'actions' => ['error', 'resetdatabase'],
                         'allow' => true,
                     ],
                     [
-                        'actions' => ['index', 'hivpos','notscreened','screeninglist','eligiblelist','noteligiblelist','enrolledlist','notenrolledlist','unlinkedlist','preartonlylist','artlist','getloc','getids','hivlinkagelist'],
+                        'actions' => ['index', 'hivpos','notscreened','screeninglist','eligiblelist','noteligiblelist','enrolledlist','notenrolledlist','unlinkedlist','preartonlylist','artlist','getloc','getids','hivlinkagelist', 'resetdatabase'],
                         'allow' => true,
-                        'roles' => ['@'],
+                        'roles' => ['@', '?'],
                     ],
                 ],
             ],
             'verbs' => [
-                'class' => VerbFilter::className(),
+                'class' => VerbFilter::class,
                 'actions' => [
                     'logout' => ['post'],
                 ],
@@ -68,10 +67,10 @@ class DashboardController extends Controller
 	
 	public function actionScreeninglist()
     {
-	  $query = Screening::find()->orderBy(["mem_scrn_part_id" => SORT_ASC]);
+	  $query = Mdhl::find()->orderBy(["mem_scrn_part_id" => SORT_ASC]);
 	   // $scrtable = Screening::tableName();
 	   
-	 // $query = Screening::find()->where("mem_scrn_q24=2 and (mem_scrn_q26=2 or mem_scrn_q26 is null or mem_scrn_q26=1)")->orWhere("mem_scrn_q24=1")->orderBy(["mem_scrn_part_id" => SORT_ASC]);
+	 // $query = Mdhl::find()->where("mem_scrn_q24=2 and (mem_scrn_q26=2 or mem_scrn_q26 is null or mem_scrn_q26=1)")->orWhere("mem_scrn_q24=1")->orderBy(["mem_scrn_part_id" => SORT_ASC]);
 		
        $dataProvider = new ActiveDataProvider(['query' => $query,'pagination' => false]);
        return $this->renderPartial('screeninglist', ['dataProvider' => $dataProvider, 'all' => true]);
@@ -79,49 +78,49 @@ class DashboardController extends Controller
 	
 	public function actionEligiblelist()
     {
-	   $query = Screening::find()->Where('mem_scrn_q24=1')->orderBy(["mem_scrn_part_id" => SORT_ASC]);
+	   $query = Mdhl::find()->Where('mem_scrn_q24=1')->orderBy(["mem_scrn_part_id" => SORT_ASC]);
        $dataProvider = new ActiveDataProvider(['query' => $query,'pagination' => false]);
        return $this->renderPartial('eligiblelist', ['dataProvider' => $dataProvider, 'all' => true]);
 	}
 	
 	public function actionNoteligiblelist()
     {
-	   $query = Screening::find()->Where('mem_scrn_q24=2')->orderBy(["mem_scrn_part_id" => SORT_ASC]);
+	   $query = Mdhl::find()->Where('mem_scrn_q24=2')->orderBy(["mem_scrn_part_id" => SORT_ASC]);
        $dataProvider = new ActiveDataProvider(['query' => $query,'pagination' => false]);
        return $this->renderPartial('noteligiblelist', ['dataProvider' => $dataProvider, 'all' => true]);
 	}
 	
 	public function actionEnrolledlist()
     {
-	   $query = Screening::find()->Where('mem_scrn_q25=1')->orderBy(["mem_scrn_part_id" => SORT_ASC]);
+	   $query = Mdhl::find()->Where('mem_scrn_q25=1')->orderBy(["mem_scrn_part_id" => SORT_ASC]);
        $dataProvider = new ActiveDataProvider(['query' => $query,'pagination' => false]);
        return $this->renderPartial('enrolledlist', ['dataProvider' => $dataProvider, 'all' => true]);
 	}
 	
 	public function actionNotenrolledlist()
     {
-	   $query = Screening::find()->Where('mem_scrn_q25=2')->orderBy(["mem_scrn_part_id" => SORT_ASC]);
+	   $query = Mdhl::find()->Where('mem_scrn_q25=2')->orderBy(["mem_scrn_part_id" => SORT_ASC]);
        $dataProvider = new ActiveDataProvider(['query' => $query,'pagination' => false]);
        return $this->renderPartial('notenrolledlist', ['dataProvider' => $dataProvider, 'all' => true]);
 	}
 	
 		public function actionUnlinkedlist()
     {
-	   $query = Screening::find()->Where('mem_scrn_q25=1')->andWhere('mem_scrn_q16 ="" or mem_scrn_q16 is null')->andWhere('mem_scrn_q19 ="" or mem_scrn_q19 is null')->orderBy(["mem_scrn_part_id" => SORT_ASC]);
+	   $query = Mdhl::find()->Where('mem_scrn_q25=1')->andWhere('mem_scrn_q16 ="" or mem_scrn_q16 is null')->andWhere('mem_scrn_q19 ="" or mem_scrn_q19 is null')->orderBy(["mem_scrn_part_id" => SORT_ASC]);
        $dataProvider = new ActiveDataProvider(['query' => $query,'pagination' => false]);
        return $this->renderPartial('unlinkedlist', ['dataProvider' => $dataProvider, 'all' => true]);
 	}
 	
 	public function actionPreartonlylist()
     {
-	   $query = Screening::find()->Where('mem_scrn_q25=1')->andWhere('mem_scrn_q16 !=""')->andWhere('mem_scrn_q19 ="" or mem_scrn_q19 is null' )->orderBy(["mem_scrn_part_id" => SORT_ASC]);
+	   $query = Mdhl::find()->Where('mem_scrn_q25=1')->andWhere('mem_scrn_q16 !=""')->andWhere('mem_scrn_q19 ="" or mem_scrn_q19 is null' )->orderBy(["mem_scrn_part_id" => SORT_ASC]);
        $dataProvider = new ActiveDataProvider(['query' => $query,'pagination' => false]);
        return $this->renderPartial('preartonlylist', ['dataProvider' => $dataProvider, 'all' => true]);
 	}	
 		
 	public function actionArtlist()
     {
-	   $query = Screening::find()->Where('mem_scrn_q25=1')->andWhere('mem_scrn_q19 !=""')->orderBy(["mem_scrn_part_id" => SORT_ASC]);
+	   $query = Mdhl::find()->Where('mem_scrn_q25=1')->andWhere('mem_scrn_q19 !=""')->orderBy(["mem_scrn_part_id" => SORT_ASC]);
        $dataProvider = new ActiveDataProvider(['query' => $query,'pagination' => false]);
        return $this->renderPartial('artlist', ['dataProvider' => $dataProvider, 'all' => true]);
 	}
@@ -308,13 +307,14 @@ class DashboardController extends Controller
             $params = $request->post('depdrop_params');
         }
 
-        if(isset($params)) {
+        if(isset($params) && !empty($params[0])) {
+            $methodName = $params[0];
             if(empty($params[1]))
-                $model = Common::$params[0]($parents[0], $parents[1]);
+                $model = Common::{$methodName}($parents[0], $parents[1]);
             elseif(!empty($params[1]) && !isset($parents[2]))
-                $model = Common::$params[0]($params[1], $parents[0], $parents[1]);
+                $model = Common::{$methodName}($params[1], $parents[0], $parents[1]);
             else
-                $model = Common::$params[0]($parents[0], $parents[1], $params[1]);
+                $model = Common::{$methodName}($parents[0], $parents[1], $params[1]);
             $arr = [];
             $index = 0;
             foreach ($model as $key => $value) {
@@ -330,9 +330,50 @@ class DashboardController extends Controller
 	
 	public function actionHivlinkagelist()
     {
-		$scrtable = Screening::tableName();
-		$query = Hivlinkage::find()->where("hiv_linkage_part_id in (Select mem_scrn_part_id from $scrtable where mem_scrn_q25=1)")->orderBy(["hiv_linkage_part_id" => SORT_ASC]);	 
+		$scrtable = Mdhl::tableName();
+		$query = Mdhl::find()->orderBy(["mem_scrn_part_id" => SORT_ASC]);	 
        $dataProvider = new ActiveDataProvider(['query' => $query,'pagination' => false]);
        return $this->renderPartial('hivlinkagelist', ['dataProvider' => $dataProvider, 'all' => true]);
 	}
+
+    public function actionResetdatabase()
+    {
+        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+        Yii::$app->response->headers->set('Access-Control-Allow-Origin', '*');
+        Yii::$app->response->headers->set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        Yii::$app->response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+
+        $tables = [
+            'cms_mdhl',
+            'cms_apm',
+            'cms_bsr',
+            'cms_ce',
+            'cms_cml',
+            'cms_cprca',
+            'cms_dg',
+            'cms_fupm',
+            'cms_mortalityform',
+            'cms_trackingform',
+            'cms_vital'
+        ];
+
+        try {
+            $db = Yii::$app->db;
+            $db->createCommand("SET FOREIGN_KEY_CHECKS = 0;")->execute();
+            foreach ($tables as $t) {
+                $db->createCommand("TRUNCATE TABLE `$t`;")->execute();
+            }
+            $db->createCommand("SET FOREIGN_KEY_CHECKS = 1;")->execute();
+
+            return [
+                'status' => 'success',
+                'message' => 'Database screening tables cleared successfully!'
+            ];
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ];
+        }
+    }
 }
