@@ -710,25 +710,6 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                 </button>
 
                 <button
-                  onClick={async () => {
-                    if (window.confirm("Are you sure you want to clear all pending offline records from queue?")) {
-                      for (const item of syncQueue) {
-                        if (item.local_id) await deleteFromQueue(item.local_id);
-                      }
-                      setSelectedSyncIds([]);
-                      await loadQueue();
-                      notify("info", "Queue Cleared", "Removed all local offline records.");
-                    }
-                  }}
-                  disabled={syncQueue.length === 0}
-                  className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-red-700 bg-red-50 border border-red-200 hover:bg-red-100 disabled:opacity-50 transition-all shadow-2xs cursor-pointer"
-                  title="Clear all pending local records"
-                >
-                  <Trash2 size={13} className="text-red-600" />
-                  <span>Clear Queue</span>
-                </button>
-
-                <button
                   onClick={handleSync}
                   disabled={syncing || syncQueue.length === 0}
                   className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 transition-all shadow-2xs cursor-pointer"
@@ -757,11 +738,11 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                       return item.location || raw.location || item.mem_scrn_q17 || localStorage.getItem('ncd_active_location') || "Dharavi";
                     }).filter(Boolean)
                   ));
-                  const allTabs = ["All", ...uniqueLocs];
+                  const allTabs = uniqueLocs.length > 0 ? uniqueLocs : [localStorage.getItem('ncd_active_location') || "Dharavi"];
                   
                   return allTabs.map(loc => {
                     const isSel = selectedSyncLocation === loc;
-                    const count = loc === "All" ? syncQueue.length : syncQueue.filter(item => {
+                    const count = syncQueue.filter(item => {
                       let raw = {};
                       if (item.mem_scrn_q30) {
                         try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
@@ -776,7 +757,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                         onClick={() => setSelectedSyncLocation(loc)}
                         className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 border ${isSel ? 'bg-amber-400 text-amber-950 border-amber-500 shadow-2xs font-extrabold' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'}`}
                       >
-                        {loc === "All" ? "All Locations" : loc} ({count})
+                        {loc} ({count})
                       </button>
                     );
                   });

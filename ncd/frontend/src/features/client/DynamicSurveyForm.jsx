@@ -92,55 +92,79 @@ export function generateParticipantID(loc = "Dharavi") {
   const prefix = getlocationPrefix(loc);
   const counterKey = `ncd_participant_seq_${prefix}`;
   let currentSeq = parseInt(localStorage.getItem(counterKey) || "1", 10);
-  if (isNaN(currentSeq) || currentSeq > 9999) currentSeq = 1;
+  if (isNaN(currentSeq) || currentSeq > 99999) currentSeq = 1;
 
-  // Scan localStorage history to prevent duplicate IDs across restarts
+  const usedSet = new Set();
+
+  // 1. Check ncd_used_participant_ids
   try {
     const usedIdsRaw = localStorage.getItem('ncd_used_participant_ids');
-    const usedIds = usedIdsRaw ? JSON.parse(usedIdsRaw) : [];
-    const prefixPattern = new RegExp(`^NCD${prefix}(\\d{4})$`, 'i');
-    
-    let maxSeqInHistory = 0;
-    if (Array.isArray(usedIds)) {
-      usedIds.forEach(id => {
-        const m = String(id).match(prefixPattern);
-        if (m) {
-          const num = parseInt(m[1], 10);
-          if (!isNaN(num) && num > maxSeqInHistory) {
-            maxSeqInHistory = num;
-          }
-        }
-      });
-    }
-
-    if (maxSeqInHistory >= currentSeq) {
-      currentSeq = maxSeqInHistory + 1;
-      localStorage.setItem(counterKey, String(currentSeq));
+    if (usedIdsRaw) {
+      const parsed = JSON.parse(usedIdsRaw);
+      if (Array.isArray(parsed)) parsed.forEach(id => usedSet.add(String(id).toUpperCase().trim()));
     }
   } catch (e) {}
 
-  const padNum = String(currentSeq).padStart(4, '0');
-  return `NCD${prefix}${padNum}`;
+  // 2. Check ncd_local_initiated_participants
+  try {
+    const initStr = localStorage.getItem('ncd_local_initiated_participants');
+    if (initStr) {
+      const parsed = JSON.parse(initStr);
+      if (Array.isArray(parsed)) {
+        parsed.forEach(item => {
+          const id = item.participant_id || item.mem_scrn_part_id;
+          if (id) usedSet.add(String(id).toUpperCase().trim());
+        });
+      }
+    }
+  } catch (e) {}
+
+  // Find max sequence in usedSet for this location prefix
+  const prefixPattern = new RegExp(`^NCD${prefix}(\\d+)$`, 'i');
+  let maxSeq = 0;
+
+  usedSet.forEach(id => {
+    const m = id.match(prefixPattern);
+    if (m) {
+      const num = parseInt(m[1], 10);
+      if (!isNaN(num) && num > maxSeq) {
+        maxSeq = num;
+      }
+    }
+  });
+
+  let nextSeq = Math.max(currentSeq, maxSeq + 1);
+  let candidateId = `NCD${prefix}${String(nextSeq).padStart(4, '0')}`;
+
+  while (usedSet.has(candidateId)) {
+    nextSeq++;
+    candidateId = `NCD${prefix}${String(nextSeq).padStart(4, '0')}`;
+  }
+
+  localStorage.setItem(counterKey, String(nextSeq));
+  return candidateId;
 }
 
 export function incrementParticipantIDCounter(loc = "Dharavi") {
   const prefix = getlocationPrefix(loc);
   const counterKey = `ncd_participant_seq_${prefix}`;
-  let currentSeq = parseInt(localStorage.getItem(counterKey) || "1", 10);
-  if (isNaN(currentSeq)) currentSeq = 1;
-  const nextSeq = currentSeq + 1;
-  localStorage.setItem(counterKey, String(nextSeq));
-
-  // Store in used IDs list
+  const currentId = generateParticipantID(loc);
+  
+  // Register in used IDs list
   try {
     const usedIdsRaw = localStorage.getItem('ncd_used_participant_ids');
     const usedIds = usedIdsRaw ? JSON.parse(usedIdsRaw) : [];
-    const curId = `NCD${prefix}${String(currentSeq).padStart(4, '0')}`;
-    if (!usedIds.includes(curId)) {
-      usedIds.push(curId);
+    if (!usedIds.includes(currentId)) {
+      usedIds.push(currentId);
       localStorage.setItem('ncd_used_participant_ids', JSON.stringify(usedIds));
     }
   } catch (e) {}
+
+  const seqNum = parseInt(currentId.replace(`NCD${prefix}`, ''), 10);
+  const nextSeq = isNaN(seqNum) ? 2 : seqNum + 1;
+  localStorage.setItem(counterKey, String(nextSeq));
+  
+  return `NCD${prefix}${String(nextSeq).padStart(4, '0')}`;
 }
 
 const DEFAULT_SURVEY_QUESTIONS = [
@@ -209,12 +233,12 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   const [openMultiDropdowns, setOpenMultiDropdowns] = useState({});
 
   const [resumeFeatureEnabled, setResumeFeatureEnabled] = useState(
-    () => localStorage.getItem('ncd_setting_enable_resume_button') !== 'false'
+    () => localStorage.getItem('ncd_setting_enable_resume_button') === 'true'
   );
 
   useEffect(() => {
     const handleSettingChange = () => {
-      const isEn = localStorage.getItem('ncd_setting_enable_resume_button') !== 'false';
+      const isEn = localStorage.getItem('ncd_setting_enable_resume_button') === 'true';
       setResumeFeatureEnabled(isEn);
     };
     window.addEventListener('ncd_resume_setting_changed', handleSettingChange);
