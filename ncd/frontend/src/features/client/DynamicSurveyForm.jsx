@@ -649,7 +649,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     // Fetch active backend list & combine with local queue
     api.get("/api/v1/dashboard/screeninglist").then(res => {
       let rawList = [];
-      if (res.status === 'success' && Array.isArray(res.data)) {
+      if (res && res.status === 'success' && Array.isArray(res.data)) {
         rawList = res.data;
       }
       
@@ -666,6 +666,27 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       const allRecords = [...localQueue, ...rawList];
       const seenIds = new Set();
       const uniqueParticipants = [];
+
+      // Sync all server & offline IDs into ncd_used_participant_ids registry
+      try {
+        const usedIdsRaw = localStorage.getItem('ncd_used_participant_ids');
+        const usedSet = new Set(usedIdsRaw ? JSON.parse(usedIdsRaw) : []);
+        allRecords.forEach(r => {
+          let extra = {};
+          if (r.mem_scrn_q30) { try { extra = JSON.parse(r.mem_scrn_q30); } catch(e) {} }
+          const pId = r.participant_id || r.mem_scrn_part_id || extra.participant_id;
+          if (pId) usedSet.add(String(pId).toUpperCase().trim());
+        });
+        localStorage.setItem('ncd_used_participant_ids', JSON.stringify(Array.from(usedSet)));
+      } catch (e) {}
+
+      // Recalculate & update fresh incremented Participant ID for workstation location
+      const activeLoc = data.location || activeCenterLoc || "Dharavi";
+      const freshParticipantId = generateParticipantID(activeLoc);
+      setData(d => ({
+        ...d,
+        participant_id: freshParticipantId
+      }));
 
       allRecords.forEach((r, idx) => {
         let rawPayload = {};
@@ -1544,9 +1565,6 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                       <span>Pause Session</span>
                     </button>
                   )}
-                  <span className="text-xs font-bold px-3 py-1 rounded-full bg-slate-900 text-white font-mono">
-                    Role: {data.user_role}
-                  </span>
                 </div>
               </div>
 
