@@ -73,6 +73,10 @@ RUN mkdir -p runtime web/assets \
     && chmod -R 777 runtime web/assets \
     && chown -R www-data:www-data /var/www/html
 
+# ── Health check for Docker, Coolify, Traefik & Caddy ───────────────────────
+HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -f http://localhost/ || exit 1
+
 # Expose HTTP
 EXPOSE 80
 

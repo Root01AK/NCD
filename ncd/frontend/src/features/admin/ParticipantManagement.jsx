@@ -83,14 +83,24 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
       } catch (e) {}
 
       let apiList = [];
+      let apiResponded = false;
       try {
         const apiPromise = api.get("/api/v1/dashboard/screeninglist");
         const timeoutPromise = new Promise(res => setTimeout(() => res(null), 800));
         const res = await Promise.race([apiPromise, timeoutPromise]);
-        if (res && res.status === 'success' && Array.isArray(res.data)) {
-          apiList = res.data;
+        if (res && res.status === 'success') {
+          apiResponded = true;
+          if (Array.isArray(res.data)) {
+            apiList = res.data;
+          }
         }
       } catch (err) {}
+
+      // If backend DB screening tables are truncated/cleared (0 items returned), purge stale local storage cache!
+      if (apiResponded && apiList.length === 0) {
+        localStorage.removeItem('ncd_local_initiated_participants');
+        localInitiated = [];
+      }
 
       const combinedList = [...localInitiated, ...idbQueue, ...apiList];
       const seenIds = new Set();
@@ -208,6 +218,19 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
     notify("info", "Deleting Record", `Deleting participant ${partId}...`);
     try {
       await api.post("/api/v1/screening/delete", { mem_scrn_part_id: partId, mem_scrn_id: localId });
+      
+      // Also purge deleted record from local storage cache
+      try {
+        const initStr = localStorage.getItem('ncd_local_initiated_participants');
+        if (initStr) {
+          const parsed = JSON.parse(initStr);
+          if (Array.isArray(parsed)) {
+            const updated = parsed.filter(item => (item.participant_id || item.mem_scrn_part_id) !== partId);
+            localStorage.setItem('ncd_local_initiated_participants', JSON.stringify(updated));
+          }
+        }
+      } catch (err) {}
+
       setParticipants(prev => prev.filter(p => p.participant_id !== partId));
       if (selectedParticipant?.participant_id === partId) {
         setSelectedParticipant(null);

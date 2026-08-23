@@ -74,6 +74,7 @@ export function AdminProfile({ notify, user, phase1Unlocked, togglePhase1Lock })
       localStorage.removeItem('ncd_offline_queue');
       localStorage.removeItem('ncd_used_participant_ids');
       localStorage.removeItem('ncd_active_survey_draft');
+      localStorage.removeItem('ncd_local_initiated_participants');
       localStorage.removeItem('ncd_participant_seq_DH');
       localStorage.removeItem('ncd_participant_seq_ML');
       localStorage.removeItem('ncd_participant_seq_VA');
