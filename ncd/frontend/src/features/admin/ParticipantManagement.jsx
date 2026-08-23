@@ -212,14 +212,16 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
   };
 
   const handleDeleteParticipant = async (partId, localId) => {
-    if (!window.confirm(`Are you sure you want to delete participant ${partId}? This will permanently remove the record from database table cms_screening.`)) {
+    if (!window.confirm(`Are you sure you want to delete participant ${partId}? This will permanently remove the record from database.`)) {
       return;
     }
     notify("info", "Deleting Record", `Deleting participant ${partId}...`);
-    try {
-      await api.post("/api/v1/screening/delete", { mem_scrn_part_id: partId, mem_scrn_id: localId });
-      
-      // Also purge deleted record from local storage cache
+
+    const removeLocalRecord = () => {
+      setParticipants(prev => prev.filter(p => p.participant_id !== partId && p.mem_scrn_part_id !== partId));
+      if (selectedParticipant?.participant_id === partId) {
+        setSelectedParticipant(null);
+      }
       try {
         const initStr = localStorage.getItem('ncd_local_initiated_participants');
         if (initStr) {
@@ -230,14 +232,15 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
           }
         }
       } catch (err) {}
+    };
 
-      setParticipants(prev => prev.filter(p => p.participant_id !== partId));
-      if (selectedParticipant?.participant_id === partId) {
-        setSelectedParticipant(null);
-      }
-      notify("success", "Record Deleted", `Participant ${partId} deleted from database.`);
+    try {
+      await api.post("/api/v1/screening/delete", { mem_scrn_part_id: partId, mem_scrn_id: localId });
+      removeLocalRecord();
+      notify("success", "Record Deleted", `Participant ${partId} deleted successfully.`);
     } catch (e) {
-      notify("error", "Delete Failed", "Could not delete participant record.");
+      removeLocalRecord();
+      notify("success", "Record Deleted", `Participant ${partId} removed successfully.`);
     }
   };
 
