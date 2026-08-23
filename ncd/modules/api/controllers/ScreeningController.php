@@ -146,7 +146,7 @@ class ScreeningController extends Controller
 
     /**
      * POST /api/v1/screening/delete
-     * Permanently deletes a screening record from cms_screening database table.
+     * Permanently deletes a screening record from cms_mdhl database table.
      */
     public function actionDelete()
     {
@@ -163,10 +163,18 @@ class ScreeningController extends Controller
         try {
             $db = Yii::$app->db;
             if ($id) {
-                $db->createCommand()->delete('cms_screening', ['mem_scrn_id' => $id])->execute();
+                $db->createCommand()->delete('cms_mdhl', ['mem_scrn_id' => $id])->execute();
             }
             if ($partId) {
-                $db->createCommand()->delete('cms_screening', ['mem_scrn_part_id' => $partId])->execute();
+                $db->createCommand()->delete('cms_mdhl', ['mem_scrn_part_id' => $partId])->execute();
+                try { $db->createCommand()->delete('cms_apm', ['apm_pid' => $partId])->execute(); } catch (\Exception $e) {}
+                try { $db->createCommand()->delete('cms_bsr', ['bsr_pid' => $partId])->execute(); } catch (\Exception $e) {}
+                try { $db->createCommand()->delete('cms_ce', ['ce_pid' => $partId])->execute(); } catch (\Exception $e) {}
+                try { $db->createCommand()->delete('cms_cml', ['cml_pid' => $partId])->execute(); } catch (\Exception $e) {}
+                try { $db->createCommand()->delete('cms_cprca', ['cprca_pid' => $partId])->execute(); } catch (\Exception $e) {}
+                try { $db->createCommand()->delete('cms_dg', ['dg_pid' => $partId])->execute(); } catch (\Exception $e) {}
+                try { $db->createCommand()->delete('cms_fupm', ['fupm_pid' => $partId])->execute(); } catch (\Exception $e) {}
+                try { $db->createCommand()->delete('cms_vital', ['vital_pid' => $partId])->execute(); } catch (\Exception $e) {}
             }
 
             return ['status' => 'success', 'message' => 'Participant screening record deleted successfully'];
