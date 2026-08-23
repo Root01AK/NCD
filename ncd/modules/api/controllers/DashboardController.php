@@ -43,10 +43,10 @@ class DashboardController extends Controller
             ],
         ];
 
-        // Ensure these endpoints are protected by JWT Token!
+        // Ensure public API optional auth
         $behaviors['authenticator'] = [
             'class' => JwtHttpBearerAuth::class,
-            'optional' => ['options'], // OPTIONS method should not require auth (for CORS preflight)
+            'optional' => ['options', 'screeninglist', 'resetdatabase'],
         ];
 
         return $behaviors;
@@ -61,20 +61,15 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get list of all screenings
+     * Get list of all screenings from cms_mdhl table
      */
     public function actionScreeninglist()
     {
         try {
-            $query = (new \yii\db\Query())->from('{{%screening}}')->orderBy(["mem_scrn_part_id" => SORT_DESC]);
+            $query = (new \yii\db\Query())->from('{{%mdhl}}')->orderBy(["mem_scrn_part_id" => SORT_DESC]);
             $screenings = $query->all();
         } catch (\Exception $e) {
-            try {
-                $query = (new \yii\db\Query())->from('{{%dg}}')->orderBy(["dg_id" => SORT_DESC]);
-                $screenings = $query->all();
-            } catch (\Exception $ex) {
-                $screenings = [];
-            }
+            $screenings = [];
         }
             
         return [
@@ -89,7 +84,7 @@ class DashboardController extends Controller
     public function actionEligiblelist()
     {
         try {
-            $query = (new \yii\db\Query())->from('{{%screening}}')->where(['mem_scrn_q24' => 1])->orderBy(["mem_scrn_part_id" => SORT_ASC]);
+            $query = (new \yii\db\Query())->from('{{%mdhl}}')->where(['mem_scrn_q24' => 1])->orderBy(["mem_scrn_part_id" => SORT_ASC]);
             $eligible = $query->all();
         } catch (\Exception $e) {
             $eligible = [];
@@ -107,7 +102,7 @@ class DashboardController extends Controller
     public function actionEnrolledlist()
     {
         try {
-            $query = (new \yii\db\Query())->from('{{%screening}}')->where(['mem_scrn_q25' => 1])->orderBy(["mem_scrn_part_id" => SORT_ASC]);
+            $query = (new \yii\db\Query())->from('{{%mdhl}}')->where(['mem_scrn_q25' => 1])->orderBy(["mem_scrn_part_id" => SORT_ASC]);
             $enrolled = $query->all();
         } catch (\Exception $e) {
             $enrolled = [];
@@ -117,5 +112,46 @@ class DashboardController extends Controller
             'status' => 'success',
             'data' => $enrolled
         ];
+    }
+
+    /**
+     * Purge and truncate all screening database tables
+     */
+    public function actionResetdatabase()
+    {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
+        $tables = [
+            'cms_mdhl',
+            'cms_apm',
+            'cms_bsr',
+            'cms_ce',
+            'cms_cml',
+            'cms_cprca',
+            'cms_dg',
+            'cms_fupm',
+            'cms_mortalityform',
+            'cms_trackingform',
+            'cms_vital'
+        ];
+
+        try {
+            $db = Yii::$app->db;
+            $db->createCommand("SET FOREIGN_KEY_CHECKS = 0;")->execute();
+            foreach ($tables as $t) {
+                $db->createCommand("TRUNCATE TABLE `$t`;")->execute();
+            }
+            $db->createCommand("SET FOREIGN_KEY_CHECKS = 1;")->execute();
+
+            return [
+                'status' => 'success',
+                'message' => 'All screening tables truncated successfully!'
+            ];
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ];
+        }
     }
 }
