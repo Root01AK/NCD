@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { UserCircle2, Mail, Lock, Unlock, Layers, ShieldCheck, CheckCircle2, Server, Database, Cpu, HardDrive, Activity } from "lucide-react";
+import { UserCircle2, Mail, Lock, Unlock, Layers, ShieldCheck, CheckCircle2, Server, Database, Cpu, HardDrive, Activity, Trash2, Loader2 } from "lucide-react";
 
 export function AdminProfile({ notify, user, phase1Unlocked, togglePhase1Lock }) {
   const [formData, setFormData] = useState({
