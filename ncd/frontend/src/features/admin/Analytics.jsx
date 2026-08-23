@@ -65,9 +65,11 @@ export function Analytics({ phase = "phase2" }) {
 
       // Phase 2 Live Datasets across API, IndexedDB queue, and local registry
       let apiList = [];
+      let apiResponded = false;
       try {
         const res = await api.get("/api/v1/dashboard/screeninglist");
-        if (res.status === 'success' && Array.isArray(res.data)) {
+        if (res && res.status === 'success' && Array.isArray(res.data)) {
+          apiResponded = true;
           apiList = res.data;
         }
       } catch (e) {}
@@ -85,6 +87,11 @@ export function Analytics({ phase = "phase2" }) {
           if (Array.isArray(parsed)) localInit = parsed;
         }
       } catch (e) {}
+
+      if (apiResponded && apiList.length === 0) {
+        localStorage.removeItem('ncd_local_initiated_participants');
+        localInit = [];
+      }
 
       // Filter Phase 2 live entries (exclude Phase 1 historical baseline rows)
       const phase2ApiList = apiList.filter(s => {

@@ -101,9 +101,11 @@ export function AdminDashboard({ notify, logout }) {
     setLoadingQueue(true);
     try {
       let apiList = [];
+      let apiResponded = false;
       try {
         const res = await api.get("/api/v1/dashboard/screeninglist");
-        if (res.status === 'success' && Array.isArray(res.data)) {
+        if (res && res.status === 'success' && Array.isArray(res.data)) {
+          apiResponded = true;
           apiList = res.data;
         }
       } catch (e) {}
@@ -121,6 +123,11 @@ export function AdminDashboard({ notify, logout }) {
           if (Array.isArray(parsed)) localInitiated = parsed;
         }
       } catch (e) {}
+
+      if (apiResponded && apiList.length === 0) {
+        localStorage.removeItem('ncd_local_initiated_participants');
+        localInitiated = [];
+      }
 
       const combined = [...localInitiated, ...idbQueue, ...apiList];
       const seenIds = new Set();

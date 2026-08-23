@@ -474,6 +474,16 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                   <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 font-mono">Total Initiated</p>
                   <p className="text-3xl font-black text-slate-900 font-mono tracking-tight">
                     {(() => {
+                      let apiList = [];
+                      let apiResponded = false;
+                      try {
+                        const res = api.get("/api/v1/dashboard/screeninglist");
+                        if (res && res.status === 'success' && Array.isArray(res.data)) {
+                          apiResponded = true;
+                          apiList = res.data;
+                        }
+                      } catch (e) {}
+
                       let localInit = [];
                       try {
                         const initStr = localStorage.getItem('ncd_local_initiated_participants') || localStorage.getItem('ncd_offline_queue');
@@ -482,6 +492,11 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                           if (Array.isArray(parsed)) localInit = parsed;
                         }
                       } catch(e) {}
+
+                      if (apiResponded && apiList.length === 0) {
+                        localStorage.removeItem('ncd_local_initiated_participants');
+                        localInit = [];
+                      }
                       const total = localInit.length + syncQueue.length + completedRecords.length;
                       return total > 0 ? total : completedRecords.length;
                     })()}
