@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { UserCircle2, Mail, Lock, Unlock, Layers, ShieldCheck, CheckCircle2, Server, Database, Cpu, HardDrive, Activity, Trash2, Loader2 } from "lucide-react";
+import { clearQueue } from "../../lib/db";
 
 export function AdminProfile({ notify, user, phase1Unlocked, togglePhase1Lock }) {
   const [formData, setFormData] = useState({
@@ -71,6 +72,7 @@ export function AdminProfile({ notify, user, phase1Unlocked, togglePhase1Lock })
       const res = await api.get('/api/v1/dashboard/resetdatabase');
       
       // 2. Purge local offline queues & local storage caches
+      try { await clearQueue(); } catch (e) {}
       localStorage.removeItem('ncd_offline_queue');
       localStorage.removeItem('ncd_used_participant_ids');
       localStorage.removeItem('ncd_active_survey_draft');

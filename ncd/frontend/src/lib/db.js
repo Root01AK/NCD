@@ -60,3 +60,16 @@ export const deleteFromQueue = async (local_id) => {
     request.onerror = () => reject(request.error);
   });
 };
+
+// Clear entire IndexedDB sync queue
+export const clearQueue = async () => {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.clear();
+    
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+};

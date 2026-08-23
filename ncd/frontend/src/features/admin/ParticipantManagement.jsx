@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Search, MapPin, Eye, FileText, CheckCircle, AlertTriangle, Loader2, UserCheck, Stethoscope, HeartPulse, Brain, Link2, Trash2, Edit3, Save, X, Plus, Code, RefreshCw, SlidersHorizontal, Settings } from "lucide-react";
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
-import { getQueue } from "../../lib/db";
+import { getQueue, deleteFromQueue } from "../../lib/db";
 
 function generateParticipantID(loc = "Dharavi") {
   const locLower = String(loc || "").toLowerCase();
@@ -217,11 +217,13 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
     }
     notify("info", "Deleting Record", `Deleting participant ${partId}...`);
 
-    const removeLocalRecord = () => {
+    const removeLocalRecord = async () => {
       setParticipants(prev => prev.filter(p => p.participant_id !== partId && p.mem_scrn_part_id !== partId));
       if (selectedParticipant?.participant_id === partId) {
         setSelectedParticipant(null);
       }
+      
+      // 1. Purge from ncd_local_initiated_participants
       try {
         const initStr = localStorage.getItem('ncd_local_initiated_participants');
         if (initStr) {
@@ -229,6 +231,31 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
           if (Array.isArray(parsed)) {
             const updated = parsed.filter(item => (item.participant_id || item.mem_scrn_part_id) !== partId);
             localStorage.setItem('ncd_local_initiated_participants', JSON.stringify(updated));
+          }
+        }
+      } catch (err) {}
+
+      // 2. Purge from ncd_offline_queue
+      try {
+        const offStr = localStorage.getItem('ncd_offline_queue');
+        if (offStr) {
+          const parsed = JSON.parse(offStr);
+          if (Array.isArray(parsed)) {
+            const updated = parsed.filter(item => (item.participant_id || item.mem_scrn_part_id) !== partId);
+            localStorage.setItem('ncd_offline_queue', JSON.stringify(updated));
+          }
+        }
+      } catch (err) {}
+
+      // 3. Purge from IndexedDB sync_queue
+      try {
+        if (localId) await deleteFromQueue(localId);
+        const idbQueue = await getQueue();
+        if (Array.isArray(idbQueue)) {
+          for (const item of idbQueue) {
+            if ((item.participant_id || item.mem_scrn_part_id) === partId) {
+              if (item.local_id) await deleteFromQueue(item.local_id);
+            }
           }
         }
       } catch (err) {}
