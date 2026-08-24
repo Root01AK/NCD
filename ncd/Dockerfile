@@ -19,6 +19,10 @@ RUN npm run build
 # Pin to Alpine 3.19 for reproducible package availability
 FROM php:8.2-fpm-alpine3.19
 
+# Environment variables for Composer & PHP
+ENV COMPOSER_ALLOW_SUPERUSER=1
+ENV COMPOSER_MEMORY_LIMIT=-1
+
 # Install system packages and PHP extensions
 # Note: 'icudata' does NOT exist in Alpine - use icu-data-full instead
 RUN apk add --no-cache \
@@ -44,25 +48,14 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# ── PHP dependencies (cached separately from app code) ──────────────────────
-COPY composer.json composer.lock ./
-# --ignore-platform-reqs: lock file may have been generated on a different PHP version
-# --no-scripts: skip post-install scripts (Yii2 installer needs full app context, runs later)
-# COMPOSER_MEMORY_LIMIT=-1: prevents OOM kills inside the container
-RUN COMPOSER_MEMORY_LIMIT=-1 composer install \
-        --no-dev \
-        --optimize-autoloader \
-        --no-interaction \
-        --no-progress \
-        --prefer-dist \
-        --ignore-platform-reqs \
-        --no-scripts
-
-# ── Application source ───────────────────────────────────────────────────────
+# ── Application source (includes pre-bundled vendor/ dependencies) ───────────
 COPY . .
 
 # ── Built React assets from Stage 1 ─────────────────────────────────────────
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+
+# ── Optimize Composer Autoloader ─────────────────────────────────────────────
+RUN composer dump-autoload --optimize --no-scripts || composer install --no-dev --optimize-autoloader --no-interaction --no-progress --ignore-platform-reqs --no-scripts --no-audit
 
 # ── Nginx & Supervisor configuration ─────────────────────────────────────────
 COPY docker/nginx.conf /etc/nginx/http.d/default.conf
