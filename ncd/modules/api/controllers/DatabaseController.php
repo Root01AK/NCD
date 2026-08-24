@@ -56,26 +56,61 @@ class DatabaseController extends Controller
     private function getDbConnection($loc = null)
     {
         $locKey = strtolower(trim((string)$loc));
-        if ($locKey === 'dharavi' && Yii::$app->has('db_dharavi')) {
+        $host = getenv('DB_HOST') ?: '127.0.0.1';
+        $user = getenv('DB_USER') ?: 'root';
+        $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : 'Kirub@2001';
+
+        if ($locKey === 'dharavi') {
             try {
-                Yii::$app->db_dharavi->open();
-                return [Yii::$app->db_dharavi, 'Dharavi', 'ncd_dharavi'];
-            } catch (\Exception $e) {}
-        }
-        if ($locKey === 'malvani' && Yii::$app->has('db_malvani')) {
-            try {
-                Yii::$app->db_malvani->open();
-                return [Yii::$app->db_malvani, 'Malvani', 'ncd_malvani'];
-            } catch (\Exception $e) {}
-        }
-        if ($locKey === 'vashi' && Yii::$app->has('db_vashi')) {
-            try {
-                Yii::$app->db_vashi->open();
-                return [Yii::$app->db_vashi, 'Vashi', 'ncd_vashi'];
-            } catch (\Exception $e) {}
+                $dbName = getenv('DB_NAME_DHARAVI') ?: 'ncd_dharavi';
+                $conn = new \yii\db\Connection([
+                    'dsn' => "mysql:host={$host};dbname={$dbName}",
+                    'username' => $user,
+                    'password' => $pass,
+                    'charset' => 'utf8',
+                    'tablePrefix' => 'cms_',
+                ]);
+                $conn->open();
+                return [$conn, 'Dharavi', $dbName];
+            } catch (\Exception $e) {
+                return [Yii::$app->db, 'Dharavi', 'ncd'];
+            }
         }
 
-        // Fallback default Central DB
+        if ($locKey === 'malvani') {
+            try {
+                $dbName = getenv('DB_NAME_MALVANI') ?: 'ncd_malvani';
+                $conn = new \yii\db\Connection([
+                    'dsn' => "mysql:host={$host};dbname={$dbName}",
+                    'username' => $user,
+                    'password' => $pass,
+                    'charset' => 'utf8',
+                    'tablePrefix' => 'cms_',
+                ]);
+                $conn->open();
+                return [$conn, 'Malvani', $dbName];
+            } catch (\Exception $e) {
+                return [Yii::$app->db, 'Malvani', 'ncd'];
+            }
+        }
+
+        if ($locKey === 'vashi') {
+            try {
+                $dbName = getenv('DB_NAME_VASHI') ?: 'ncd_vashi';
+                $conn = new \yii\db\Connection([
+                    'dsn' => "mysql:host={$host};dbname={$dbName}",
+                    'username' => $user,
+                    'password' => $pass,
+                    'charset' => 'utf8',
+                    'tablePrefix' => 'cms_',
+                ]);
+                $conn->open();
+                return [$conn, 'Vashi', $dbName];
+            } catch (\Exception $e) {
+                return [Yii::$app->db, 'Vashi', 'ncd'];
+            }
+        }
+
         return [Yii::$app->db, 'Central DB', 'ncd'];
     }
 

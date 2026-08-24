@@ -1,6 +1,8 @@
 <?php
 
 use kartik\grid\GridView;
+use kartik\grid\GridViewInterface;
+use kartik\date\DatePicker;
 
 $params = require(__DIR__ . '/params.php');
 
@@ -85,9 +87,6 @@ $config = [
             ],
         ],
         'db' => require(__DIR__ . '/db.php'),
-        'db_dharavi' => require(__DIR__ . '/db_dharavi.php'),
-        'db_malvani' => require(__DIR__ . '/db_malvani.php'),
-        'db_vashi' => require(__DIR__ . '/db_vashi.php'),
         'urlManager' => [
             'enablePrettyUrl' => true,
             'showScriptName' => false,
@@ -190,11 +189,11 @@ if (YII_ENV_DEV) {
         'footer'=>false
     ],
     'exportConfig' => [
-        GridView::CSV => [],
-        GridView::EXCEL => [
+        GridViewInterface::CSV => [],
+        GridViewInterface::EXCEL => [
             'options' => ['title' => Yii::t('kvgrid', 'Microsoft Excel')]
         ],
-        // GridView::PDF => [],
+        // GridViewInterface::PDF => [],
     ],
     'pager' => [
         'options' => ['class' => 'pagination pull-right'],
@@ -242,7 +241,7 @@ if (YII_ENV_DEV) {
 
 \Yii::$container->set('kartik\widgets\DatePicker', [
     'pluginOptions' => ['autoclose' => true, 'startDate' => '01-01-1900', 'endDate' => '0', 'format' => strtolower($config["components"]["formatter"]["dateFormat"])],
-    'type' => kartik\widgets\DatePicker::TYPE_INPUT,
+    'type' => DatePicker::TYPE_INPUT,
 ]);
 
 return $config;
