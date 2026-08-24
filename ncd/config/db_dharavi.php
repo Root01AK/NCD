@@ -1,7 +1,7 @@
 <?php
 
 $host = getenv('DB_HOST') ?: '127.0.0.1';
-$dbname = getenv('DB_NAME_DHARAVI') ?: 'ncd_dharavi';
+$dbname = getenv('DB_NAME_DHARAVI') ?: (getenv('DB_NAME') ?: 'ncd');
 $username = getenv('DB_USER') ?: 'root';
 $password = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : 'Kirub@2001';
 
