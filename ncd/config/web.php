@@ -85,6 +85,9 @@ $config = [
             ],
         ],
         'db' => require(__DIR__ . '/db.php'),
+        'db_dharavi' => require(__DIR__ . '/db_dharavi.php'),
+        'db_malvani' => require(__DIR__ . '/db_malvani.php'),
+        'db_vashi' => require(__DIR__ . '/db_vashi.php'),
         'urlManager' => [
             'enablePrettyUrl' => true,
             'showScriptName' => false,
@@ -97,6 +100,7 @@ $config = [
                 'api/v1/screening/<action>' => 'api/screening/<action>',
                 'api/v1/location/<action>' => 'api/location/<action>',
                 'api/v1/users/<action>' => 'api/users/<action>',
+                'api/v1/database/<action>' => 'api/database/<action>',
             ],
         ],
 		'formatter' => [

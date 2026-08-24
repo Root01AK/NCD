@@ -791,9 +791,32 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
                       <button onClick={() => moveQ(idx, "down")} disabled={idx===questions.length-1} className="p-0.5 rounded hover:bg-gray-100 disabled:opacity-30"><ArrowDown size={12} color={T.charcoal700}/></button>
                     </div>
 
-                    <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider shrink-0" style={{ background: T.blueTint, color: T.blueDeep, fontFamily: "'IBM Plex Mono', monospace" }}>
-                      {Q_TYPES.find(t => t.id === q.type)?.label || q.type}
-                    </span>
+                    {/* Interactive Blue Pill Badge Format Selector */}
+                    <div onClick={e => e.stopPropagation()} className="shrink-0">
+                      <select
+                        value={q.type}
+                        onChange={(e) => {
+                          const newType = e.target.value;
+                          updateQ(q.id, "type", newType);
+                          if ((newType === "single_choice" || newType === "multi_choice" || newType === "dropdown") && (!q.options || q.options.length === 0)) {
+                            updateQ(q.id, "options", ["Option 1", "Option 2"]);
+                          }
+                        }}
+                        className="px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider shrink-0 outline-none cursor-pointer border border-blue-200 hover:border-blue-400 transition-all shadow-2xs"
+                        style={{ 
+                          background: T.blueTint, 
+                          color: T.blueDeep, 
+                          fontFamily: "'IBM Plex Mono', monospace" 
+                        }}
+                        title="Click to choose question format"
+                      >
+                        {Q_TYPES.map(t => (
+                          <option key={t.id} value={t.id} style={{ background: '#ffffff', color: '#0f172a' }}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
                     <h3 className="text-sm font-bold text-slate-800 truncate" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                       {q.title || <span className="text-slate-400 italic">Untitled Question</span>}
@@ -819,6 +842,32 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
                 {/* Detailed Editor (expanded) */}
                 {isExpanded && (
                   <div className="mt-5 pt-5 border-t border-slate-100 space-y-5 animate-in fade-in duration-200">
+                    
+                    {/* Question Display Type Dropdown Selector in Expanded View */}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-amber-50/80 p-3.5 rounded-2xl border border-amber-200">
+                      <div className="flex items-center gap-2">
+                        <SlidersHorizontal size={15} className="text-amber-700" />
+                        <span className="text-xs font-bold text-amber-950 font-mono">Question Display Type:</span>
+                      </div>
+                      <select
+                        value={q.type}
+                        onChange={(e) => {
+                          const newType = e.target.value;
+                          updateQ(q.id, "type", newType);
+                          if ((newType === "single_choice" || newType === "multi_choice" || newType === "dropdown") && (!q.options || q.options.length === 0)) {
+                            updateQ(q.id, "options", ["Option 1", "Option 2"]);
+                          }
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl text-xs font-black font-mono bg-white border border-amber-300 text-amber-950 shadow-2xs outline-none cursor-pointer hover:border-amber-500"
+                      >
+                        {Q_TYPES.map(t => (
+                          <option key={t.id} value={t.id}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
                     <input 
                       type="text" 
                       placeholder={q.type === "section_header" ? "Enter Section Title..." : "Enter your question..."} 

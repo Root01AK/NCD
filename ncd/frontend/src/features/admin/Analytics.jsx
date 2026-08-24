@@ -119,14 +119,7 @@ export function Analytics({ phase = "phase2" }) {
       });
 
       // Active Phase II real screening entries
-      const targetScreenings = allScreenings.length > 0 ? allScreenings : [
-        { participant_id: "NCDDH0001", location: "Dharavi", risk: "Standard Risk" },
-        { participant_id: "NCDDH0002", location: "Dharavi", risk: "Standard Risk" },
-        { participant_id: "NCDDH0003", location: "Dharavi", risk: "Standard Risk" },
-        { participant_id: "NCDDH0005", location: "Dharavi", risk: "Standard Risk" },
-        { participant_id: "NCDML0001", location: "Malvani", risk: "High Risk Flagged", mem_scrn_q24: "1" },
-        { participant_id: "NCDVA0001", location: "Vashi", risk: "Standard Risk" }
-      ];
+      const targetScreenings = allScreenings;
 
       let highRiskCount = 0;
       let totalCount = targetScreenings.length;

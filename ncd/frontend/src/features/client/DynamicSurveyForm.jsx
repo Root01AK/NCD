@@ -494,18 +494,35 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       let updates = {};
 
       // 1. BMI Calculation: Q67 (Height in cm) & Q68 (Weight in kg) -> Q69 (BMI)
-      const htCm = parseFloat(d.q67 || d.custom_q67 || d.height || 0);
-      const wt = parseFloat(d.q68 || d.custom_q68 || d.weight || 0);
+      let htCm = parseFloat(d.q67 || d.custom_q67 || d.height || d.Q67 || 0);
+      let wt = parseFloat(d.q68 || d.custom_q68 || d.weight || d.Q68 || 0);
+
+      // Dynamic search for Q67 (Height) and Q68 (Weight) across all data keys
+      if (!htCm || !wt) {
+        Object.keys(d).forEach(k => {
+          const kLower = k.toLowerCase();
+          const valNum = parseFloat(d[k]);
+          if (!isNaN(valNum) && valNum > 0) {
+            if (!htCm && (kLower.includes("q67") || kLower.includes("height"))) htCm = valNum;
+            if (!wt && (kLower.includes("q68") || kLower.includes("weight"))) wt = valNum;
+          }
+        });
+      }
+
       if (wt > 0 && htCm > 0) {
         const htM = htCm / 100;
         const calcBmi = (wt / (htM * htM)).toFixed(2);
-        if (d.bmi !== calcBmi || d.custom_q69 !== calcBmi) {
+        if (d.bmi !== calcBmi || d.custom_q69 !== calcBmi || d.q69 !== calcBmi) {
           updates.bmi = calcBmi;
           updates.custom_bmi = calcBmi;
           updates.q69 = calcBmi;
           updates.custom_q69 = calcBmi;
-          const q69Key = Object.keys(d).find(k => k.toLowerCase().includes("q69")) || "q69";
-          updates[q69Key] = calcBmi;
+          updates.Q69 = calcBmi;
+          Object.keys(d).forEach(k => {
+            if (k.toLowerCase().includes("q69") || k.toLowerCase().includes("bmi")) {
+              if (d[k] !== calcBmi) updates[k] = calcBmi;
+            }
+          });
         }
       }
 
@@ -1884,6 +1901,65 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                             </div>
                             <div className="bg-[#32343a] text-slate-200 px-5 py-3 text-xs italic font-medium border-t border-slate-700 leading-relaxed">
                               Bands: Positive screen is 4 or more for men, 3 or more for women and transgender participants.
+                            </div>
+                          </div>
+                        ) : (q.id === "q69" || (q.title && (q.title.toLowerCase().includes("q69") || q.title.toLowerCase().includes("bmi")))) ? (
+                          <div className="rounded-2xl border border-slate-700 overflow-hidden shadow-md font-mono my-2 animate-in fade-in duration-200">
+                            <div className="bg-[#b4c6ff] text-slate-950 px-5 py-3 font-extrabold text-sm border-b border-slate-600 flex items-center justify-between">
+                              <span>Q69. Body Mass Index (BMI) — Auto-Calculated</span>
+                              <span className="text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded bg-slate-900 text-amber-300 font-bold">
+                                Formula: Weight (kg) / [Height (m)]²
+                              </span>
+                            </div>
+                            <div className="bg-[#242426] text-white px-5 py-4 flex items-center justify-between">
+                              <div className="flex items-baseline gap-3">
+                                <input
+                                  type="text"
+                                  readOnly
+                                  disabled
+                                  placeholder="0.00"
+                                  value={data[`custom_${q.id}`] || data[q.id] || data.bmi || data.q69 || ''}
+                                  className="w-32 bg-transparent font-black text-3xl text-amber-400 border-b-2 border-amber-400 text-center outline-none cursor-not-allowed select-none"
+                                />
+                                <span className="text-xl font-bold text-slate-300">kg/m²</span>
+                              </div>
+
+                              {(() => {
+                                const bmiNum = parseFloat(data[`custom_${q.id}`] || data[q.id] || data.bmi || data.q69 || 0);
+                                let category = "Pending Q67 Height & Q68 Weight";
+                                let badgeColor = "bg-slate-800 text-slate-300 border-slate-700";
+
+                                if (bmiNum > 0) {
+                                  if (bmiNum < 18.5) {
+                                    category = "Underweight (< 18.5)";
+                                    badgeColor = "bg-sky-900 text-sky-200 border-sky-600";
+                                  } else if (bmiNum <= 24.9) {
+                                    category = "Normal / Healthy (18.5 - 24.9)";
+                                    badgeColor = "bg-emerald-900 text-emerald-200 border-emerald-600";
+                                  } else if (bmiNum <= 29.9) {
+                                    category = "Overweight (25.0 - 29.9)";
+                                    badgeColor = "bg-amber-900 text-amber-200 border-amber-600";
+                                  } else {
+                                    category = "Obese (≥ 30.0)";
+                                    badgeColor = "bg-red-900 text-red-200 border-red-600";
+                                  }
+                                }
+
+                                return (
+                                  <div className="flex flex-col items-end gap-1">
+                                    <span className={`text-xs font-mono font-bold px-3 py-1.5 rounded-xl border shadow-2xs ${badgeColor}`}>
+                                      {category}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                      Height: {data.q67 || data.custom_q67 || data.height || '—'} cm | Weight: {data.q68 || data.custom_q68 || data.weight || '—'} kg
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                            <div className="bg-[#32343a] text-slate-200 px-5 py-3 text-xs italic font-medium border-t border-slate-700 leading-relaxed flex items-center justify-between">
+                              <span>Auto-computed from Q67 (Height) & Q68 (Weight). Plausibility range: 10.0 to 60.0 kg/m².</span>
+                              <span className="font-bold text-amber-300 not-italic">Auto-Locked</span>
                             </div>
                           </div>
                         ) : qType === 'short_text' ? (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Search, ChevronDown, Filter, FileText, Settings, UserCircle2, ArrowUpRight, CheckCircle2, AlertCircle, LogOut, MapPin, Grid, Layers, PieChart, Bell, Download, Loader2, Users, Menu, X, Lock, Unlock } from "lucide-react";
+import { Search, ChevronDown, Filter, FileText, Settings, UserCircle2, ArrowUpRight, CheckCircle2, AlertCircle, LogOut, MapPin, Grid, Layers, PieChart, Bell, Download, Loader2, Users, Menu, X, Lock, Unlock, Database } from "lucide-react";
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { getQueue } from "../../lib/db";
@@ -11,6 +11,7 @@ import { UserManagement } from "./UserManagement";
 import { AdminProfile } from "./AdminProfile";
 import { DataExport } from "./DataExport";
 import { ParticipantManagement } from "./ParticipantManagement";
+import { DatabaseMastery } from "./DatabaseMastery";
 
 export function AdminDashboard({ notify, logout }) {
   const getInitialTab = () => {
@@ -290,6 +291,7 @@ export function AdminDashboard({ notify, logout }) {
     { id: "queue", label: "Verification Queue", icon: FileText },
     { id: "export", label: "Data Export", icon: Download },
     { id: "users", label: "User Management", icon: UserCircle2 },
+    { id: "database", label: "Database Mastery", icon: Database },
     { id: "profile", label: "My Profile", icon: Settings },
   ];
 
@@ -472,6 +474,7 @@ export function AdminDashboard({ notify, logout }) {
         {navTab === "participants" && <ParticipantManagement notify={notify} phase={selectedPhase} initialLocation={selectedAdminLocation} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
         {navTab === "location" && <LocationMaster notify={notify} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
         {navTab === "users" && <UserManagement notify={notify} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
+        {navTab === "database" && <DatabaseMastery notify={notify} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
         {navTab === "profile" && <AdminProfile notify={notify} user={user} phase1Unlocked={phase1Unlocked} togglePhase1Lock={togglePhase1Lock} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
         {navTab === "export" && <DataExport notify={notify} phase={selectedPhase} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
 
