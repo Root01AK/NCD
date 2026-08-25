@@ -23,14 +23,8 @@ $config = [
     'components' => [
         'jwt' => [
             'class' => \bizley\jwt\Jwt::class,
-            'signer' => \bizley\jwt\Jwt::HS256,
-            'signingKey' => 'super-secret-icc-plus-key-2026-secure', // Secret key for JWT (must be >= 32 chars)
-            'validationConstraints' => function ($jwt) {
-                $config = $jwt->getConfiguration();
-                return [
-                    new \Lcobucci\JWT\Validation\Constraint\SignedWith($config->signer(), $config->signingKey())
-                ];
-            },
+            'signer' => 'HS256',
+            'signingKey' => 'super-secret-icc-plus-key-2026-secure',
         ],
         'view' => [
 			 'theme' => [
