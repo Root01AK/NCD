@@ -23,8 +23,7 @@ $config = [
     'components' => [
         'jwt' => [
             'class' => \bizley\jwt\Jwt::class,
-            'signer' => 'HS256',
-            'signingKey' => 'super-secret-icc-plus-key-2026-secure',
+            'key' => 'super-secret-icc-plus-key-2026-secure-32chars',
         ],
         'view' => [
 			 'theme' => [
