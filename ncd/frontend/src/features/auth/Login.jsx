@@ -57,7 +57,7 @@ export function Login({ goLanding, notify, onLoginSuccess }) {
         throw new Error(`Server Response Error (HTTP ${response.status})`);
       }
 
-      if (response.ok && data.status === 'success') {
+      if ((response.ok || data.status === 'success') && data.status === 'success') {
         const u = data.user || {};
         const isAdminUser = u.role_id === 1 || u.role_id === '1' || String(u.role_name || '').toLowerCase() === 'admin' || String(u.role || '').toLowerCase() === 'admin';
 

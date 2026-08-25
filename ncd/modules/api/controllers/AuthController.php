@@ -182,7 +182,7 @@ class AuthController extends Controller
             ];
 
         } catch (\Throwable $ex) {
-            Yii::$app->response->statusCode = 500;
+            Yii::$app->response->statusCode = 200;
             return [
                 'status' => 'error',
                 'message' => 'Server Error: ' . $ex->getMessage()
