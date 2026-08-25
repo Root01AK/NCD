@@ -48,7 +48,12 @@ export function Login({ goLanding, notify, onLoginSuccess }) {
         body: JSON.stringify({ username, password })
       });
 
-      const data = await response.json();
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (jsonErr) {
+        throw new Error(`Server Error (HTTP ${response.status})`);
+      }
 
       if (response.ok && data.status === 'success') {
         const u = data.user || {};
@@ -81,12 +86,14 @@ export function Login({ goLanding, notify, onLoginSuccess }) {
         localStorage.setItem('icc_user', JSON.stringify(data.user));
         onLoginSuccess(data.token, data.user);
       } else {
-        setError(data.message || 'Login failed. Please check your credentials.');
-        notify("error", "Sign in failed", data.message || "Invalid credentials");
+        const msg = data.message || 'Login failed. Please check your credentials.';
+        setError(msg);
+        notify("error", "Sign in failed", msg);
       }
     } catch (err) {
-      setError('Could not connect to the API. Ensure backend server is running.');
-      notify("error", "Connection error", "Could not connect to the NCD API.");
+      const errMsg = err.message || 'Could not connect to the API. Ensure backend server is running.';
+      setError(errMsg);
+      notify("error", "Connection error", errMsg);
     } finally {
       setSubmitting(false);
     }
