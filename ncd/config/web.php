@@ -21,10 +21,6 @@ $config = [
         ],
     ],
     'components' => [
-        'jwt' => [
-            'class' => \bizley\jwt\Jwt::class,
-            'key' => 'super-secret-icc-plus-key-2026-secure-32chars',
-        ],
         'view' => [
 			 'theme' => [
 				 'pathMap' => [
