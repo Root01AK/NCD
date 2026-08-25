@@ -27,7 +27,7 @@ class AuthController extends Controller
             ],
         ];
         
-        // Basic CORS setup for React frontend
+        // Allow CORS origins
         $behaviors['corsFilter'] = [
             'class' => \yii\filters\Cors::class,
             'cors' => [
@@ -61,8 +61,21 @@ class AuthController extends Controller
         try {
             $request = Yii::$app->request;
             
-            $username = $request->post('username');
-            $password = $request->post('password');
+            // Extract body parameters safely for JSON requests
+            $bodyParams = [];
+            try {
+                $bodyParams = $request->getBodyParams();
+            } catch (\Throwable $e) {}
+
+            if (empty($bodyParams)) {
+                $raw = $request->getRawBody();
+                if (!empty($raw)) {
+                    $bodyParams = json_decode($raw, true) ?: [];
+                }
+            }
+
+            $username = $bodyParams['username'] ?? $request->post('username') ?? '';
+            $password = $bodyParams['password'] ?? $request->post('password') ?? '';
 
             if (empty($username) || empty($password)) {
                 Yii::$app->response->statusCode = 400;
@@ -80,33 +93,36 @@ class AuthController extends Controller
                 'coordinator' => ['pass' => 'coordinator', 'id' => 6, 'username' => 'Case Coordinator', 'role_id' => 6, 'role_name' => 'Case Management Coordinator'],
             ];
 
-            $lowerUser = strtolower(trim($username));
-            $lowerPass = strtolower(trim($password));
+            $lowerUser = strtolower(trim((string)$username));
+            $lowerPass = strtolower(trim((string)$password));
 
             if (isset($rolesMap[$lowerUser]) && $rolesMap[$lowerUser]['pass'] === $lowerPass) {
                 $rInfo = $rolesMap[$lowerUser];
                 
                 $tokenStr = "token_quick_" . bin2hex(random_bytes(16));
                 try {
-                    $now = new \DateTimeImmutable();
-                    /** @var \bizley\jwt\Jwt $jwt */
-                    $jwt = Yii::$app->jwt;
-                    if ($jwt) {
-                        $builder = $jwt->getBuilder()
-                            ->issuedBy('ncd-platform')
-                            ->permittedFor('react-frontend')
-                            ->issuedAt($now)
-                            ->expiresAt($now->modify('+1 day'))
-                            ->withClaim('uid', $rInfo['id'])
-                            ->withClaim('role', $rInfo['role_id']);
+                    if (Yii::$app->has('jwt')) {
+                        /** @var \bizley\jwt\Jwt $jwt */
+                        $jwt = Yii::$app->jwt;
+                        if ($jwt && method_exists($jwt, 'getBuilder')) {
+                            $now = new \DateTimeImmutable();
+                            $builder = $jwt->getBuilder()
+                                ->issuedBy('ncd-platform')
+                                ->permittedFor('react-frontend')
+                                ->issuedAt($now)
+                                ->expiresAt($now->modify('+1 day'))
+                                ->withClaim('uid', $rInfo['id'])
+                                ->withClaim('role', $rInfo['role_id']);
 
-                        $tokenObj = $builder->getToken($jwt->getConfiguration()->signer(), $jwt->getConfiguration()->signingKey());
-                        $tokenStr = $tokenObj->toString();
+                            $tokenObj = $builder->getToken($jwt->getConfiguration()->signer(), $jwt->getConfiguration()->signingKey());
+                            $tokenStr = $tokenObj->toString();
+                        }
                     }
-                } catch (\Exception $e) {
-                    // Fallback to random token string if JWT component fails
+                } catch (\Throwable $e) {
+                    // Fallback to quick random token if JWT throws
                 }
 
+                Yii::$app->response->statusCode = 200;
                 return [
                     'status' => 'success',
                     'token' => $tokenStr,
@@ -121,7 +137,7 @@ class AuthController extends Controller
 
             // DB Lookup Fallback
             try {
-                $cleanUsername = trim($username);
+                $cleanUsername = trim((string)$username);
                 $user = Users::find()
                     ->where(['users_name' => $cleanUsername])
                     ->orWhere(['LIKE', 'users_name', $cleanUsername, false])
@@ -143,6 +159,7 @@ class AuthController extends Controller
 
                     $tokenStr = "token_db_" . bin2hex(random_bytes(16));
 
+                    Yii::$app->response->statusCode = 200;
                     return [
                         'status' => 'success',
                         'token' => $tokenStr,
@@ -154,8 +171,8 @@ class AuthController extends Controller
                         ]
                     ];
                 }
-            } catch (\Exception $dbErr) {
-                // Ignore DB query errors and return invalid credentials response below
+            } catch (\Throwable $dbErr) {
+                // Ignore DB query errors and return invalid credentials response
             }
 
             Yii::$app->response->statusCode = 401;
@@ -164,7 +181,7 @@ class AuthController extends Controller
                 'message' => 'Invalid username or password. Please check your staff credentials.'
             ];
 
-        } catch (\Exception $ex) {
+        } catch (\Throwable $ex) {
             Yii::$app->response->statusCode = 500;
             return [
                 'status' => 'error',
@@ -178,23 +195,24 @@ class AuthController extends Controller
      */
     private function validatePassword($user, $password)
     {
-        $stored = $user->password ?? $user->users_pwd ?? '';
-        if (empty($stored)) return false;
-
-        $trimPass = trim($password);
-        $md5 = md5($trimPass);
-        $doubleMd5 = md5($md5);
-
-        if ($stored === $trimPass || $stored === $md5 || $stored === $doubleMd5) {
-            return true;
-        }
-
-        // Check legacy or Yii2 hashed password
         try {
-            if (Yii::$app->security->validatePassword($trimPass, $stored)) {
+            $stored = $user->password ?? $user->users_pwd ?? '';
+            if (empty($stored)) return false;
+
+            $trimPass = trim((string)$password);
+            $md5 = md5($trimPass);
+            $doubleMd5 = md5($md5);
+
+            if ($stored === $trimPass || $stored === $md5 || $stored === $doubleMd5) {
                 return true;
             }
-        } catch (\Exception $e) {}
+
+            if (Yii::$app->has('security') && Yii::$app->security) {
+                if (Yii::$app->security->validatePassword($trimPass, $stored)) {
+                    return true;
+                }
+            }
+        } catch (\Throwable $e) {}
 
         return false;
     }
