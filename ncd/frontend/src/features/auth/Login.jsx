@@ -48,11 +48,13 @@ export function Login({ goLanding, notify, onLoginSuccess }) {
         body: JSON.stringify({ username, password })
       });
 
+      const responseText = await response.text();
       let data = {};
       try {
-        data = await response.json();
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        data = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
       } catch (jsonErr) {
-        throw new Error(`Server Error (HTTP ${response.status})`);
+        throw new Error(`Server Response Error (HTTP ${response.status})`);
       }
 
       if (response.ok && data.status === 'success') {
