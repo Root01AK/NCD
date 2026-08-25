@@ -291,7 +291,6 @@ export function AdminDashboard({ notify, logout }) {
     { id: "queue", label: "Verification Queue", icon: FileText },
     { id: "export", label: "Data Export", icon: Download },
     { id: "users", label: "User Management", icon: UserCircle2 },
-    { id: "database", label: "Database Mastery", icon: Database },
     { id: "profile", label: "My Profile", icon: Settings },
   ];
 
@@ -474,7 +473,6 @@ export function AdminDashboard({ notify, logout }) {
         {navTab === "participants" && <ParticipantManagement notify={notify} phase={selectedPhase} initialLocation={selectedAdminLocation} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
         {navTab === "location" && <LocationMaster notify={notify} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
         {navTab === "users" && <UserManagement notify={notify} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
-        {navTab === "database" && <DatabaseMastery notify={notify} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
         {navTab === "profile" && <AdminProfile notify={notify} user={user} phase1Unlocked={phase1Unlocked} togglePhase1Lock={togglePhase1Lock} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
         {navTab === "export" && <DataExport notify={notify} phase={selectedPhase} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
 

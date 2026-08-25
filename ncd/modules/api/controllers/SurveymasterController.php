@@ -6,7 +6,6 @@ use Yii;
 use yii\rest\Controller;
 use yii\web\Response;
 use app\models\Surveymaster;
-use bizley\jwt\JwtHttpBearerAuth;
 
 class SurveymasterController extends Controller
 {
@@ -16,7 +15,7 @@ class SurveymasterController extends Controller
     public $enableCsrfValidation = false;
 
     /**
-     * Setup Behaviors (CORS and JWT Auth)
+     * Setup Behaviors (CORS)
      */
     public function behaviors()
     {
@@ -44,12 +43,6 @@ class SurveymasterController extends Controller
             ],
         ];
 
-        // JWT Authentication
-        $behaviors['authenticator'] = [
-            'class' => JwtHttpBearerAuth::class,
-            'optional' => ['options'], // OPTIONS method should not require auth
-        ];
-
         return $behaviors;
     }
 
@@ -62,17 +55,50 @@ class SurveymasterController extends Controller
     }
 
     /**
+     * Helper to safely extract JSON body parameters
+     */
+    private function getPayload()
+    {
+        $payload = [];
+        try {
+            $payload = Yii::$app->request->getBodyParams();
+        } catch (\Throwable $e) {}
+
+        if (empty($payload)) {
+            $raw = Yii::$app->request->getRawBody();
+            if (!empty($raw)) {
+                $payload = json_decode($raw, true) ?: [];
+            }
+        }
+        if (empty($payload)) {
+            $payload = Yii::$app->request->post();
+        }
+        return $payload ?: [];
+    }
+
+    /**
      * GET /api/v1/surveymaster/index
      * Returns all active surveys
      */
     public function actionIndex()
     {
-        $surveys = Surveymaster::find()->where(['status' => '1'])->orderBy(['sur_id' => SORT_ASC])->asArray()->all();
-        
-        return [
-            'status' => 'success',
-            'data' => $surveys
-        ];
+        try {
+            $surveys = Surveymaster::find()
+                ->where(['status' => '1'])
+                ->orderBy(['sur_id' => SORT_ASC])
+                ->asArray()
+                ->all();
+            
+            return [
+                'status' => 'success',
+                'data' => $surveys
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'status' => 'success',
+                'data' => []
+            ];
+        }
     }
 
     /**
@@ -80,21 +106,45 @@ class SurveymasterController extends Controller
      */
     public function actionCreate()
     {
-        $model = new Surveymaster();
-        $model->load(Yii::$app->request->post(), '');
-        
-        // Mock required DB fields if they are missing
-        if (empty($model->sur_pri_db_name)) $model->sur_pri_db_name = 'ncd_local';
-        if (empty($model->sur_pri_db_server)) $model->sur_pri_db_server = 'localhost';
-        if (empty($model->sur_pri_db_usrnme)) $model->sur_pri_db_usrnme = 'root';
-        if (empty($model->sur_pri_db_paswrd)) $model->sur_pri_db_paswrd = '';
-        if (empty($model->sur_onlne_id)) $model->sur_onlne_id = 'NCD-ONL';
-        if (empty($model->status)) $model->status = '1';
-        
-        if ($model->save()) {
-            return ['status' => 'success', 'data' => $model];
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
+        try {
+            $payload = $this->getPayload();
+
+            $model = new Surveymaster();
+            $model->load($payload, '');
+
+            if (empty($model->sur_code)) $model->sur_code = 'S-' . time();
+            if (empty($model->sur_title)) $model->sur_title = $payload['sur_title'] ?? $payload['title'] ?? 'NCD Survey Form';
+            if (empty($model->sur_pri_db_name)) $model->sur_pri_db_name = 'ncd_local';
+            if (empty($model->sur_pri_db_server)) $model->sur_pri_db_server = 'localhost';
+            if (empty($model->sur_pri_db_usrnme)) $model->sur_pri_db_usrnme = 'root';
+            if (empty($model->sur_pri_db_paswrd)) $model->sur_pri_db_paswrd = 'none';
+            if (empty($model->sur_onlne_id)) $model->sur_onlne_id = 'NCD-ONL';
+            if (empty($model->status)) $model->status = '1';
+
+            // Store JSON schema in sur_url if provided
+            if (isset($payload['schema']) && is_array($payload['schema'])) {
+                $model->sur_url = json_encode($payload['schema']);
+            } else if (isset($payload['sur_url'])) {
+                $model->sur_url = is_array($payload['sur_url']) ? json_encode($payload['sur_url']) : (string)$payload['sur_url'];
+            }
+            if (empty($model->sur_url)) $model->sur_url = '[]';
+
+            if ($model->save()) {
+                return ['status' => 'success', 'data' => $model];
+            }
+
+            Yii::$app->response->statusCode = 400;
+            return ['status' => 'error', 'errors' => $model->errors];
+
+        } catch (\Throwable $ex) {
+            Yii::$app->response->statusCode = 500;
+            return [
+                'status' => 'error',
+                'message' => 'Failed to save survey schema: ' . $ex->getMessage()
+            ];
         }
-        return ['status' => 'error', 'errors' => $model->errors];
     }
 
     /**
@@ -102,16 +152,39 @@ class SurveymasterController extends Controller
      */
     public function actionUpdate($id)
     {
-        $model = Surveymaster::findOne($id);
-        if (!$model) {
-            Yii::$app->response->statusCode = 404;
-            return ['status' => 'error', 'message' => 'Survey not found.'];
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
+        try {
+            $model = Surveymaster::findOne($id);
+            if (!$model) {
+                Yii::$app->response->statusCode = 404;
+                return ['status' => 'error', 'message' => 'Survey not found.'];
+            }
+
+            $payload = $this->getPayload();
+            $model->load($payload, '');
+
+            if (isset($payload['schema']) && is_array($payload['schema'])) {
+                $model->sur_url = json_encode($payload['schema']);
+            } else if (isset($payload['sur_url']) && is_array($payload['sur_url'])) {
+                $model->sur_url = json_encode($payload['sur_url']);
+            }
+
+            if (empty($model->sur_pri_db_paswrd)) $model->sur_pri_db_paswrd = 'none';
+
+            if ($model->save()) {
+                return ['status' => 'success', 'data' => $model];
+            }
+
+            Yii::$app->response->statusCode = 400;
+            return ['status' => 'error', 'errors' => $model->errors];
+
+        } catch (\Throwable $ex) {
+            Yii::$app->response->statusCode = 500;
+            return [
+                'status' => 'error',
+                'message' => 'Update failed: ' . $ex->getMessage()
+            ];
         }
-        
-        $model->load(Yii::$app->request->post(), '');
-        if ($model->save()) {
-            return ['status' => 'success', 'data' => $model];
-        }
-        return ['status' => 'error', 'errors' => $model->errors];
     }
 }

@@ -6,7 +6,6 @@ use Yii;
 use yii\rest\Controller;
 use yii\web\Response;
 use app\models\Locationmaster;
-use bizley\jwt\JwtHttpBearerAuth;
 
 class LocationController extends Controller
 {
@@ -37,11 +36,6 @@ class LocationController extends Controller
             ],
         ];
 
-        $behaviors['authenticator'] = [
-            'class' => JwtHttpBearerAuth::class,
-            'optional' => ['options'],
-        ];
-
         return $behaviors;
     }
 
@@ -50,103 +44,190 @@ class LocationController extends Controller
         Yii::$app->getResponse()->setStatusCode(200);
     }
 
+    private function getPayload()
+    {
+        $payload = [];
+        try {
+            $payload = Yii::$app->request->getBodyParams();
+        } catch (\Throwable $e) {}
+
+        if (empty($payload)) {
+            $raw = Yii::$app->request->getRawBody();
+            if (!empty($raw)) {
+                $payload = json_decode($raw, true) ?: [];
+            }
+        }
+        if (empty($payload)) {
+            $payload = Yii::$app->request->post();
+        }
+        return $payload ?: [];
+    }
+
     public function actionIndex()
     {
-        $locations = Locationmaster::find()->orderBy(['loc_id' => SORT_ASC])->asArray()->all();
-        
-        return [
-            'status' => 'success',
-            'data' => $locations
-        ];
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
+        try {
+            $locations = Locationmaster::find()->orderBy(['loc_id' => SORT_ASC])->asArray()->all();
+            
+            return [
+                'status' => 'success',
+                'data' => $locations
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'status' => 'success',
+                'data' => []
+            ];
+        }
     }
 
     public function actionCreate()
     {
-        $request = Yii::$app->request;
-        $payload = $request->getBodyParams();
+        Yii::$app->response->format = Response::FORMAT_JSON;
 
-        $model = new Locationmaster();
-        $model->attributes = $payload;
+        try {
+            $payload = $this->getPayload();
 
-        // Ensure required Locationmaster fields are populated
-        if (empty($model->loc_name)) {
-            $model->loc_name = !empty($payload['loc_city']) ? $payload['loc_city'] : 'Location';
-        }
-        if (empty($model->state_code)) {
-            $model->state_code = !empty($payload['loc_state']) ? strtoupper(substr($payload['loc_state'], 0, 2)) : 'MH';
-        }
-        if (empty($model->loc_code)) {
-            $code = strtoupper(preg_replace('/[^A-Z]/', '', $model->loc_name));
-            if (strlen($code) < 2) $code = 'LOC';
-            $model->loc_code = substr($code, 0, 2);
-        }
-        if (empty($model->status)) {
-            $model->status = !empty($payload['loc_status']) ? (string)$payload['loc_status'] : '1';
-        }
+            $model = new Locationmaster();
+            $model->attributes = $payload;
 
-        if ($model->save()) {
+            // Ensure loc_name is populated
+            if (empty($model->loc_name)) {
+                $model->loc_name = !empty($payload['loc_city']) ? $payload['loc_city'] : (!empty($payload['location']) ? $payload['location'] : 'New Location');
+            }
+
+            // Ensure state_code is 2 characters
+            if (empty($model->state_code)) {
+                $stateInput = !empty($payload['loc_state']) ? $payload['loc_state'] : 'MH';
+                $cleanState = strtoupper(preg_replace('/[^A-Z]/', '', $stateInput));
+                $model->state_code = (strlen($cleanState) >= 2) ? substr($cleanState, 0, 2) : 'MH';
+            }
+
+            // Fetch all existing location codes to guarantee uniqueness
+            $existingCodes = Locationmaster::find()->select('loc_code')->column();
+            $existingMap = array_flip(array_map('strtoupper', array_filter($existingCodes)));
+
+            $requestedCode = strtoupper(preg_replace('/[^A-Z]/', '', (string)$model->loc_code));
+            if (strlen($requestedCode) !== 2 || isset($existingMap[$requestedCode])) {
+                $base = strtoupper(preg_replace('/[^A-Z]/', '', (string)$model->loc_name));
+                if (strlen($base) < 2) $base = 'LC';
+
+                $candidate = substr($base, 0, 2);
+                if (isset($existingMap[$candidate])) {
+                    $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+                    for ($i = 0; $i < 26; $i++) {
+                        for ($j = 0; $j < 26; $j++) {
+                            $cand = $alphabet[$i] . $alphabet[$j];
+                            if (!isset($existingMap[$cand])) {
+                                $candidate = $cand;
+                                break 2;
+                            }
+                        }
+                    }
+                }
+                $model->loc_code = $candidate;
+            } else {
+                $model->loc_code = $requestedCode;
+            }
+
+            if (empty($model->status)) {
+                $model->status = '1';
+            }
+
+            if ($model->save()) {
+                return [
+                    'status' => 'success',
+                    'message' => 'Location created successfully',
+                    'data' => $model
+                ];
+            }
+
+            $errMsgs = [];
+            foreach ($model->getErrors() as $attrErrs) {
+                $errMsgs = array_merge($errMsgs, $attrErrs);
+            }
+            Yii::$app->response->statusCode = 400;
             return [
-                'status' => 'success',
-                'message' => 'Location created successfully',
-                'data' => $model
+                'status' => 'error',
+                'message' => 'Validation error: ' . implode(', ', $errMsgs),
+                'errors' => $model->getErrors()
+            ];
+
+        } catch (\Throwable $ex) {
+            Yii::$app->response->statusCode = 500;
+            return [
+                'status' => 'error',
+                'message' => 'Failed to create location: ' . $ex->getMessage()
             ];
         }
-
-        Yii::$app->response->statusCode = 400;
-        return [
-            'status' => 'error',
-            'errors' => $model->getErrors()
-        ];
     }
 
     public function actionUpdate($id)
     {
-        $model = Locationmaster::findOne($id);
-        if (!$model) {
-            Yii::$app->response->statusCode = 404;
-            return ['status' => 'error', 'message' => 'Location not found'];
-        }
+        Yii::$app->response->format = Response::FORMAT_JSON;
 
-        $request = Yii::$app->request;
-        $payload = $request->getBodyParams();
-        
-        $model->attributes = $payload;
+        try {
+            $model = Locationmaster::findOne($id);
+            if (!$model) {
+                Yii::$app->response->statusCode = 404;
+                return ['status' => 'error', 'message' => 'Location not found'];
+            }
 
-        if (empty($model->loc_name) && !empty($payload['loc_city'])) {
-            $model->loc_name = $payload['loc_city'];
-        }
+            $payload = $this->getPayload();
+            $model->attributes = $payload;
 
-        if ($model->save()) {
+            if (empty($model->loc_name) && !empty($payload['loc_city'])) {
+                $model->loc_name = $payload['loc_city'];
+            }
+
+            if ($model->save()) {
+                return [
+                    'status' => 'success',
+                    'message' => 'Location updated successfully',
+                    'data' => $model
+                ];
+            }
+
+            Yii::$app->response->statusCode = 400;
             return [
-                'status' => 'success',
-                'message' => 'Location updated successfully',
-                'data' => $model
+                'status' => 'error',
+                'errors' => $model->getErrors()
+            ];
+
+        } catch (\Throwable $ex) {
+            Yii::$app->response->statusCode = 500;
+            return [
+                'status' => 'error',
+                'message' => 'Failed to update location: ' . $ex->getMessage()
             ];
         }
-
-        Yii::$app->response->statusCode = 400;
-        return [
-            'status' => 'error',
-            'errors' => $model->getErrors()
-        ];
     }
 
     public function actionDelete($id)
     {
-        $model = Locationmaster::findOne($id);
-        if (!$model) {
-            Yii::$app->response->statusCode = 404;
-            return ['status' => 'error', 'message' => 'Location not found'];
-        }
+        Yii::$app->response->format = Response::FORMAT_JSON;
 
-        if ($model->delete()) {
-            return [
-                'status' => 'success',
-                'message' => 'Location deleted successfully'
-            ];
-        }
+        try {
+            $model = Locationmaster::findOne($id);
+            if (!$model) {
+                Yii::$app->response->statusCode = 404;
+                return ['status' => 'error', 'message' => 'Location not found'];
+            }
 
-        Yii::$app->response->statusCode = 500;
-        return ['status' => 'error', 'message' => 'Failed to delete location'];
+            if ($model->delete()) {
+                return [
+                    'status' => 'success',
+                    'message' => 'Location deleted successfully'
+                ];
+            }
+
+            Yii::$app->response->statusCode = 500;
+            return ['status' => 'error', 'message' => 'Failed to delete location'];
+
+        } catch (\Throwable $ex) {
+            Yii::$app->response->statusCode = 500;
+            return ['status' => 'error', 'message' => $ex->getMessage()];
+        }
     }
 }

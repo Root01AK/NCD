@@ -67,7 +67,7 @@ class Dg extends \yii\db\ActiveRecord
 	{
 		return [
 			[
-				'class' => TimestampBehavior::className(),
+				'class' => TimestampBehavior::class,
 				'createdAtAttribute' => 'create_time',
 				'updatedAtAttribute' => 'update_time',
 				'value' => date('U'),
@@ -144,7 +144,7 @@ class Dg extends \yii\db\ActiveRecord
 	
 	 public function getLocations()
     {
-        return $this->hasOne(\app\models\Locationmaster::className(), ['loc_code' => 'loc_code']);
+        return $this->hasOne(\app\models\Locationmaster::class, ['loc_code' => 'loc_code']);
     }
 	
 	
@@ -174,10 +174,10 @@ class Dg extends \yii\db\ActiveRecord
 	public function afterFind()
 	{
 		parent::afterFind();
-		if(Yii::$app->controller->action->id != "view") {
-			if($this->dg_date != "")
+		$actionId = isset(Yii::$app->controller->action->id) ? Yii::$app->controller->action->id : '';
+		if($actionId != "view" && $actionId != "") {
+			if(!empty($this->dg_date) && is_numeric($this->dg_date))
 				$this->dg_date = Converter::toDisplay($this->dg_date);
-			
 		}
 	}
 	

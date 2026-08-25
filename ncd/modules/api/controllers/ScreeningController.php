@@ -5,18 +5,11 @@ namespace app\modules\api\controllers;
 use Yii;
 use yii\rest\Controller;
 use yii\web\Response;
-use bizley\jwt\JwtHttpBearerAuth;
 
 class ScreeningController extends Controller
 {
-    /**
-     * Disable CSRF validation for REST API
-     */
     public $enableCsrfValidation = false;
 
-    /**
-     * Setup Behaviors (CORS and JWT Auth)
-     */
     public function behaviors()
     {
         $behaviors = parent::behaviors();
@@ -28,7 +21,8 @@ class ScreeningController extends Controller
             ],
         ];
 
-        // CORS Setup
+        unset($behaviors['authenticator']);
+
         $behaviors['corsFilter'] = [
             'class' => \yii\filters\Cors::class,
             'cors' => [
@@ -41,67 +35,64 @@ class ScreeningController extends Controller
             ],
         ];
 
-        // JWT Authentication
-        $behaviors['authenticator'] = [
-            'class' => JwtHttpBearerAuth::class,
-            'optional' => ['options'],
-        ];
-
         return $behaviors;
     }
 
-    /**
-     * Handle CORS preflight request
-     */
     public function actionOptions()
     {
         Yii::$app->getResponse()->setStatusCode(200);
     }
 
-    /**
-     * POST /api/v1/screening/submit
-     * Receives dynamic survey data from the DEO React Panel and stores it.
-     */
-    public function actionSubmit()
+    private function getPayload()
     {
-        $request = Yii::$app->request;
-        $payload = $request->getBodyParams();
+        $payload = [];
+        try {
+            $payload = Yii::$app->request->getBodyParams();
+        } catch (\Throwable $e) {}
 
         if (empty($payload)) {
-            Yii::$app->response->statusCode = 400;
-            return ['status' => 'error', 'message' => 'No data received'];
+            $raw = Yii::$app->request->getRawBody();
+            if (!empty($raw)) {
+                $payload = json_decode($raw, true) ?: [];
+            }
         }
+        if (empty($payload)) {
+            $payload = Yii::$app->request->post();
+        }
+        return $payload ?: [];
+    }
 
-        // Get the logged in user from JWT
-        $user = Yii::$app->user->identity;
+    public function actionSubmit()
+    {
+        Yii::$app->response->format = Response::FORMAT_JSON;
 
         try {
-            // Using Yii2 Query Builder to dynamically insert the data 
-            // into cms_screening since the fields are metadata-driven.
-            
-            // In a real scenario, we should filter $payload keys to match cms_screening columns
+            $payload = $this->getPayload();
+
+            if (empty($payload)) {
+                Yii::$app->response->statusCode = 400;
+                return ['status' => 'error', 'message' => 'No data received'];
+            }
+
             $db = Yii::$app->db;
             $tableName = 'cms_screening';
             
-            $partId = $payload['mem_scrn_part_id'] ?? ('NCD-MUM-' . rand(1000, 9999));
+            $partId = $payload['mem_scrn_part_id'] ?? ($payload['participant_id'] ?? ('NCD-MUM-' . rand(1000, 9999)));
             $payload['mem_scrn_part_id'] = $partId;
             $payload['record_date'] = time();
 
-            // Check if participant record already exists in database
             $existing = (new \yii\db\Query())
                 ->from($tableName)
                 ->where(['mem_scrn_part_id' => $partId])
                 ->one();
 
             if ($existing) {
-                // Merge existing JSON payload with incoming section payload
                 $oldJson = !empty($existing['mem_scrn_q30']) ? json_decode($existing['mem_scrn_q30'], true) : [];
                 if (!is_array($oldJson)) $oldJson = [];
                 
                 $merged = array_merge($oldJson, $payload);
                 $merged['mem_scrn_q30'] = json_encode($merged);
                 
-                // Keep core columns populated
                 $updateCols = [
                     'mem_scrn_q16' => $merged['fullName'] ?? $merged['mem_scrn_q16'] ?? $existing['mem_scrn_q16'],
                     'mem_scrn_q1' => (int)($merged['age'] ?? $merged['mem_scrn_q1'] ?? $existing['mem_scrn_q1']),
@@ -113,7 +104,6 @@ class ScreeningController extends Controller
 
                 $db->createCommand()->update($tableName, $updateCols, ['mem_scrn_part_id' => $partId])->execute();
             } else {
-                // Insert new participant initial screening (Field Supervisor Section 1)
                 $payload['mem_scrn_q30'] = json_encode($payload);
                 $insertCols = [
                     'mem_scrn_part_id' => $partId,
@@ -135,7 +125,7 @@ class ScreeningController extends Controller
                 'participant_id' => $partId
             ];
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Yii::$app->response->statusCode = 500;
             return [
                 'status' => 'error',
@@ -144,41 +134,38 @@ class ScreeningController extends Controller
         }
     }
 
-    /**
-     * POST /api/v1/screening/delete
-     * Permanently deletes a screening record from cms_mdhl database table.
-     */
     public function actionDelete()
     {
-        $request = Yii::$app->request;
-        $payload = $request->getBodyParams();
-        $partId = $payload['mem_scrn_part_id'] ?? $payload['participant_id'] ?? null;
-        $id = $payload['mem_scrn_id'] ?? null;
-
-        if (!$partId && !$id) {
-            Yii::$app->response->statusCode = 400;
-            return ['status' => 'error', 'message' => 'Participant ID required'];
-        }
+        Yii::$app->response->format = Response::FORMAT_JSON;
 
         try {
+            $payload = $this->getPayload();
+            $partId = $payload['mem_scrn_part_id'] ?? $payload['participant_id'] ?? null;
+            $id = $payload['mem_scrn_id'] ?? null;
+
+            if (!$partId && !$id) {
+                Yii::$app->response->statusCode = 400;
+                return ['status' => 'error', 'message' => 'Participant ID required'];
+            }
+
             $db = Yii::$app->db;
             if ($id) {
                 $db->createCommand()->delete('cms_mdhl', ['mem_scrn_id' => $id])->execute();
             }
             if ($partId) {
                 $db->createCommand()->delete('cms_mdhl', ['mem_scrn_part_id' => $partId])->execute();
-                try { $db->createCommand()->delete('cms_apm', ['apm_pid' => $partId])->execute(); } catch (\Exception $e) {}
-                try { $db->createCommand()->delete('cms_bsr', ['bsr_pid' => $partId])->execute(); } catch (\Exception $e) {}
-                try { $db->createCommand()->delete('cms_ce', ['ce_pid' => $partId])->execute(); } catch (\Exception $e) {}
-                try { $db->createCommand()->delete('cms_cml', ['cml_pid' => $partId])->execute(); } catch (\Exception $e) {}
-                try { $db->createCommand()->delete('cms_cprca', ['cprca_pid' => $partId])->execute(); } catch (\Exception $e) {}
-                try { $db->createCommand()->delete('cms_dg', ['dg_pid' => $partId])->execute(); } catch (\Exception $e) {}
-                try { $db->createCommand()->delete('cms_fupm', ['fupm_pid' => $partId])->execute(); } catch (\Exception $e) {}
-                try { $db->createCommand()->delete('cms_vital', ['vital_pid' => $partId])->execute(); } catch (\Exception $e) {}
+                try { $db->createCommand()->delete('cms_apm', ['apm_pid' => $partId])->execute(); } catch (\Throwable $e) {}
+                try { $db->createCommand()->delete('cms_bsr', ['bsr_pid' => $partId])->execute(); } catch (\Throwable $e) {}
+                try { $db->createCommand()->delete('cms_ce', ['ce_pid' => $partId])->execute(); } catch (\Throwable $e) {}
+                try { $db->createCommand()->delete('cms_cml', ['cml_pid' => $partId])->execute(); } catch (\Throwable $e) {}
+                try { $db->createCommand()->delete('cms_cprca', ['cprca_pid' => $partId])->execute(); } catch (\Throwable $e) {}
+                try { $db->createCommand()->delete('cms_dg', ['dg_pid' => $partId])->execute(); } catch (\Throwable $e) {}
+                try { $db->createCommand()->delete('cms_fupm', ['fupm_pid' => $partId])->execute(); } catch (\Throwable $e) {}
+                try { $db->createCommand()->delete('cms_vital', ['vital_pid' => $partId])->execute(); } catch (\Throwable $e) {}
             }
 
             return ['status' => 'success', 'message' => 'Participant screening record deleted successfully'];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Yii::$app->response->statusCode = 500;
             return ['status' => 'error', 'message' => 'Failed to delete record: ' . $e->getMessage()];
         }

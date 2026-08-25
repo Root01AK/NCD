@@ -5,7 +5,6 @@ namespace app\modules\api\controllers;
 use Yii;
 use yii\rest\Controller;
 use yii\web\Response;
-use bizley\jwt\JwtHttpBearerAuth;
 
 class DashboardController extends Controller
 {
@@ -15,7 +14,7 @@ class DashboardController extends Controller
     public $enableCsrfValidation = false;
 
     /**
-     * Setup Behaviors (CORS and JWT Auth)
+     * Setup Behaviors (CORS)
      */
     public function behaviors()
     {
@@ -43,12 +42,6 @@ class DashboardController extends Controller
             ],
         ];
 
-        // Ensure public API optional auth
-        $behaviors['authenticator'] = [
-            'class' => JwtHttpBearerAuth::class,
-            'optional' => ['options', 'screeninglist', 'resetdatabase'],
-        ];
-
         return $behaviors;
     }
 
@@ -65,17 +58,22 @@ class DashboardController extends Controller
      */
     public function actionScreeninglist()
     {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
         try {
             $query = (new \yii\db\Query())->from('{{%mdhl}}')->orderBy(["mem_scrn_part_id" => SORT_DESC]);
             $screenings = $query->all();
-        } catch (\Exception $e) {
-            $screenings = [];
-        }
             
-        return [
-            'status' => 'success',
-            'data' => $screenings
-        ];
+            return [
+                'status' => 'success',
+                'data' => $screenings
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'status' => 'success',
+                'data' => []
+            ];
+        }
     }
 
     /**
@@ -83,17 +81,22 @@ class DashboardController extends Controller
      */
     public function actionEligiblelist()
     {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
         try {
             $query = (new \yii\db\Query())->from('{{%mdhl}}')->where(['mem_scrn_q24' => 1])->orderBy(["mem_scrn_part_id" => SORT_ASC]);
             $eligible = $query->all();
-        } catch (\Exception $e) {
-            $eligible = [];
+            
+            return [
+                'status' => 'success',
+                'data' => $eligible
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'status' => 'success',
+                'data' => []
+            ];
         }
-
-        return [
-            'status' => 'success',
-            'data' => $eligible
-        ];
     }
     
     /**
@@ -101,17 +104,22 @@ class DashboardController extends Controller
      */
     public function actionEnrolledlist()
     {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
         try {
             $query = (new \yii\db\Query())->from('{{%mdhl}}')->where(['mem_scrn_q25' => 1])->orderBy(["mem_scrn_part_id" => SORT_ASC]);
             $enrolled = $query->all();
-        } catch (\Exception $e) {
-            $enrolled = [];
+            
+            return [
+                'status' => 'success',
+                'data' => $enrolled
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'status' => 'success',
+                'data' => []
+            ];
         }
-
-        return [
-            'status' => 'success',
-            'data' => $enrolled
-        ];
     }
 
     /**
@@ -147,7 +155,7 @@ class DashboardController extends Controller
                 'status' => 'success',
                 'message' => 'All screening tables truncated successfully!'
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return [
                 'status' => 'error',
                 'message' => $e->getMessage()

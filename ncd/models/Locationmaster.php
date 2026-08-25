@@ -37,7 +37,7 @@ class Locationmaster extends \yii\db\ActiveRecord
 	{
 		return [
 			[
-				'class' => TimestampBehavior::className(),
+				'class' => TimestampBehavior::class,
 				'createdAtAttribute' => 'create_time',
 				'updatedAtAttribute' => 'update_time',
 				'value' => date('U'),
@@ -116,7 +116,7 @@ class Locationmaster extends \yii\db\ActiveRecord
 	
 	 public function getStatename()
     {
-        return $this->hasOne(\app\models\State::className(), ['state_code' => 'state_code']);
+        return $this->hasOne(\app\models\State::class, ['state_code' => 'state_code']);
     }
 
 	/**

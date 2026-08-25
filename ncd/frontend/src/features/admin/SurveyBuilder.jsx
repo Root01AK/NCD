@@ -484,25 +484,33 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
       const jsonQs = JSON.stringify(questions);
       localStorage.setItem('ncd_active_survey_questions', jsonQs);
       
-      if (selectedSurvey) {
-        if (selectedSurvey.sur_id) {
-          localStorage.setItem(`ncd_survey_${selectedSurvey.sur_id}`, jsonQs);
-        }
-        await api.put(`/api/v1/surveymaster/update/${selectedSurvey.sur_id}`, {
-          sur_title: surveyTitle,
-          sur_url: jsonQs
-        });
-        notify("success", "Survey Saved", "The survey schema has been updated successfully.");
-      } else {
-        notify("info", "New Survey", "Creating new survey record...");
-        await api.post("/api/v1/surveymaster/create", {
-          sur_title: surveyTitle,
-          sur_code: `S-${Date.now().toString().slice(-4)}`,
-          sur_url: jsonQs
-        });
-        notify("success", "Survey Created", "New survey created successfully.");
+      const isUpdating = selectedSurvey && selectedSurvey.sur_id;
+      if (isUpdating) {
+        localStorage.setItem(`ncd_survey_${selectedSurvey.sur_id}`, jsonQs);
       }
-      if (onBack) onBack();
+
+      notify("info", isUpdating ? "Saving Survey" : "New Survey", "Saving survey schema to database...");
+
+      const res = isUpdating
+        ? await api.put(`/api/v1/surveymaster/update/${selectedSurvey.sur_id}`, {
+            sur_title: surveyTitle,
+            sur_url: jsonQs,
+            schema: questions
+          })
+        : await api.post("/api/v1/surveymaster/create", {
+            sur_title: surveyTitle,
+            sur_code: `S-${Date.now().toString().slice(-4)}`,
+            sur_url: jsonQs,
+            schema: questions
+          });
+
+      if (res && res.status === 'success') {
+        notify("success", isUpdating ? "Survey Saved" : "Survey Created", "The survey schema has been saved to the database successfully.");
+        if (onBack) onBack();
+      } else {
+        const errMsg = res && res.message ? res.message : (res && res.errors ? Object.values(res.errors).flat().join(", ") : "Database save error");
+        notify("error", "Save Failed", errMsg);
+      }
     } catch (e) {
       console.error(e);
       notify("error", "Save Failed", "Could not save the survey schema to the database.");

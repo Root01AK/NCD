@@ -275,9 +275,10 @@ class Users extends ActiveRecord implements IdentityInterface
 	public function afterFind()
 	{
 		parent::afterFind();
-		if(Yii::$app->controller->action->id == "update") {
-			if($this->loc_code != "")
-                $this->loc_code = explode(",", $this->loc_code);            
+		if (isset(Yii::$app->controller->action->id) && Yii::$app->controller->action->id == "update") {
+			if (is_string($this->loc_code)) {
+                $this->loc_code = explode(",", (string)$this->loc_code);
+            }
 		}
 	}
 		

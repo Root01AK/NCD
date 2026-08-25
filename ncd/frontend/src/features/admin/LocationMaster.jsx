@@ -107,9 +107,9 @@ export function LocationMaster({ notify }) {
 
     const city = formData.loc_city.trim();
     let code = formData.loc_code.trim().toUpperCase();
-    if (!code || code.length < 2) {
-      code = city.replace(/[^A-Z]/gi, '').substring(0, 2).toUpperCase();
-      if (code.length < 2) code = "DH";
+    if (!code || code.length !== 2) {
+      const cleanCity = city.replace(/[^A-Z]/gi, '').toUpperCase();
+      code = cleanCity.length >= 2 ? cleanCity.substring(0, 2) : "LC";
     }
 
     const payload = {
@@ -128,11 +128,15 @@ export function LocationMaster({ notify }) {
         const res = await api.put(`/api/v1/location/update?id=${editingId}`, payload);
         if (res.status === 'success') {
           notify("success", "Updated", "Location updated successfully.");
+        } else {
+          notify("error", "Error", res.message || "Failed to update location.");
         }
       } else {
         const res = await api.post("/api/v1/location/create", payload);
         if (res.status === 'success') {
           notify("success", "Created", "New screening location added successfully.");
+        } else {
+          notify("error", "Error", res.message || "Failed to create location.");
         }
       }
       

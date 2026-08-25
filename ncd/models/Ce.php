@@ -60,7 +60,7 @@ class Ce extends \yii\db\ActiveRecord
 	{
 		return [
 			[
-				'class' => TimestampBehavior::className(),
+				'class' => TimestampBehavior::class,
 				'createdAtAttribute' => 'create_time',
 				'updatedAtAttribute' => 'update_time',
 				'value' => date('U'),
@@ -131,7 +131,7 @@ class Ce extends \yii\db\ActiveRecord
 	
 	 public function getLocations()
     {
-        return $this->hasOne(\app\models\Locationmaster::className(), ['loc_code' => 'loc_code']);
+        return $this->hasOne(\app\models\Locationmaster::class, ['loc_code' => 'loc_code']);
     }
 
 	
@@ -151,10 +151,10 @@ class Ce extends \yii\db\ActiveRecord
 	public function afterFind()
 	{
 		parent::afterFind();
-		if(Yii::$app->controller->action->id != "view") {
-			if($this->ce_date != "")
+		$actionId = isset(Yii::$app->controller->action->id) ? Yii::$app->controller->action->id : '';
+		if($actionId != "view" && $actionId != "") {
+			if(!empty($this->ce_date) && is_numeric($this->ce_date))
 				$this->ce_date = Converter::toDisplay($this->ce_date);
-			
 		}
 	}
 	

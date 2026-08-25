@@ -76,7 +76,7 @@ class Mdhl extends \yii\db\ActiveRecord
 	{
 		return [
 			[
-				'class' => TimestampBehavior::className(),
+				'class' => TimestampBehavior::class,
 				'createdAtAttribute' => 'create_time',
 				'updatedAtAttribute' => 'update_time',
 				'value' => date('U'),
@@ -226,7 +226,7 @@ class Mdhl extends \yii\db\ActiveRecord
 	
 	 public function getLocations()
     {
-        return $this->hasOne(\app\models\Locationmaster::className(), ['loc_code' => 'loc_code']);
+        return $this->hasOne(\app\models\Locationmaster::class, ['loc_code' => 'loc_code']);
     }
 
 	
@@ -247,15 +247,17 @@ class Mdhl extends \yii\db\ActiveRecord
 	{
 		parent::afterFind();
 		
-		if(Yii::$app->controller->action->id != "index" && Yii::$app->controller->action->id != "view") {			
-		    if($this->mdhl_date != "")
+		$actionId = isset(Yii::$app->controller->action->id) ? Yii::$app->controller->action->id : '';
+
+		if($actionId != "index" && $actionId != "view" && $actionId != "") {			
+		    if(!empty($this->mdhl_date) && is_numeric($this->mdhl_date))
 				$this->mdhl_date = Converter::toDisplay($this->mdhl_date);
 		}
 		
-		if(Yii::$app->controller->action->id == "update" ) {
-			$this->mdhl_q6 = explode(",", $this->mdhl_q6);
-			$this->mdhl_q7a = explode(",", $this->mdhl_q7a);
-			$this->mdhl_q19a = explode(",", $this->mdhl_q19a);
+		if($actionId == "update" ) {
+			if (is_string($this->mdhl_q6)) $this->mdhl_q6 = explode(",", (string)$this->mdhl_q6);
+			if (is_string($this->mdhl_q7a)) $this->mdhl_q7a = explode(",", (string)$this->mdhl_q7a);
+			if (is_string($this->mdhl_q19a)) $this->mdhl_q19a = explode(",", (string)$this->mdhl_q19a);
 		}
 	}
 	

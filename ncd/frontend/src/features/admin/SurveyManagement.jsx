@@ -10,27 +10,25 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey, onOpenM
   const [searchTerm, setSearchTerm] = useState("");
   const [viewingCodebookSurvey, setViewingCodebookSurvey] = useState(null);
 
-  useEffect(() => {
-    let isMounted = true;
-    const load = async () => {
-      setLoading(true);
-      try {
-        const apiPromise = api.get("/api/v1/surveymaster/index");
-        const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 800));
-        const res = await Promise.race([apiPromise, timeoutPromise]);
-        if (isMounted) {
-          if (res && res.status === 'success' && Array.isArray(res.data)) {
-            setSurveys(res.data);
-          }
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        if (isMounted) setLoading(false);
+  const fetchSurveys = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get("/api/v1/surveymaster/index");
+      if (res && res.status === 'success' && Array.isArray(res.data)) {
+        setSurveys(res.data);
+      } else {
+        setSurveys([]);
       }
-    };
-    load();
-    return () => { isMounted = false; };
+    } catch (e) {
+      console.error(e);
+      setSurveys([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSurveys();
   }, []);
 
   const handleDuplicate = async (survey) => {

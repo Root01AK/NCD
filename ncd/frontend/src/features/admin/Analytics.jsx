@@ -158,19 +158,17 @@ export function Analytics({ phase = "phase2" }) {
       setLocationCompletions(locList);
       const formattedChartData = Object.values(chartDataMap).slice(-7);
       if (formattedChartData.length === 0) {
-        formattedChartData.push(
-          { name: "Mon", screenings: 2, flags: 0 },
-          { name: "Tue", screenings: 3, flags: 1 },
-          { name: "Wed", screenings: 4, flags: 0 },
-          { name: "Thu", screenings: 3, flags: 0 },
-          { name: "Today", screenings: totalCount, flags: highRiskCount }
-        );
+        if (totalCount > 0) {
+          formattedChartData.push({ name: "Today", screenings: totalCount, flags: highRiskCount });
+        } else {
+          formattedChartData.push({ name: "Today", screenings: 0, flags: 0 });
+        }
       }
 
       setMetrics({
         total: totalCount,
         highRisk: highRiskCount,
-        pending: idbList.length > 0 ? idbList.length : Math.max(1, Math.ceil(totalCount * 0.2))
+        pending: idbList.length
       });
       
       setData(formattedChartData);

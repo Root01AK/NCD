@@ -44,7 +44,7 @@ class Surveymaster extends \yii\db\ActiveRecord
 	{
 		return [
 			[
-				'class' => TimestampBehavior::className(),
+				'class' => TimestampBehavior::class,
 				'createdAtAttribute' => 'create_time',
 				'updatedAtAttribute' => 'update_time',
 				'value' => date('U'),
