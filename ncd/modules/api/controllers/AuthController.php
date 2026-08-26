@@ -229,10 +229,7 @@ class AuthController extends Controller
         try {
             $db = Yii::$app->db;
             
-            $userCount = 0;
             try {
-                $userCount = (int)$db->createCommand("SELECT COUNT(*) FROM cms_users")->queryScalar();
-            } catch (\Throwable $e) {
                 $db->createCommand("
                     CREATE TABLE IF NOT EXISTS `cms_users` (
                         `usr_id` int(11) NOT NULL AUTO_INCREMENT,
@@ -257,34 +254,75 @@ class AuthController extends Controller
                         UNIQUE KEY `users_name` (`users_name`)
                     ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
                 ")->execute();
-            }
+            } catch (\Throwable $e) {}
 
-            if ($userCount === 0) {
-                $db->createCommand()->batchInsert('cms_users', 
-                    ['users_name', 'password', 'auth_key', 'full_name', 'email', 'status', 'loc_code', 'state_code', 'signedin_loc', 'user_role'],
-                    [
-                        ['admin_user', 'admin123', 'key_admin_user_2026', 'System Administrator', 'admin@yrgcare.org', '1', 'Dharavi', 'Admin', 'Full Access', 1],
-                        ['admin', 'admin123', 'key_admin_2026', 'System Administrator', 'admin@yrgcare.org', '1', 'Dharavi', 'Admin', 'Full Access', 1],
-                        ['deo', 'deo', 'key_deo_2026', 'Field Supervisor DEO', 'deo@yrgcare.org', '1', 'Dharavi', 'Field Supervisor', 'Dharavi Center', 2],
-                        ['nurse', 'nurse', 'key_nurse_2026', 'Clinical Staff Nurse', 'nurse@yrgcare.org', '1', 'Dharavi', 'Staff Nurse', 'Dharavi Center', 3],
-                        ['doctor', 'doctor', 'key_doctor_2026', 'Clinical Doctor', 'doctor@yrgcare.org', '1', 'Dharavi', 'Doctor', 'Dharavi Center', 4],
-                        ['counselor', 'counselor', 'key_counselor_2026', 'Mental Health Counselor', 'counselor@yrgcare.org', '1', 'Dharavi', 'Counselor', 'Dharavi Center', 5],
-                        ['coordinator', 'coordinator', 'key_coordinator_2026', 'Case Management Coordinator', 'coordinator@yrgcare.org', '1', 'Dharavi', 'Case Coordinator', 'Dharavi Center', 6],
-                    ]
-                )->execute();
+            $defaultUsers = [
+                ['admin_user', 'admin123', 'key_admin_user_2026', 'System Administrator', 'admin@yrgcare.org', '1', 'Dharavi', 'Admin', 'Full Access', 1],
+                ['admin', 'admin123', 'key_admin_2026', 'System Administrator', 'admin@yrgcare.org', '1', 'Dharavi', 'Admin', 'Full Access', 1],
+                ['deo', 'deo', 'key_deo_2026', 'Field Supervisor DEO', 'deo@yrgcare.org', '1', 'Dharavi', 'Field Supervisor', 'Dharavi Center', 2],
+                ['nurse', 'nurse', 'key_nurse_2026', 'Clinical Staff Nurse', 'nurse@yrgcare.org', '1', 'Dharavi', 'Staff Nurse', 'Dharavi Center', 3],
+                ['doctor', 'doctor', 'key_doctor_2026', 'Clinical Doctor', 'doctor@yrgcare.org', '1', 'Dharavi', 'Doctor', 'Dharavi Center', 4],
+                ['counselor', 'counselor', 'key_counselor_2026', 'Mental Health Counselor', 'counselor@yrgcare.org', '1', 'Dharavi', 'Counselor', 'Dharavi Center', 5],
+                ['coordinator', 'coordinator', 'key_coordinator_2026', 'Case Management Coordinator', 'coordinator@yrgcare.org', '1', 'Dharavi', 'Case Coordinator', 'Dharavi Center', 6],
+            ];
+
+            foreach ($defaultUsers as $u) {
+                try {
+                    $exists = (new \yii\db\Query())->from('cms_users')->where(['users_name' => $u[0]])->exists($db);
+                    if (!$exists) {
+                        $db->createCommand()->insert('cms_users', [
+                            'users_name' => $u[0],
+                            'password' => $u[1],
+                            'auth_key' => $u[2],
+                            'full_name' => $u[3],
+                            'email' => $u[4],
+                            'status' => $u[5],
+                            'loc_code' => $u[6],
+                            'state_code' => $u[7],
+                            'signedin_loc' => $u[8],
+                            'user_role' => $u[9]
+                        ])->execute();
+                    }
+                } catch (\Throwable $e) {}
             }
 
             try {
-                $locCount = (int)$db->createCommand("SELECT COUNT(*) FROM cms_locationmaster")->queryScalar();
-                if ($locCount === 0) {
-                    $db->createCommand()->batchInsert('cms_locationmaster',
-                        ['state_code', 'loc_code', 'loc_name', 'loc_state', 'loc_district', 'loc_city', 'status'],
-                        [
-                            ['MH', 'DH', 'Dharavi Center', 'Maharashtra', 'Mumbai', 'Dharavi', '1'],
-                            ['MH', 'ML', 'Malvani Center', 'Maharashtra', 'Mumbai Suburbs', 'Malvani', '1'],
-                            ['MH', 'VA', 'Vashi Center', 'Maharashtra', 'Navi Mumbai', 'Vashi', '1'],
-                        ]
-                    )->execute();
+                $db->createCommand("
+                    CREATE TABLE IF NOT EXISTS `cms_locationmaster` (
+                        `loc_id` int(11) NOT NULL AUTO_INCREMENT,
+                        `state_code` varchar(10) DEFAULT 'MH',
+                        `loc_code` varchar(10) NOT NULL,
+                        `loc_name` varchar(255) NOT NULL,
+                        `loc_state` varchar(100) DEFAULT 'Maharashtra',
+                        `loc_district` varchar(100) DEFAULT 'Mumbai',
+                        `loc_city` varchar(100) NOT NULL,
+                        `status` varchar(1) DEFAULT '1',
+                        PRIMARY KEY (`loc_id`),
+                        UNIQUE KEY `loc_code` (`loc_code`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+                ")->execute();
+
+                $defaultLocs = [
+                    ['MH', 'DH', 'Dharavi Center', 'Maharashtra', 'Mumbai', 'Dharavi', '1'],
+                    ['MH', 'ML', 'Malvani Center', 'Maharashtra', 'Mumbai Suburbs', 'Malvani', '1'],
+                    ['MH', 'VA', 'Vashi Center', 'Maharashtra', 'Navi Mumbai', 'Vashi', '1'],
+                ];
+
+                foreach ($defaultLocs as $l) {
+                    try {
+                        $locExists = (new \yii\db\Query())->from('cms_locationmaster')->where(['loc_code' => $l[1]])->exists($db);
+                        if (!$locExists) {
+                            $db->createCommand()->insert('cms_locationmaster', [
+                                'state_code' => $l[0],
+                                'loc_code' => $l[1],
+                                'loc_name' => $l[2],
+                                'loc_state' => $l[3],
+                                'loc_district' => $l[4],
+                                'loc_city' => $l[5],
+                                'status' => $l[6]
+                            ])->execute();
+                        }
+                    } catch (\Throwable $e) {}
                 }
             } catch (\Throwable $e) {}
 

@@ -54,7 +54,8 @@ export function Login({ goLanding, notify, onLoginSuccess }) {
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
         data = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
       } catch (jsonErr) {
-        throw new Error(`Server Response Error (HTTP ${response.status})`);
+        const cleanText = (responseText || "").trim().replace(/<[^>]*>?/gm, '');
+        throw new Error(cleanText && cleanText.length < 150 ? cleanText : `Server Response Error (HTTP ${response.status})`);
       }
 
       if ((response.ok || data.status === 'success') && data.status === 'success') {
