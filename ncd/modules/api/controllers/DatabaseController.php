@@ -5,7 +5,6 @@ namespace app\modules\api\controllers;
 use Yii;
 use yii\rest\Controller;
 use yii\web\Response;
-use bizley\jwt\JwtHttpBearerAuth;
 
 class DatabaseController extends Controller
 {
@@ -24,7 +23,6 @@ class DatabaseController extends Controller
 
         unset($behaviors['authenticator']);
 
-        // CORS Setup
         $behaviors['corsFilter'] = [
             'class' => \yii\filters\Cors::class,
             'cors' => [
@@ -37,11 +35,6 @@ class DatabaseController extends Controller
             ],
         ];
 
-        $behaviors['authenticator'] = [
-            'class' => JwtHttpBearerAuth::class,
-            'optional' => ['options', 'tables', 'tabledata', 'updaterecord', 'deleterecord', 'createrecord', 'flushtable', 'seeddata'],
-        ];
-
         return $behaviors;
     }
 
@@ -50,21 +43,19 @@ class DatabaseController extends Controller
         Yii::$app->getResponse()->setStatusCode(200);
     }
 
-    /**
-     * Helper to get database connection by location (Dharavi, Malvani, Vashi, or Central)
-     */
     private function getDbConnection($loc = null)
     {
         $locKey = strtolower(trim((string)$loc));
         $host = getenv('DB_HOST') ?: '127.0.0.1';
-        $user = getenv('DB_USER') ?: 'root';
-        $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : 'Kirub@2001';
+        $port = getenv('DB_PORT') ?: '3306';
+        $user = getenv('DB_USER') ?: (getenv('MYSQL_USER') ?: 'root');
+        $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : (getenv('MYSQL_PASSWORD') !== false ? getenv('MYSQL_PASSWORD') : 'Kirub@2001');
 
         if ($locKey === 'dharavi') {
             try {
-                $dbName = getenv('DB_NAME_DHARAVI') ?: 'ncd_dharavi';
+                $dbName = getenv('DB_NAME_DHARAVI') ?: (getenv('DB_NAME') ?: (getenv('MYSQL_DATABASE') ?: 'ncd'));
                 $conn = new \yii\db\Connection([
-                    'dsn' => "mysql:host={$host};dbname={$dbName}",
+                    'dsn' => "mysql:host={$host};port={$port};dbname={$dbName}",
                     'username' => $user,
                     'password' => $pass,
                     'charset' => 'utf8',
@@ -72,16 +63,16 @@ class DatabaseController extends Controller
                 ]);
                 $conn->open();
                 return [$conn, 'Dharavi', $dbName];
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 return [Yii::$app->db, 'Dharavi', 'ncd'];
             }
         }
 
         if ($locKey === 'malvani') {
             try {
-                $dbName = getenv('DB_NAME_MALVANI') ?: 'ncd_malvani';
+                $dbName = getenv('DB_NAME_MALVANI') ?: (getenv('DB_NAME') ?: (getenv('MYSQL_DATABASE') ?: 'ncd'));
                 $conn = new \yii\db\Connection([
-                    'dsn' => "mysql:host={$host};dbname={$dbName}",
+                    'dsn' => "mysql:host={$host};port={$port};dbname={$dbName}",
                     'username' => $user,
                     'password' => $pass,
                     'charset' => 'utf8',
@@ -89,16 +80,16 @@ class DatabaseController extends Controller
                 ]);
                 $conn->open();
                 return [$conn, 'Malvani', $dbName];
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 return [Yii::$app->db, 'Malvani', 'ncd'];
             }
         }
 
         if ($locKey === 'vashi') {
             try {
-                $dbName = getenv('DB_NAME_VASHI') ?: 'ncd_vashi';
+                $dbName = getenv('DB_NAME_VASHI') ?: (getenv('DB_NAME') ?: (getenv('MYSQL_DATABASE') ?: 'ncd'));
                 $conn = new \yii\db\Connection([
-                    'dsn' => "mysql:host={$host};dbname={$dbName}",
+                    'dsn' => "mysql:host={$host};port={$port};dbname={$dbName}",
                     'username' => $user,
                     'password' => $pass,
                     'charset' => 'utf8',
@@ -106,7 +97,7 @@ class DatabaseController extends Controller
                 ]);
                 $conn->open();
                 return [$conn, 'Vashi', $dbName];
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 return [Yii::$app->db, 'Vashi', 'ncd'];
             }
         }
@@ -115,18 +106,64 @@ class DatabaseController extends Controller
     }
 
     /**
+     * GET /api/v1/database/status
+     * Connection diagnostic endpoint to verify MariaDB / MySQL status
+     */
+    public function actionStatus()
+    {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
+        $host = getenv('DB_HOST') ?: '127.0.0.1';
+        $port = getenv('DB_PORT') ?: '3306';
+        $user = getenv('DB_USER') ?: (getenv('MYSQL_USER') ?: 'root');
+        $dbName = getenv('DB_NAME') ?: (getenv('MYSQL_DATABASE') ?: 'ncd');
+
+        try {
+            $db = Yii::$app->db;
+            $db->open();
+            
+            $tables = $db->getSchema()->getTableNames();
+
+            return [
+                'status' => 'success',
+                'connected' => true,
+                'host' => $host,
+                'port' => $port,
+                'database' => $dbName,
+                'user' => $user,
+                'table_count' => count($tables),
+                'tables' => $tables,
+                'message' => 'Database connected successfully.'
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'status' => 'error',
+                'connected' => false,
+                'host' => $host,
+                'port' => $port,
+                'database' => $dbName,
+                'user' => $user,
+                'error' => $e->getMessage(),
+                'message' => 'Database connection failed: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
      * GET /api/v1/database/tables?location=dharavi
      * Returns list of database tables with row counts for selected location DB
      */
     public function actionTables()
     {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
         $location = Yii::$app->request->get('location', 'central');
         list($db, $locName, $dbName) = $this->getDbConnection($location);
 
         $tableNames = [
             'cms_mdhl' => ['label' => 'Initial Screening Records', 'pk' => 'mem_scrn_id', 'group' => 'Screening'],
-            'cms_users' => ['label' => 'System Accounts & Staff', 'pk' => 'id', 'group' => 'Core'],
-            'cms_locationmaster' => ['label' => 'Locations & Centers', 'pk' => 'id', 'group' => 'Core'],
+            'cms_users' => ['label' => 'System Accounts & Staff', 'pk' => 'usr_id', 'group' => 'Core'],
+            'cms_locationmaster' => ['label' => 'Locations & Centers', 'pk' => 'loc_id', 'group' => 'Core'],
             'cms_surveymaster' => ['label' => 'Surveys & Form Schemas', 'pk' => 'sur_id', 'group' => 'Core'],
             'cms_apm' => ['label' => 'Anthropometry (Height/Weight)', 'pk' => 'apm_id', 'group' => 'Clinical'],
             'cms_vital' => ['label' => 'Blood Pressure & Vitals', 'pk' => 'vital_id', 'group' => 'Clinical'],
@@ -148,7 +185,7 @@ class DatabaseController extends Controller
                     $query->where(['like', 'mem_scrn_q17', $locName]);
                 }
                 $count = $query->count('*', $db);
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $count = 0;
             }
 
@@ -171,10 +208,11 @@ class DatabaseController extends Controller
 
     /**
      * GET /api/v1/database/tabledata?table=cms_mdhl&location=dharavi
-     * Returns rows and column definitions for a given table in selected location DB
      */
     public function actionTabledata()
     {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
         $request = Yii::$app->request;
         $table = $request->get('table', 'cms_mdhl');
         $location = $request->get('location', 'central');
@@ -196,7 +234,6 @@ class DatabaseController extends Controller
 
             $query = (new \yii\db\Query())->from($table);
 
-            // Filter location-specific records if fallback DB is used
             if ($locName !== 'Central DB' && $table === 'cms_mdhl') {
                 $query->andWhere(['like', 'mem_scrn_q17', $locName]);
             }
@@ -220,7 +257,7 @@ class DatabaseController extends Controller
                 'columns' => $columns,
                 'data' => $rows
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return [
                 'status' => 'error',
                 'message' => $e->getMessage()
@@ -228,11 +265,10 @@ class DatabaseController extends Controller
         }
     }
 
-    /**
-     * POST /api/v1/database/updaterecord
-     */
     public function actionUpdaterecord()
     {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
         $request = Yii::$app->request;
         $payload = $request->getBodyParams();
 
@@ -258,17 +294,16 @@ class DatabaseController extends Controller
                 'database' => $dbName,
                 'message' => "Record in $table ($dbName) updated successfully."
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Yii::$app->response->statusCode = 500;
             return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 
-    /**
-     * POST /api/v1/database/deleterecord
-     */
     public function actionDeleterecord()
     {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
         $request = Yii::$app->request;
         $payload = $request->getBodyParams();
 
@@ -292,17 +327,16 @@ class DatabaseController extends Controller
                 'database' => $dbName,
                 'message' => "Record deleted from $table in $dbName."
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Yii::$app->response->statusCode = 500;
             return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 
-    /**
-     * POST /api/v1/database/createrecord
-     */
     public function actionCreaterecord()
     {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
         $request = Yii::$app->request;
         $payload = $request->getBodyParams();
 
@@ -327,17 +361,16 @@ class DatabaseController extends Controller
                 'id' => $newId,
                 'message' => "New record created in $table ($dbName)."
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Yii::$app->response->statusCode = 500;
             return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 
-    /**
-     * POST /api/v1/database/flushtable
-     */
     public function actionFlushtable()
     {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
         $request = Yii::$app->request;
         $payload = $request->getBodyParams();
 
@@ -377,17 +410,16 @@ class DatabaseController extends Controller
                 'flushed' => $flushed,
                 'message' => "Specified database tables in $dbName truncated successfully."
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Yii::$app->response->statusCode = 500;
             return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 
-    /**
-     * POST /api/v1/database/seeddata
-     */
     public function actionSeeddata()
     {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
         $request = Yii::$app->request;
         $payload = $request->getBodyParams();
         $location = $payload['location'] ?? 'central';
@@ -433,7 +465,7 @@ class DatabaseController extends Controller
                 'seeded' => $seeded,
                 'message' => "Successfully seeded 5 test participant records into $dbName ($center)."
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Yii::$app->response->statusCode = 500;
             return ['status' => 'error', 'message' => $e->getMessage()];
         }
