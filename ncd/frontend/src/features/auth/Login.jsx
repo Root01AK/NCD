@@ -54,6 +54,7 @@ export function Login({ goLanding, notify, onLoginSuccess }) {
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
         data = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
       } catch (jsonErr) {
+        console.error("RAW API RESPONSE:", responseText);
         const cleanText = (responseText || "").trim().replace(/<[^>]*>?/gm, '');
         throw new Error(cleanText && cleanText.length < 150 ? cleanText : `Server Response Error (HTTP ${response.status})`);
       }
