@@ -99,7 +99,12 @@ class AuthController extends Controller
             if (isset($rolesMap[$lowerUser]) && $rolesMap[$lowerUser]['pass'] === $lowerPass) {
                 $rInfo = $rolesMap[$lowerUser];
                 
-                $tokenStr = "token_quick_" . bin2hex(random_bytes(16));
+                try {
+                    $randData = random_bytes(16);
+                } catch (\Throwable $rErr) {
+                    $randData = md5(uniqid(microtime(), true));
+                }
+                $tokenStr = "token_quick_" . bin2hex($randData);
                 try {
                     if (Yii::$app->has('jwt')) {
                         /** @var \bizley\jwt\Jwt $jwt */
