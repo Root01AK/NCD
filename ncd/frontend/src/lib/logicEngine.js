@@ -5,11 +5,25 @@
 
 export function getOptionCode(opt, oIdx = 0) {
   if (typeof opt === 'object' && opt !== null) {
-    return String(opt.code ?? (oIdx + 1));
+    if (opt.code !== undefined && opt.code !== null && String(opt.code).trim() !== "") {
+      return String(opt.code).trim();
+    }
+    if (opt.id !== undefined && opt.id !== null && !isNaN(parseInt(opt.id, 10))) {
+      return String(opt.id).trim();
+    }
+    return String(oIdx + 1);
   }
-  const str = String(opt || '');
-  const match = str.match(/^(?:Code\s*)?(\d+)/i);
-  return match ? match[1] : String(oIdx + 1);
+
+  const str = String(opt || '').trim();
+  
+  // Only match explicit Code prefix declarations like "Code 1", "Code 15", "1: Option", "2. Option", "1 - Option"
+  const explicitCodeMatch = str.match(/^(?:Code\s*(\d+)|(\d+)\s*[:.\-]\s*)/i);
+  if (explicitCodeMatch) {
+    return explicitCodeMatch[1] || explicitCodeMatch[2];
+  }
+
+  // Otherwise, default to 1-based index (1, 2, 3, 4, 5...)
+  return String(oIdx + 1);
 }
 
 export function getOptionLabel(opt) {

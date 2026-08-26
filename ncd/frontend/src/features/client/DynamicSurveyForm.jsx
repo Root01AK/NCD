@@ -949,6 +949,99 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     }
   };
 
+  const isQ3LocationQuestion = (q) => {
+    if (!q) return false;
+    const idL = String(q.id || "").toLowerCase();
+    const titleL = String(q.title || "").toLowerCase();
+    return idL === "q3" || titleL.startsWith("q3.") || titleL.startsWith("q3 ") || (titleL.includes("q3") && (titleL.includes("site") || titleL.includes("location")));
+  };
+
+  const isGadTotalQuestion = (q) => {
+    if (!q) return false;
+    const idL = String(q.id || "").toLowerCase();
+    const titleL = String(q.title || "").toLowerCase();
+    if (titleL.includes("item") || titleL.includes("response") || titleL.includes("feeling") || titleL.includes("nervous")) return false;
+    return idL === "q61_score" || idL === "gad_total" || titleL.includes("gad-7 total score") || titleL.includes("gad-7 score") || (titleL.includes("gad") && titleL.includes("total score"));
+  };
+
+  const isPhqTotalQuestion = (q) => {
+    if (!q) return false;
+    const idL = String(q.id || "").toLowerCase();
+    const titleL = String(q.title || "").toLowerCase();
+    if (titleL.includes("item") || titleL.includes("response") || titleL.includes("thoughts") || titleL.includes("self-harm") || titleL.includes("bothered")) return false;
+    return idL === "q63_score" || idL === "phq_total" || titleL.includes("phq-9 total score") || titleL.includes("phq-9 score") || (titleL.includes("phq") && titleL.includes("total score"));
+  };
+
+  const isAuditTotalQuestion = (q) => {
+    if (!q) return false;
+    const idL = String(q.id || "").toLowerCase();
+    const titleL = String(q.title || "").toLowerCase();
+    if (titleL.includes("often") || titleL.includes("how many") || titleL.includes("drink")) return false;
+    return idL === "q30" || titleL.includes("audit-c total score") || titleL.includes("audit-c score") || (titleL.includes("audit") && titleL.includes("total score"));
+  };
+
+  const isBmiQuestion = (q) => {
+    if (!q) return false;
+    const idL = String(q.id || "").toLowerCase();
+    const titleL = String(q.title || "").toLowerCase();
+    if (titleL.includes("height") || titleL.includes("weight") || titleL.includes("q67") || titleL.includes("q68")) return false;
+    return idL === "q69" || idL.includes("bmi") || titleL.includes("body mass index") || titleL.includes("bmi");
+  };
+
+  const isAutoCalculatedQuestion = (q) => {
+    if (!q) return false;
+    if (q.type === 'calculated' || q.type === 'computed' || q.type === 'readonly' || q.readOnly || q.required === false) return true;
+    const idL = String(q.id || "").toLowerCase();
+    const titleL = String(q.title || "").toLowerCase();
+    if (titleL.includes("auto-calculated") || titleL.includes("autocalculated") || titleL.includes("index total") || titleL.includes("total score")) return true;
+    if (idL.includes("q23") || titleL.includes("q23") || titleL.includes("heaviness of smoking")) return true;
+    if (idL.includes("q30") || titleL.includes("q30") || titleL.includes("audit-c")) return true;
+    if (idL.includes("q69") || idL.includes("bmi") || titleL.includes("q69") || titleL.includes("body mass index") || titleL.includes("bmi")) return true;
+    if (idL.includes("q72") || idL.includes("whr") || titleL.includes("q72") || titleL.includes("waist-hip")) return true;
+    return false;
+  };
+
+  const getQuestionValue = (q) => {
+    if (!q || !q.id) return undefined;
+    
+    if (data[q.id] !== undefined && data[q.id] !== null && data[q.id] !== "") return data[q.id];
+    if (data[`custom_${q.id}`] !== undefined && data[`custom_${q.id}`] !== null && data[`custom_${q.id}`] !== "") return data[`custom_${q.id}`];
+
+    const qIdLower = String(q.id).toLowerCase();
+    const qTitleLower = String(q.title || "").toLowerCase();
+
+    if (qIdLower.includes("q23") || qTitleLower.includes("q23") || qTitleLower.includes("heaviness of smoking")) {
+      const hsiVal = data.q23 ?? data.custom_q23 ?? data.hsi_score;
+      if (hsiVal !== undefined && hsiVal !== null && hsiVal !== "") return hsiVal;
+    }
+
+    if (qIdLower.includes("q30") || qTitleLower.includes("q30") || qTitleLower.includes("audit-c")) {
+      const auditVal = data.q30 ?? data.custom_q30 ?? data.audit_score;
+      if (auditVal !== undefined && auditVal !== null && auditVal !== "") return auditVal;
+    }
+
+    if (qIdLower.includes("q69") || qIdLower.includes("bmi") || qTitleLower.includes("q69") || qTitleLower.includes("body mass index") || qTitleLower.includes("bmi")) {
+      const bmiVal = data.bmi ?? data.custom_bmi ?? data.q69 ?? data.custom_q69;
+      if (bmiVal !== undefined && bmiVal !== null && bmiVal !== "") return bmiVal;
+    }
+
+    if (qIdLower.includes("q72") || qIdLower.includes("whr") || qTitleLower.includes("q72") || qTitleLower.includes("waist-hip") || qTitleLower.includes("whr")) {
+      const whrVal = data.whr ?? data.custom_whr ?? data.q72 ?? data.custom_q72 ?? data.waist_hip_ratio;
+      if (whrVal !== undefined && whrVal !== null && whrVal !== "") return whrVal;
+    }
+
+    const qNumMatch = qIdLower.match(/^q(\d+)/) || qTitleLower.match(/^q(\d+)/);
+    if (qNumMatch) {
+      const qNum = `q${qNumMatch[1]}`;
+      const foundKey = Object.keys(data).find(k => k.toLowerCase() === qNum || k.toLowerCase() === `custom_${qNum}`);
+      if (foundKey && data[foundKey] !== undefined && data[foundKey] !== null && data[foundKey] !== "") {
+        return data[foundKey];
+      }
+    }
+
+    return undefined;
+  };
+
   const validateCurrentPageQuestions = () => {
     const activeQs = activeCustomQuestions;
     if (!activeQs || activeQs.length === 0) return true;
@@ -988,7 +1081,12 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     for (const q of currentBatch) {
       if (q.type === 'section_header') continue;
       
-      const val = data[q.id] !== undefined ? data[q.id] : data[`custom_${q.id}`];
+      // Auto-calculated fields are derived by system engine and never block page navigation
+      if (isAutoCalculatedQuestion(q)) {
+        continue;
+      }
+
+      const val = getQuestionValue(q);
       const isEmpty = val === undefined || 
                       val === null || 
                       val === "" || 
@@ -1725,8 +1823,29 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                           )}
                         </div>
                         
-                        {/* Custom Score Cards (Q23 HSI, Q61 GAD-7, Q64 PHQ-9, Q30 AUDIT-C) evaluated BEFORE short_text */}
-                        {(q.id === "q23" || (q.title && q.title.toLowerCase().includes("q23"))) ? (
+                        {/* Custom Score Cards & Auto-Fetched Q3 Site Location */}
+                        {(isQ3LocationQuestion(q)) ? (
+                          <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-300/90 shadow-2xs font-mono my-2 animate-in fade-in duration-200">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-2xs shrink-0">
+                                  <MapPin size={20} />
+                                </div>
+                                <div>
+                                  <span className="text-[10px] uppercase font-black tracking-widest text-amber-900 font-mono block">
+                                    Auto-Fetched Site / Location
+                                  </span>
+                                  <div className="text-base sm:text-lg font-black text-slate-950 font-sans tracking-tight pt-0.5">
+                                    {data[`custom_${q.id}`] || data[q.id] || data.q3 || data.custom_q3 || data.location || activeCenterLoc || "Dharavi"}
+                                  </div>
+                                </div>
+                              </div>
+                              <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-200/80 text-amber-950 border border-amber-300 shadow-2xs font-mono shrink-0">
+                                Active Center
+                              </span>
+                            </div>
+                          </div>
+                        ) : (q.id === "q23" || (q.title && q.title.toLowerCase().includes("q23"))) ? (
                           <div className="space-y-3">
                             <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-300 flex items-center justify-between shadow-2xs font-mono">
                               <div>
@@ -1780,10 +1899,10 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                               }
                             })()}
                           </div>
-                        ) : (q.id === "q61" || (q.title && (q.title.toLowerCase().includes("q61") || (q.title.toLowerCase().includes("gad") && q.title.toLowerCase().includes("score"))))) ? (
+                        ) : (isGadTotalQuestion(q)) ? (
                           <div className="rounded-2xl border border-slate-700 overflow-hidden shadow-md font-mono my-2 animate-in fade-in duration-200">
                             <div className="bg-[#b4c6ff] text-slate-950 px-5 py-3 font-extrabold text-sm border-b border-slate-600">
-                              Q61. GAD-7 total score:
+                              GAD-7 total score:
                             </div>
                             <div className="bg-[#242426] text-white px-5 py-4 flex items-center justify-between">
                               <div className="flex items-baseline gap-2">
@@ -1821,10 +1940,10 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                               Bands: 0 to 4 minimal, 5 to 9 mild, 10 to 14 moderate, 15 to 21 severe. 10 or more is clinically significant.
                             </div>
                           </div>
-                        ) : (q.id === "q64" || (q.title && (q.title.toLowerCase().includes("q64") || (q.title.toLowerCase().includes("phq") && q.title.toLowerCase().includes("score"))))) ? (
+                        ) : (isPhqTotalQuestion(q)) ? (
                           <div className="rounded-2xl border border-slate-700 overflow-hidden shadow-md font-mono my-2 animate-in fade-in duration-200">
                             <div className="bg-[#b4c6ff] text-slate-950 px-5 py-3 font-extrabold text-sm border-b border-slate-600">
-                              Q64. PHQ-9 total score:
+                              PHQ-9 total score:
                             </div>
                             <div className="bg-[#242426] text-white px-5 py-4 flex items-center justify-between">
                               <div className="flex items-baseline gap-2">
@@ -1862,10 +1981,10 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                               Bands: 0 to 4 minimal, 5 to 9 mild, 10 to 14 moderate, 15 to 19 moderately severe, 20 to 27 severe. 10 or more is clinically significant.
                             </div>
                           </div>
-                        ) : (q.id === "q30" || (q.title && (q.title.toLowerCase().includes("q30") || (q.title.toLowerCase().includes("audit") && q.title.toLowerCase().includes("score"))))) ? (
+                        ) : (isAuditTotalQuestion(q)) ? (
                           <div className="rounded-2xl border border-slate-700 overflow-hidden shadow-md font-mono my-2 animate-in fade-in duration-200">
                             <div className="bg-[#b4c6ff] text-slate-950 px-5 py-3 font-extrabold text-sm border-b border-slate-600">
-                              Q30. AUDIT-C Total Score:
+                              AUDIT-C Total Score:
                             </div>
                             <div className="bg-[#242426] text-white px-5 py-4 flex items-center justify-between">
                               <div className="flex items-baseline gap-2">
@@ -1903,7 +2022,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                               Bands: Positive screen is 4 or more for men, 3 or more for women and transgender participants.
                             </div>
                           </div>
-                        ) : (q.id === "q69" || (q.title && (q.title.toLowerCase().includes("q69") || q.title.toLowerCase().includes("bmi")))) ? (
+                        ) : (isBmiQuestion(q)) ? (
                           <div className="rounded-2xl border border-slate-700 overflow-hidden shadow-md font-mono my-2 animate-in fade-in duration-200">
                             <div className="bg-[#b4c6ff] text-slate-950 px-5 py-3 font-extrabold text-sm border-b border-slate-600 flex items-center justify-between">
                               <span>Q69. Body Mass Index (BMI) — Auto-Calculated</span>
