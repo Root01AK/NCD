@@ -98,28 +98,19 @@ $config = [
 ];
 
 if (YII_ENV_DEV) {
-    // configuration adjustments for 'dev' environment
-    $config['bootstrap'][] = 'debug';
-    $config['modules']['debug'] = [
-        'class' => 'yii\debug\Module',
-    ];
+    if (class_exists('yii\debug\Module')) {
+        $config['bootstrap'][] = 'debug';
+        $config['modules']['debug'] = [
+            'class' => 'yii\debug\Module',
+        ];
+    }
 
-    $config['bootstrap'][] = 'gii';
-    $config['modules']['gii'] = [
-        'class' => 'yii\gii\Module',
-		'generators' => [
-			'crud'   => [
-				// 'class'     => 'yii\gii\generators\crud\Generator',
-				'class'     => 'app\templates\mycrud\Generator',
-				'templates' => ['mycrud' => '@app/templates/mycrud/default']
-			],
-			'model'   => [
-				// 'class'     => 'yii\gii\generators\model\Generator',
-				'class'     => 'app\templates\mymodel\Generator',
-				'templates' => ['mycrud' => '@app/templates/mymodel/default']
-			],
-		]
-    ];
+    if (class_exists('yii\gii\Module')) {
+        $config['bootstrap'][] = 'gii';
+        $config['modules']['gii'] = [
+            'class' => 'yii\gii\Module',
+        ];
+    }
 }
 
 \Yii::$container->set('kartik\grid\GridView', [
