@@ -4,8 +4,12 @@ services:
       context: ./ncd
       dockerfile: Dockerfile
     image: ncd-app:latest
+    ports:
+      - "80:80"
     expose:
       - "80"
+      - "8080"
+      - "3000"
     environment:
       - DB_HOST=db
       - DB_PORT=3306
@@ -15,21 +19,14 @@ services:
       - YII_ENV=prod
       - YII_DEBUG=false
     depends_on:
-      db:
-        condition: service_healthy
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://127.0.0.1/ || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+      - db
+    restart: always
     networks:
       - ncd_net
 
   db:
     image: mariadb:10.11
-    restart: unless-stopped
+    restart: always
     environment:
       - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-rootchangeme}
       - MYSQL_DATABASE=${DB_NAME:-ncd}
@@ -38,18 +35,12 @@ services:
     volumes:
       - mariadb_data:/var/lib/mysql
       - ./ncd/DB/ncd.sql:/docker-entrypoint-initdb.d/01-ncd.sql:ro
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
     networks:
       - ncd_net
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:latest
-    restart: unless-stopped
+    restart: always
     ports:
       - "8088:80"
     environment:
@@ -57,8 +48,7 @@ services:
       PMA_PORT: 3306
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootchangeme}
     depends_on:
-      db:
-        condition: service_healthy
+      - db
     networks:
       - ncd_net
 
