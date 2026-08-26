@@ -3,7 +3,6 @@ header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 
 $dbStatus = 'unknown';
-$dbMessage = '';
 
 try {
     $host = getenv('DB_HOST') ?: '127.0.0.1';
@@ -12,31 +11,14 @@ try {
     $username = getenv('DB_USER') ?: (getenv('MYSQL_USER') ?: 'root');
     $password = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : (getenv('MYSQL_PASSWORD') !== false ? getenv('MYSQL_PASSWORD') : 'Kirub@2001');
 
-    $candidates = array_unique([$host, 'db', 'mariadb', '127.0.0.1', 'localhost', 'host.docker.internal']);
-    $connectedHost = null;
-
-    foreach ($candidates as $h) {
-        // Ultra-fast TCP socket check (0.2s timeout) before calling PDO
-        $fp = @fsockopen($h, $port, $errno, $errstr, 0.2);
-        if ($fp) {
-            fclose($fp);
-            try {
-                $pdo = new PDO("mysql:host={$h};port={$port};dbname={$dbname}", $username, $password, [
-                    PDO::ATTR_TIMEOUT => 2,
-                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
-                ]);
-                $connectedHost = $h;
-                break;
-            } catch (Throwable $e) {
-                $dbMessage = $e->getMessage();
-            }
-        }
-    }
-
-    if ($connectedHost) {
-        $dbStatus = 'connected (' . $connectedHost . ')';
-    } else {
-        $dbStatus = 'no open MySQL port found: ' . ($dbMessage ?: 'connection timed out');
+    try {
+        $pdo = new PDO("mysql:host={$host};port={$port};dbname={$dbname}", $username, $password, [
+            PDO::ATTR_TIMEOUT => 2,
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+        ]);
+        $dbStatus = 'connected (' . $host . ')';
+    } catch (Throwable $e) {
+        $dbStatus = 'failed: ' . $e->getMessage();
     }
 } catch (Throwable $ex) {
     $dbStatus = 'error: ' . $ex->getMessage();
