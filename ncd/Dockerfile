@@ -71,7 +71,7 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3 \
   CMD curl -f http://localhost/ || exit 1
 
 # Expose HTTP
-EXPOSE 80
+EXPOSE 80 8080 3000
 
 # Start supervisord (manages both php-fpm + nginx)
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
