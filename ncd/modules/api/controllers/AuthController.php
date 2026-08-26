@@ -59,6 +59,8 @@ class AuthController extends Controller
         Yii::$app->response->format = Response::FORMAT_JSON;
 
         try {
+            $this->ensureDatabaseSeeded();
+
             $request = Yii::$app->request;
             
             // Extract body parameters safely for JSON requests
@@ -220,5 +222,72 @@ class AuthController extends Controller
         } catch (\Throwable $e) {}
 
         return false;
+    }
+
+    private function ensureDatabaseSeeded()
+    {
+        try {
+            $db = Yii::$app->db;
+            
+            $userCount = 0;
+            try {
+                $userCount = (int)$db->createCommand("SELECT COUNT(*) FROM cms_users")->queryScalar();
+            } catch (\Throwable $e) {
+                $db->createCommand("
+                    CREATE TABLE IF NOT EXISTS `cms_users` (
+                        `usr_id` int(11) NOT NULL AUTO_INCREMENT,
+                        `users_name` varchar(64) NOT NULL,
+                        `password` longtext NOT NULL,
+                        `auth_key` varchar(64) NOT NULL,
+                        `password_reset_token` varchar(255) DEFAULT NULL,
+                        `full_name` varchar(50) NOT NULL,
+                        `email` varchar(320) DEFAULT NULL,
+                        `status` varchar(1) DEFAULT '1',
+                        `create_time` int(11) DEFAULT NULL,
+                        `create_user` int(11) DEFAULT NULL,
+                        `update_time` int(11) DEFAULT NULL,
+                        `update_user` int(11) DEFAULT NULL,
+                        `user_type` int(11) DEFAULT NULL,
+                        `record_date` int(11) DEFAULT NULL,
+                        `loc_code` text DEFAULT NULL,
+                        `signedin_loc` varchar(50) DEFAULT NULL,
+                        `state_code` varchar(50) DEFAULT NULL,
+                        `user_role` smallint(6) DEFAULT NULL,
+                        PRIMARY KEY (`usr_id`),
+                        UNIQUE KEY `users_name` (`users_name`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+                ")->execute();
+            }
+
+            if ($userCount === 0) {
+                $db->createCommand()->batchInsert('cms_users', 
+                    ['users_name', 'password', 'auth_key', 'full_name', 'email', 'status', 'loc_code', 'state_code', 'signedin_loc', 'user_role'],
+                    [
+                        ['admin_user', 'admin123', 'key_admin_user_2026', 'System Administrator', 'admin@yrgcare.org', '1', 'Dharavi', 'Admin', 'Full Access', 1],
+                        ['admin', 'admin123', 'key_admin_2026', 'System Administrator', 'admin@yrgcare.org', '1', 'Dharavi', 'Admin', 'Full Access', 1],
+                        ['deo', 'deo', 'key_deo_2026', 'Field Supervisor DEO', 'deo@yrgcare.org', '1', 'Dharavi', 'Field Supervisor', 'Dharavi Center', 2],
+                        ['nurse', 'nurse', 'key_nurse_2026', 'Clinical Staff Nurse', 'nurse@yrgcare.org', '1', 'Dharavi', 'Staff Nurse', 'Dharavi Center', 3],
+                        ['doctor', 'doctor', 'key_doctor_2026', 'Clinical Doctor', 'doctor@yrgcare.org', '1', 'Dharavi', 'Doctor', 'Dharavi Center', 4],
+                        ['counselor', 'counselor', 'key_counselor_2026', 'Mental Health Counselor', 'counselor@yrgcare.org', '1', 'Dharavi', 'Counselor', 'Dharavi Center', 5],
+                        ['coordinator', 'coordinator', 'key_coordinator_2026', 'Case Management Coordinator', 'coordinator@yrgcare.org', '1', 'Dharavi', 'Case Coordinator', 'Dharavi Center', 6],
+                    ]
+                )->execute();
+            }
+
+            try {
+                $locCount = (int)$db->createCommand("SELECT COUNT(*) FROM cms_locationmaster")->queryScalar();
+                if ($locCount === 0) {
+                    $db->createCommand()->batchInsert('cms_locationmaster',
+                        ['state_code', 'loc_code', 'loc_name', 'loc_state', 'loc_district', 'loc_city', 'status'],
+                        [
+                            ['MH', 'DH', 'Dharavi Center', 'Maharashtra', 'Mumbai', 'Dharavi', '1'],
+                            ['MH', 'ML', 'Malvani Center', 'Maharashtra', 'Mumbai Suburbs', 'Malvani', '1'],
+                            ['MH', 'VA', 'Vashi Center', 'Maharashtra', 'Navi Mumbai', 'Vashi', '1'],
+                        ]
+                    )->execute();
+                }
+            } catch (\Throwable $e) {}
+
+        } catch (\Throwable $e) {}
     }
 }
