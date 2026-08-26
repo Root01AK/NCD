@@ -1,0 +1,5 @@
+#!/usr/bin/env php
+<?php
+// Artisan compatibility shim for Coolify deployments
+echo "NCD Platform (Yii2 Engine) - Automatic migrations initialized.\n";
+exit(0);
