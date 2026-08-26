@@ -55,7 +55,7 @@ COPY . .
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # ── Optimize Composer Autoloader ─────────────────────────────────────────────
-RUN composer dump-autoload --optimize --no-scripts || composer install --no-dev --optimize-autoloader --no-interaction --no-progress --ignore-platform-reqs --no-scripts --no-audit
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress --ignore-platform-reqs --no-scripts --no-audit
 
 # ── Nginx & Supervisor configuration ─────────────────────────────────────────
 COPY docker/nginx.conf /etc/nginx/http.d/default.conf
