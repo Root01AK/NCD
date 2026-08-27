@@ -349,7 +349,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       const userStr = localStorage.getItem('ncd_user') || localStorage.getItem('icc_user');
       if (userStr) {
         const u = JSON.parse(userStr);
-        if (u && (u.location || u.loc_code)) return u.location || u.loc_code;
+        if (u && (u.location || u.assigned_location || u.loc_code)) return u.location || u.assigned_location || u.loc_code;
       }
     } catch (e) {}
     return "Dharavi";
@@ -372,11 +372,13 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
   useEffect(() => {
     const loc = getActiveLocation();
-    setData(prev => ({
-      ...prev,
-      location: loc,
-      participant_id: generateParticipantID(loc)
-    }));
+    fetchNextParticipantIDFromDB(loc).then(freshId => {
+      setData(prev => ({
+        ...prev,
+        location: loc,
+        participant_id: freshId || generateParticipantID(loc)
+      }));
+    });
   }, []);
 
   const [submitting, setSubmitting] = useState(false);
@@ -486,11 +488,26 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     if (notify) notify("info", "Draft survey session discarded.");
   };
 
+  // Real-Time Continuous Auto-Save: Saves draft instantly on every answer modification
+  useEffect(() => {
+    if (step === 1 && data && data.participant_id && !submitting) {
+      try {
+        const draft = {
+          participant_id: data.participant_id,
+          page: qPage,
+          data: data,
+          updatedAt: new Date().toISOString()
+        };
+        localStorage.setItem('ncd_active_survey_draft', JSON.stringify(draft));
+        localStorage.setItem(`ncd_draft_${data.participant_id}`, JSON.stringify(draft));
+      } catch (err) {}
+    }
+  }, [step, data, qPage, submitting]);
+
   // Protected Mode: Tab reload & close warning listener during active survey session
   useEffect(() => {
     const handleBeforeUnload = (e) => {
       if (step === 1 && !submitting) {
-        // Automatically autosave current session as draft before page reload/leave
         try {
           const draft = {
             participant_id: data.participant_id || "PARTICIPANT_DRAFT",
@@ -849,13 +866,14 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   };
   const loggedInUser = getLoggedInUserSafely();
   
-  let userPrivileges = loggedInUser?.privileges;
-  if (typeof userPrivileges === 'string') {
-    try { userPrivileges = JSON.parse(userPrivileges); } catch (e) { userPrivileges = null; }
+  let rawPrivileges = loggedInUser?.privileges || activeUser?.privileges;
+  if (typeof rawPrivileges === 'string') {
+    try { rawPrivileges = JSON.parse(rawPrivileges); } catch (e) { rawPrivileges = null; }
   }
-  if (!Array.isArray(userPrivileges) || userPrivileges.length === 0) {
-    const rLower = (data.user_role || "").toLowerCase();
-    userPrivileges = rLower.includes("nurse") ? [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+  let userPrivileges = Array.isArray(rawPrivileges) ? rawPrivileges : null;
+  if (userPrivileges === null) {
+    const rLower = (data.user_role || activeUser?.role_name || activeUser?.role || "").toLowerCase();
+    userPrivileges = rLower.includes("nurse") ? [2, 3, 4, 5, 6, 7, 9, 10, 11]
       : rLower.includes("doctor") ? [12, 13]
       : rLower.includes("counselor") ? [8, 15]
       : rLower.includes("coordinator") ? [14]
@@ -938,9 +956,9 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   });
   const hasCustomQuestions = activeCustomQuestions.length > 0;
 
-  // Trigger Staff Nurse Transfer Modal ONLY when Staff Nurse actively navigates to Section 8
+  // Trigger Staff Nurse Transfer Modal ONLY when Staff Nurse actively navigates to Section 8 and HAS Section 8 privilege
   useEffect(() => {
-    if (!isStaffNurseRole || data.staff_nurse_section_decided) return;
+    if (!isStaffNurseRole || !hasPrivilege(8) || data.staff_nurse_section_decided) return;
     if (step < 1 || !data.participant_id) return;
 
     const activeQs = activeCustomQuestions;
@@ -1795,7 +1813,6 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
           {/* STEP 0: PARTICIPANT SELECTION & INITIAL HEADER */}
           {step === 0 && (
             <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-2xs space-y-6 animate-in fade-in duration-200">
-              
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900 tracking-tight">
@@ -1804,30 +1821,6 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                   <p className="text-xs text-slate-500 mt-1">
                     Select an existing participant record or verify Participant ID, screening date, and contact details to proceed.
                   </p>
-                </div>
-                <div className="relative flex items-center gap-1.5 bg-amber-50 text-amber-950 border border-amber-300 rounded-xl px-3 py-1.5 text-xs font-mono font-bold shadow-2xs">
-                  <MapPin size={13} className="text-amber-700 shrink-0" />
-                  <span className="text-[11px] font-bold text-amber-900">Center:</span>
-                  <select
-                    value={data.location || "Dharavi"}
-                    onChange={(e) => {
-                      const selectedLoc = e.target.value;
-                      const newPid = generateParticipantID(selectedLoc);
-                      localStorage.setItem('ncd_active_location', selectedLoc);
-                      setData(prev => ({
-                        ...prev,
-                        location: selectedLoc,
-                        participant_id: newPid
-                      }));
-                      if (notify) notify("info", "Location Center Switched", `Switched center to ${selectedLoc}. Participant ID updated to ${newPid}.`);
-                    }}
-                    className="bg-transparent font-black text-amber-950 outline-none cursor-pointer text-xs font-mono pr-1"
-                    title="Switch Workstation Location Center"
-                  >
-                    <option value="Dharavi">Dharavi Center (DH)</option>
-                    <option value="Malvani">Malvani Center (ML)</option>
-                    <option value="Vashi">Vashi Center (VA)</option>
-                  </select>
                 </div>
               </div>
 
@@ -1840,9 +1833,21 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                   if (data.location && data.location !== "All") {
                     const pLoc = String(p.location || "").toLowerCase().trim();
                     const selLoc = String(data.location || "").toLowerCase().trim();
+                    const pidUpper = String(p.id || "").toUpperCase().trim();
                     const pPrefix = getlocationPrefix(p.location);
                     const selPrefix = getlocationPrefix(data.location);
-                    const locMatch = pLoc.includes(selLoc) || selLoc.includes(pLoc) || pPrefix === selPrefix || (p.id && p.id.includes(`NCD${selPrefix}`));
+
+                    let locMatch = false;
+                    if (selLoc.includes("vashi") || selPrefix === "VA") {
+                      locMatch = pLoc.includes("vashi") || pLoc.includes("va") || pidUpper.includes("NCDVA") || (pidUpper.includes("VA") && !pidUpper.includes("NCDDH") && !pidUpper.includes("NCDML"));
+                    } else if (selLoc.includes("malvani") || selPrefix === "ML") {
+                      locMatch = pLoc.includes("malvani") || pLoc.includes("ml") || pidUpper.includes("NCDML") || (pidUpper.includes("ML") && !pidUpper.includes("NCDDH") && !pidUpper.includes("NCDVA"));
+                    } else if (selLoc.includes("dharavi") || selPrefix === "DH") {
+                      locMatch = pLoc.includes("dharavi") || pLoc.includes("dh") || pidUpper.includes("NCDDH") || (pidUpper.includes("DH") && !pidUpper.includes("NCDML") && !pidUpper.includes("NCDVA"));
+                    } else {
+                      locMatch = pLoc.includes(selLoc) || selLoc.includes(pLoc) || pPrefix === selPrefix || pidUpper.includes(`NCD${selPrefix}`);
+                    }
+
                     if (!locMatch) return false;
                   }
 

@@ -29,7 +29,7 @@ export const saveToQueue = async (record) => {
     // Stamp the record with a timestamp before saving
     record.timestamp = new Date().toISOString();
     
-    const request = store.add(record);
+    const request = store.put(record);
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });

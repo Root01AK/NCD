@@ -93,9 +93,13 @@ export function AdminDashboard({ notify, logout }) {
     }
   }, []);
 
-  // Fetch Queue Data on initial mount and whenever tab/phase changes
+  // Fetch Queue Data on initial mount, whenever tab/phase changes, and auto-poll every 15s
   useEffect(() => {
     fetchQueue();
+    const interval = setInterval(() => {
+      fetchQueue();
+    }, 15000);
+    return () => clearInterval(interval);
   }, [navTab, selectedPhase]);
 
   const fetchQueue = async () => {

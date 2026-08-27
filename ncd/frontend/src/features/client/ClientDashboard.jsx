@@ -32,7 +32,9 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
   const [syncQueue, setSyncQueue] = useState([]);
   const [syncing, setSyncing] = useState(false);
   const [syncSearch, setSyncSearch] = useState("");
-  const [selectedSyncLocation, setSelectedSyncLocation] = useState("All");
+  const [selectedSyncLocation, setSelectedSyncLocation] = useState(
+    () => localStorage.getItem('ncd_active_location') || "Dharavi"
+  );
   const [syncAgeGroupFilter, setSyncAgeGroupFilter] = useState("All");
   const [syncGenderFilter, setSyncGenderFilter] = useState("All");
   const [selectedSyncIds, setSelectedSyncIds] = useState([]);
@@ -126,13 +128,14 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
   );
 
   // Dynamic user privilege configuration
-  let userPrivileges = user.privileges;
-  if (typeof userPrivileges === 'string') {
-    try { userPrivileges = JSON.parse(userPrivileges); } catch (e) { userPrivileges = null; }
+  let rawPrivileges = user.privileges;
+  if (typeof rawPrivileges === 'string') {
+    try { rawPrivileges = JSON.parse(rawPrivileges); } catch (e) { rawPrivileges = null; }
   }
-  if (!Array.isArray(userPrivileges) || userPrivileges.length === 0) {
+  let userPrivileges = Array.isArray(rawPrivileges) ? rawPrivileges : null;
+  if (userPrivileges === null) {
     const rLower = String(user?.role_name || "").toLowerCase();
-    userPrivileges = rLower.includes("nurse") ? [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    userPrivileges = rLower.includes("nurse") ? [2, 3, 4, 5, 6, 7, 9, 10, 11]
       : rLower.includes("doctor") ? [12, 13]
       : rLower.includes("counselor") ? [8, 15]
       : rLower.includes("coordinator") ? [14]
@@ -251,28 +254,61 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
   const [completedRecords, setCompletedRecords] = useState([]);
 
   useEffect(() => {
-    // Fetch live submitted Phase II records for assigned center
-    api.get("/api/v1/dashboard/screeninglist").then(res => {
-      if (res.status === 'success' && Array.isArray(res.data)) {
-        // Filter strictly Phase 2 live entries submitted during active Phase II program
-        const phase2List = res.data.filter(p => p.phase === 2 || p.phase === 'phase2' || p.mem_scrn_phase === '2' || p.submitted_by_role);
-        
-        const mapped = phase2List.map(p => ({
-          participant_id: p.mem_scrn_part_id || (p.mem_scrn_id ? `NCD-MUM-${p.mem_scrn_id}` : `NCD-MUM-P2`),
-          fullName: p.mem_scrn_q16 || "Participant Record",
-          age: p.mem_scrn_q1 || "45",
-          gender: p.mem_scrn_q2 === "1" ? "Male" : "Female",
-          date: p.record_date ? new Date(p.record_date * 1000).toLocaleDateString() : new Date().toLocaleDateString(),
-          location: p.mem_scrn_q17 || user.assigned_location || "Dharavi",
-          status: "Synced to Admin",
-          risk: p.mem_scrn_q24 == 1 ? "High Risk Flagged" : "Standard Risk"
-        }));
-        setCompletedRecords(mapped);
-      }
-    }).catch(e => console.error("Error loading completed records", e));
+    const loadSubmitted = () => {
+      api.get("/api/v1/dashboard/screeninglist").then(res => {
+        if (res.status === 'success' && Array.isArray(res.data)) {
+          const phase2List = res.data.filter(p => p.phase === 2 || p.phase === 'phase2' || p.mem_scrn_phase === '2' || p.submitted_by_role);
+          
+          const mapped = phase2List.map(p => ({
+            participant_id: p.mem_scrn_part_id || (p.mem_scrn_id ? `NCD-MUM-${p.mem_scrn_id}` : `NCD-MUM-P2`),
+            fullName: p.mem_scrn_q16 || "Participant Record",
+            age: p.mem_scrn_q1 || "45",
+            gender: p.mem_scrn_q2 === "1" ? "Male" : "Female",
+            date: p.record_date ? new Date(p.record_date * 1000).toLocaleDateString() : new Date().toLocaleDateString(),
+            location: p.mem_scrn_q17 || user.assigned_location || "Dharavi",
+            status: "Synced to Admin",
+            risk: p.mem_scrn_q24 == 1 ? "High Risk Flagged" : "Standard Risk"
+          }));
+          setCompletedRecords(mapped);
+        }
+      }).catch(e => console.error("Error loading completed records", e));
+    };
+
+    loadSubmitted();
+    const interval = setInterval(loadSubmitted, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const matchesActiveCenter = (item) => {
+    if (!activeLocation || activeLocation === "All") return true;
+    let raw = {};
+    if (item.mem_scrn_q30) {
+      try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
+    }
+    const loc = item.location || raw.location || item.mem_scrn_q17 || "";
+    const pId = item.participant_id || item.mem_scrn_part_id || raw.participant_id || raw.mem_scrn_part_id || "";
+
+    const activeLocLower = String(activeLocation).toLowerCase().trim();
+    const locLower = String(loc).toLowerCase().trim();
+    const pIdUpper = String(pId).toUpperCase().trim();
+
+    if (activeLocLower.includes("malvani") || activeLocLower.includes("ml")) {
+      return locLower.includes("malvani") || locLower.includes("ml") || pIdUpper.includes("NCDML") || (pIdUpper.includes("ML") && !pIdUpper.includes("NCDDH") && !pIdUpper.includes("NCDVA"));
+    }
+    if (activeLocLower.includes("dharavi") || activeLocLower.includes("dh")) {
+      return locLower.includes("dharavi") || locLower.includes("dh") || pIdUpper.includes("NCDDH") || (pIdUpper.includes("DH") && !pIdUpper.includes("NCDML") && !pIdUpper.includes("NCDVA"));
+    }
+    if (activeLocLower.includes("vashi") || activeLocLower.includes("va")) {
+      return locLower.includes("vashi") || locLower.includes("va") || pIdUpper.includes("NCDVA") || (pIdUpper.includes("VA") && !pIdUpper.includes("NCDDH") && !pIdUpper.includes("NCDML"));
+    }
+
+    return locLower.includes(activeLocLower) || activeLocLower.includes(locLower);
+  };
+
+  const centerSyncQueueCount = syncQueue.filter(matchesActiveCenter).length;
+  const centerCompletedCount = completedRecords.filter(matchesActiveCenter).length;
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#F8FAFC] font-sans text-slate-900 overflow-hidden" style={{ fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif" }}>
@@ -301,8 +337,8 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
         <div className="hidden md:flex items-center gap-1.5 bg-slate-100/90 border border-slate-200/80 rounded-2xl p-1 shadow-inner overflow-x-auto max-w-full no-scrollbar">
           {[
             { id: "dashboard", label: "Dashboard", icon: Home },
-            { id: "completed", label: "Completed", icon: ClipboardCheck, badge: completedRecords.length },
-            { id: "sync", label: "Sync Queue", icon: FolderSync, badge: syncQueue.length },
+            { id: "completed", label: "Completed", icon: ClipboardCheck, badge: centerCompletedCount },
+            { id: "sync", label: "Sync Queue", icon: FolderSync, badge: centerSyncQueueCount },
             { id: "profile", label: "Profile", icon: UserCircle2 }
           ].map((n) => {
             const Icon = n.icon;
@@ -368,8 +404,8 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
           <div className="grid grid-cols-2 gap-2">
             {[
               { id: "dashboard", label: "Dashboard", icon: Home },
-              { id: "completed", label: "Completed", icon: ClipboardCheck, badge: completedRecords.length },
-              { id: "sync", label: "Sync Queue", icon: FolderSync, badge: syncQueue.length },
+              { id: "completed", label: "Completed", icon: ClipboardCheck, badge: centerCompletedCount },
+              { id: "sync", label: "Sync Queue", icon: FolderSync, badge: centerSyncQueueCount },
               { id: "profile", label: "Profile", icon: UserCircle2 }
             ].map((n) => {
               const Icon = n.icon;
@@ -451,64 +487,97 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
             {/* Perfectly Aligned 3-Card Metrics Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               
-              {/* Card 1: Initiated Surveys */}
-              <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-amber-300 transition-all duration-200 flex items-center gap-4 group">
-                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 shrink-0 group-hover:scale-105 transition-transform">
-                  <FileText size={26} />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 font-mono">Total Initiated</p>
-                  <p className="text-3xl font-black text-slate-900 font-mono tracking-tight">
-                    {(() => {
-                      const pIds = new Set();
-                      syncQueue.forEach(r => {
-                        let raw = {};
-                        if (r.mem_scrn_q30) { try { raw = typeof r.mem_scrn_q30 === 'string' ? JSON.parse(r.mem_scrn_q30) : r.mem_scrn_q30; } catch (e) {} }
-                        const id = r.participant_id || r.mem_scrn_part_id || raw.participant_id;
-                        if (id) pIds.add(String(id).toUpperCase().trim());
-                      });
-                      completedRecords.forEach(r => {
-                        let raw = {};
-                        if (r.mem_scrn_q30) { try { raw = typeof r.mem_scrn_q30 === 'string' ? JSON.parse(r.mem_scrn_q30) : r.mem_scrn_q30; } catch (e) {} }
-                        const id = r.participant_id || r.mem_scrn_part_id || raw.participant_id;
-                        if (id) pIds.add(String(id).toUpperCase().trim());
-                      });
-                      return Math.max(pIds.size, syncQueue.length + completedRecords.length);
-                    })()}
-                  </p>
-                  <span className="text-[10px] font-bold text-amber-900 bg-amber-100/70 px-2 py-0.5 rounded-md font-mono inline-block">
-                    Demographics Active
-                  </span>
-                </div>
-              </div>
+              {(() => {
+                const matchesActiveCenter = (item) => {
+                  if (!activeLocation || activeLocation === "All") return true;
+                  let raw = {};
+                  if (item.mem_scrn_q30) {
+                    try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
+                  }
+                  const loc = item.location || raw.location || item.mem_scrn_q17 || "";
+                  const pId = item.participant_id || item.mem_scrn_part_id || raw.participant_id || "";
 
-              {/* Card 2: Offline Pending Sync Queue */}
-              <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-blue-300 transition-all duration-200 flex items-center gap-4 group">
-                <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 shrink-0 group-hover:scale-105 transition-transform">
-                  <FolderSync size={26} />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 font-mono">Pending Sync Queue</p>
-                  <p className="text-3xl font-black text-slate-900 font-mono tracking-tight">{syncQueue.length}</p>
-                  <span className="text-[10px] font-bold text-blue-900 bg-blue-100/70 px-2 py-0.5 rounded-md font-mono inline-block">
-                    {syncQueue.length > 0 ? 'Offline Queue Ready' : 'All Local Synced'}
-                  </span>
-                </div>
-              </div>
+                  const activeLocLower = String(activeLocation).toLowerCase().trim();
+                  const locLower = String(loc).toLowerCase().trim();
+                  const pIdUpper = String(pId).toUpperCase().trim();
 
-              {/* Card 3: Completed & Synced */}
-              <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-emerald-300 transition-all duration-200 flex items-center gap-4 group">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 shrink-0 group-hover:scale-105 transition-transform">
-                  <CheckCircle2 size={26} />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 font-mono">Completed & Synced</p>
-                  <p className="text-3xl font-black text-slate-900 font-mono tracking-tight">{completedRecords.length}</p>
-                  <span className="text-[10px] font-bold text-emerald-900 bg-emerald-100/70 px-2 py-0.5 rounded-md font-mono inline-block">
-                    Transmitted to Admin
-                  </span>
-                </div>
-              </div>
+                  if (activeLocLower.includes("malvani") || activeLocLower.includes("ml")) {
+                    return locLower.includes("malvani") || locLower.includes("ml") || pIdUpper.includes("NCDML") || pIdUpper.includes("ML");
+                  }
+                  if (activeLocLower.includes("dharavi") || activeLocLower.includes("dh")) {
+                    return locLower.includes("dharavi") || locLower.includes("dh") || pIdUpper.includes("NCDDH") || pIdUpper.includes("DH");
+                  }
+                  if (activeLocLower.includes("vashi") || activeLocLower.includes("va")) {
+                    return locLower.includes("vashi") || locLower.includes("va") || pIdUpper.includes("NCDVA") || pIdUpper.includes("VA");
+                  }
+
+                  return locLower.includes(activeLocLower) || activeLocLower.includes(locLower);
+                };
+
+                const centerSyncQueue = syncQueue.filter(matchesActiveCenter);
+                const centerCompleted = completedRecords.filter(matchesActiveCenter);
+
+                const pIds = new Set();
+                centerSyncQueue.forEach(r => {
+                  let raw = {};
+                  if (r.mem_scrn_q30) { try { raw = typeof r.mem_scrn_q30 === 'string' ? JSON.parse(r.mem_scrn_q30) : r.mem_scrn_q30; } catch (e) {} }
+                  const id = r.participant_id || r.mem_scrn_part_id || raw.participant_id;
+                  if (id) pIds.add(String(id).toUpperCase().trim());
+                });
+                centerCompleted.forEach(r => {
+                  let raw = {};
+                  if (r.mem_scrn_q30) { try { raw = typeof r.mem_scrn_q30 === 'string' ? JSON.parse(r.mem_scrn_q30) : r.mem_scrn_q30; } catch (e) {} }
+                  const id = r.participant_id || r.mem_scrn_part_id || raw.participant_id;
+                  if (id) pIds.add(String(id).toUpperCase().trim());
+                });
+                const totalInitiatedCount = Math.max(pIds.size, centerSyncQueue.length + centerCompleted.length);
+
+                return (
+                  <>
+                    {/* Card 1: Initiated Surveys */}
+                    <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-amber-300 transition-all duration-200 flex items-center gap-4 group">
+                      <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 shrink-0 group-hover:scale-105 transition-transform">
+                        <FileText size={26} />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 font-mono">Total Initiated ({activeLocation})</p>
+                        <p className="text-3xl font-black text-slate-900 font-mono tracking-tight">{totalInitiatedCount}</p>
+                        <span className="text-[10px] font-bold text-amber-900 bg-amber-100/70 px-2 py-0.5 rounded-md font-mono inline-block">
+                          Demographics Active
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Card 2: Offline Pending Sync Queue */}
+                    <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-blue-300 transition-all duration-200 flex items-center gap-4 group">
+                      <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 shrink-0 group-hover:scale-105 transition-transform">
+                        <FolderSync size={26} />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 font-mono">Pending Sync Queue ({activeLocation})</p>
+                        <p className="text-3xl font-black text-slate-900 font-mono tracking-tight">{centerSyncQueue.length}</p>
+                        <span className="text-[10px] font-bold text-blue-900 bg-blue-100/70 px-2 py-0.5 rounded-md font-mono inline-block">
+                          {centerSyncQueue.length > 0 ? 'Offline Queue Ready' : 'All Local Synced'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Card 3: Completed & Synced */}
+                    <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-emerald-300 transition-all duration-200 flex items-center gap-4 group">
+                      <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 shrink-0 group-hover:scale-105 transition-transform">
+                        <CheckCircle2 size={26} />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 font-mono">Completed & Synced ({activeLocation})</p>
+                        <p className="text-3xl font-black text-slate-900 font-mono tracking-tight">{centerCompleted.length}</p>
+                        <span className="text-[10px] font-bold text-emerald-900 bg-emerald-100/70 px-2 py-0.5 rounded-md font-mono inline-block">
+                          Transmitted to Admin
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
 
             </div>
 
@@ -698,45 +767,11 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
             {/* Location-Wise Filter Pills & Age / Gender Dropdown Filters */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs font-mono">
               
-              {/* Location Filter Pills */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none w-full sm:w-auto">
-                <span className="text-xs font-black uppercase text-slate-500 flex items-center gap-1 mr-1 shrink-0">
-                  <MapPin size={14} className="text-amber-600" /> Location:
+              {/* Active Assigned Center Badge */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase text-slate-800 flex items-center gap-1.5 bg-amber-50 text-amber-950 border border-amber-300 rounded-xl px-3 py-1.5 font-mono shadow-2xs">
+                  <MapPin size={14} className="text-amber-700" /> Assigned Center: <strong className="font-extrabold">{activeLocation} Center</strong>
                 </span>
-                {(() => {
-                  const uniqueLocs = Array.from(new Set(
-                    syncQueue.map(item => {
-                      let raw = {};
-                      if (item.mem_scrn_q30) {
-                        try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
-                      }
-                      return item.location || raw.location || item.mem_scrn_q17 || localStorage.getItem('ncd_active_location') || "Dharavi";
-                    }).filter(Boolean)
-                  ));
-                  const allTabs = uniqueLocs.length > 0 ? uniqueLocs : [localStorage.getItem('ncd_active_location') || "Dharavi"];
-                  
-                  return allTabs.map(loc => {
-                    const isSel = selectedSyncLocation === loc;
-                    const count = syncQueue.filter(item => {
-                      let raw = {};
-                      if (item.mem_scrn_q30) {
-                        try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
-                      }
-                      const l = item.location || raw.location || item.mem_scrn_q17 || localStorage.getItem('ncd_active_location') || "Dharavi";
-                      return l.toLowerCase() === loc.toLowerCase();
-                    }).length;
-
-                    return (
-                      <button
-                        key={loc}
-                        onClick={() => setSelectedSyncLocation(loc)}
-                        className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 border ${isSel ? 'bg-amber-400 text-amber-950 border-amber-500 shadow-2xs font-extrabold' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'}`}
-                      >
-                        {loc} ({count})
-                      </button>
-                    );
-                  });
-                })()}
               </div>
 
               {/* Age & Gender Dropdown Filters */}
@@ -798,9 +833,26 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                 if (item.mem_scrn_q30) {
                   try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
                 }
-                const loc = item.location || raw.location || item.mem_scrn_q17 || localStorage.getItem('ncd_active_location') || "Dharavi";
-                const matchesLoc = selectedSyncLocation === "All" || loc.toLowerCase() === selectedSyncLocation.toLowerCase();
-                
+
+                const pid = item.participant_id || item.mem_scrn_part_id || raw.participant_id || raw.mem_scrn_part_id || '';
+                const pidUpper = String(pid).toUpperCase().trim();
+                const loc = item.location || raw.location || item.mem_scrn_q17 || "";
+                const locLower = String(loc).toLowerCase().trim();
+
+                let matchesLoc = selectedSyncLocation === "All";
+                if (!matchesLoc) {
+                  const selLower = String(selectedSyncLocation).toLowerCase().trim();
+                  if (selLower.includes("malvani") || selLower.includes("ml")) {
+                    matchesLoc = locLower.includes("malvani") || locLower.includes("ml") || pidUpper.includes("NCDML") || (pidUpper.includes("ML") && !pidUpper.includes("NCDDH") && !pidUpper.includes("NCDVA"));
+                  } else if (selLower.includes("dharavi") || selLower.includes("dh")) {
+                    matchesLoc = locLower.includes("dharavi") || locLower.includes("dh") || pidUpper.includes("NCDDH") || (pidUpper.includes("DH") && !pidUpper.includes("NCDML") && !pidUpper.includes("NCDVA"));
+                  } else if (selLower.includes("vashi") || selLower.includes("va")) {
+                    matchesLoc = locLower.includes("vashi") || locLower.includes("va") || pidUpper.includes("NCDVA") || (pidUpper.includes("VA") && !pidUpper.includes("NCDDH") && !pidUpper.includes("NCDML"));
+                  } else {
+                    matchesLoc = locLower.includes(selLower) || selLower.includes(locLower);
+                  }
+                }
+
                 const gender = item.gender || raw.gender || (item.mem_scrn_q2 == "1" ? "Male" : "Female");
                 const matchesGender = syncGenderFilter === "All" || String(gender).toLowerCase().includes(syncGenderFilter.toLowerCase());
 
@@ -810,7 +862,6 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                 else if (syncAgeGroupFilter === "30_50") matchesAge = ageNum >= 30 && ageNum <= 50;
                 else if (syncAgeGroupFilter === "over_50") matchesAge = ageNum > 50;
 
-                const pid = item.participant_id || item.mem_scrn_part_id || raw.participant_id || raw.mem_scrn_part_id || '';
                 const phone = item.contact_number || raw.contact_number || "";
                 
                 const matchesSearch = !syncSearch || (

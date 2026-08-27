@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Search, MapPin, Eye, FileText, CheckCircle, AlertTriangle, Loader2, UserCheck, Stethoscope, HeartPulse, Brain, Link2, Trash2, Edit3, Save, X, Plus, Code, RefreshCw, SlidersHorizontal, Settings } from "lucide-react";
+import { Search, MapPin, Eye, FileText, CheckCircle, AlertTriangle, Loader2, UserCheck, Stethoscope, HeartPulse, Brain, Link2, Trash2, Edit3, Save, X, Plus, Code, RefreshCw, SlidersHorizontal, Settings, Download } from "lucide-react";
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { getQueue, deleteFromQueue } from "../../lib/db";
@@ -37,6 +37,53 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
   });
 
   const [locationsList, setLocationsList] = useState(["All", "Dharavi", "Malvani", "Vashi"]);
+
+  const exportToCSV = (dataList, filename) => {
+    if (!dataList || dataList.length === 0) {
+      notify("warning", "No Data to Export", "There are no participant records matching the export filter.");
+      return;
+    }
+
+    const headers = [
+      "Participant ID",
+      "Full Name",
+      "Age",
+      "Gender",
+      "Location Center",
+      "Contact Number",
+      "Date of Survey",
+      "Initiated By Role",
+      "Initiated By User",
+      "Current Stage",
+      "Overall Risk Rating"
+    ];
+
+    const rows = dataList.map(p => [
+      `"${p.participant_id || ''}"`,
+      `"${(p.fullName || '').replace(/"/g, '""')}"`,
+      `"${p.age || ''}"`,
+      `"${p.gender || ''}"`,
+      `"${p.location || ''}"`,
+      `"${p.contact_number || ''}"`,
+      `"${p.date_of_survey || ''}"`,
+      `"${p.created_by_role || ''}"`,
+      `"${p.created_by_user || ''}"`,
+      `"${p.current_stage || ''}"`,
+      `"${p.risk || ''}"`
+    ]);
+
+    const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    notify("success", "Export Complete", `Downloaded ${dataList.length} records into ${filename}`);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -336,25 +383,48 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
           </p>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Overall Export Button */}
+          <button 
+            onClick={() => exportToCSV(participants, "ncd_participants_overall_all_centers.csv")}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold bg-emerald-700 hover:bg-emerald-800 text-white transition-all shadow-2xs cursor-pointer font-mono"
+            title="Export overall participant records across all centers to CSV"
+          >
+            <Download size={14} className="text-emerald-300" />
+            <span>Export Overall (All Centers)</span>
+          </button>
+
+          {/* Location-Wise Export Button */}
+          <button 
+            onClick={() => {
+              const locName = selectedLocation === "All" ? "Filtered" : selectedLocation;
+              exportToCSV(filteredParticipants, `ncd_participants_${locName.toLowerCase()}_export.csv`);
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold bg-amber-600 hover:bg-amber-700 text-white transition-all shadow-2xs cursor-pointer font-mono"
+            title={`Export participant records for ${selectedLocation} to CSV`}
+          >
+            <Download size={14} className="text-amber-200" />
+            <span>Export Location ({selectedLocation})</span>
+          </button>
+
           {/* Create Participant Button */}
           <button 
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold bg-slate-900 text-white hover:bg-black transition-colors shadow-2xs cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold bg-slate-900 text-white hover:bg-black transition-colors shadow-2xs cursor-pointer font-mono"
           >
             <Plus size={15} className="text-amber-400" />
             <span>Create Participant</span>
           </button>
 
           {/* Location Selector */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-white text-xs font-semibold" style={{ borderColor: T.line }}>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-white text-xs font-semibold font-mono" style={{ borderColor: T.line }}>
             <MapPin size={14} className="text-amber-600 shrink-0" />
             <select 
               value={selectedLocation}
               onChange={(e) => setSelectedLocation(e.target.value)}
               className="bg-transparent text-xs font-bold text-slate-800 outline-none cursor-pointer"
             >
-              {locationsList.map(loc => <option key={loc} value={loc}>{loc === "All" ? "All Locations" : loc}</option>)}
+              {locationsList.map(loc => <option key={loc} value={loc}>{loc === "All" ? "All Locations" : `${loc} Center`}</option>)}
             </select>
           </div>
 
@@ -376,7 +446,7 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
 
           <button 
             onClick={fetchParticipants}
-            className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+            className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
             title="Refresh Directory"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />

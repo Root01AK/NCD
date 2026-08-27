@@ -82,6 +82,7 @@ export function Login({ goLanding, notify, onLoginSuccess }) {
         notify("success", "Authentication Successful", `Signed in as ${data.user.username}`);
         if (role === "deo") {
           data.user.location = selectedLocation;
+          data.user.assigned_location = selectedLocation;
           localStorage.setItem('ncd_active_location', selectedLocation);
         }
         localStorage.setItem('ncd_token', data.token);
@@ -174,18 +175,18 @@ export function Login({ goLanding, notify, onLoginSuccess }) {
           <div className="space-y-4">
             {role === "deo" && (
               <div className="animate-in fade-in duration-150">
-                <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider text-slate-600 font-mono">
-                  Assigned Location / Center
+                <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider text-slate-600 font-mono flex items-center gap-1.5">
+                  <MapPin size={13} className="text-amber-600" /> Assigned Location / Center *
                 </label>
                 <div className="flex items-center gap-3 rounded-xl px-4 bg-white border border-slate-300 focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-100 transition-all shadow-2xs">
                   <MapPin size={16} className="text-amber-600 shrink-0" />
                   <select
                     value={selectedLocation}
                     onChange={(e) => setSelectedLocation(e.target.value)}
-                    className="w-full py-3 bg-transparent text-xs font-extrabold text-slate-900 outline-none cursor-pointer"
+                    className="w-full py-3 bg-transparent text-xs font-extrabold text-slate-900 outline-none cursor-pointer font-mono"
                   >
                     {locationsList.map(loc => (
-                      <option key={loc} value={loc}>{loc}</option>
+                      <option key={loc} value={loc}>{loc} Center</option>
                     ))}
                   </select>
                 </div>
