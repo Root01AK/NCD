@@ -5,7 +5,7 @@ import { saveToQueue, getQueue } from "../../lib/db";
 import { api } from "../../lib/api";
 import { Mark } from "../../components/ui/Mark";
 
-import { isQuestionSkipped, getOptionCode, getOptionLabel } from "../../lib/logicEngine";
+import { isQuestionSkipped, getOptionCode, getOptionLabel, calculateAuditCScore } from "../../lib/logicEngine";
 
 // Helper to format Date to DD-MMM-YYYY
 function formatDateDDMMMYYYY(dateObj) {
@@ -92,20 +92,10 @@ export function generateParticipantID(loc = "Dharavi") {
   const prefix = getlocationPrefix(loc);
   const counterKey = `ncd_participant_seq_${prefix}`;
   let currentSeq = parseInt(localStorage.getItem(counterKey) || "1", 10);
-  if (isNaN(currentSeq) || currentSeq > 99999) currentSeq = 1;
+  if (isNaN(currentSeq) || currentSeq > 99999 || currentSeq < 1) currentSeq = 1;
 
   const usedSet = new Set();
 
-  // 1. Check ncd_used_participant_ids
-  try {
-    const usedIdsRaw = localStorage.getItem('ncd_used_participant_ids');
-    if (usedIdsRaw) {
-      const parsed = JSON.parse(usedIdsRaw);
-      if (Array.isArray(parsed)) parsed.forEach(id => usedSet.add(String(id).toUpperCase().trim()));
-    }
-  } catch (e) {}
-
-  // 2. Check ncd_local_initiated_participants
   try {
     const initStr = localStorage.getItem('ncd_local_initiated_participants');
     if (initStr) {
@@ -119,29 +109,27 @@ export function generateParticipantID(loc = "Dharavi") {
     }
   } catch (e) {}
 
-  // Find max sequence in usedSet for this location prefix
-  const prefixPattern = new RegExp(`^NCD${prefix}(\\d+)$`, 'i');
-  let maxSeq = 0;
-
-  usedSet.forEach(id => {
-    const m = id.match(prefixPattern);
-    if (m) {
-      const num = parseInt(m[1], 10);
-      if (!isNaN(num) && num > maxSeq) {
-        maxSeq = num;
+  try {
+    const queueStr = localStorage.getItem('ncd_offline_queue');
+    if (queueStr) {
+      const parsed = JSON.parse(queueStr);
+      if (Array.isArray(parsed)) {
+        parsed.forEach(item => {
+          const id = item.participant_id || item.mem_scrn_part_id;
+          if (id) usedSet.add(String(id).toUpperCase().trim());
+        });
       }
     }
-  });
+  } catch (e) {}
 
-  let nextSeq = Math.max(currentSeq, maxSeq + 1);
-  let candidateId = `NCD${prefix}${String(nextSeq).padStart(4, '0')}`;
+  let candidateSeq = currentSeq;
+  let candidateId = `NCD${prefix}${String(candidateSeq).padStart(4, '0')}`;
 
   while (usedSet.has(candidateId)) {
-    nextSeq++;
-    candidateId = `NCD${prefix}${String(nextSeq).padStart(4, '0')}`;
+    candidateSeq++;
+    candidateId = `NCD${prefix}${String(candidateSeq).padStart(4, '0')}`;
   }
 
-  localStorage.setItem(counterKey, String(nextSeq));
   return candidateId;
 }
 
@@ -150,7 +138,10 @@ export function incrementParticipantIDCounter(loc = "Dharavi") {
   const counterKey = `ncd_participant_seq_${prefix}`;
   const currentId = generateParticipantID(loc);
   
-  // Register in used IDs list
+  const seqNum = parseInt(currentId.replace(new RegExp(`^NCD${prefix}`, 'i'), ''), 10);
+  const nextSeq = isNaN(seqNum) ? 2 : seqNum + 1;
+  localStorage.setItem(counterKey, String(nextSeq));
+  
   try {
     const usedIdsRaw = localStorage.getItem('ncd_used_participant_ids');
     const usedIds = usedIdsRaw ? JSON.parse(usedIdsRaw) : [];
@@ -160,11 +151,51 @@ export function incrementParticipantIDCounter(loc = "Dharavi") {
     }
   } catch (e) {}
 
-  const seqNum = parseInt(currentId.replace(`NCD${prefix}`, ''), 10);
-  const nextSeq = isNaN(seqNum) ? 2 : seqNum + 1;
-  localStorage.setItem(counterKey, String(nextSeq));
-  
   return `NCD${prefix}${String(nextSeq).padStart(4, '0')}`;
+}
+
+export async function fetchNextParticipantIDFromDB(loc = "Dharavi") {
+  const prefix = getlocationPrefix(loc);
+  let maxSeq = 0;
+
+  // 1. Check local queue & initiated participants
+  try {
+    const queueStr = localStorage.getItem('ncd_offline_queue') || localStorage.getItem('ncd_local_initiated_participants');
+    if (queueStr) {
+      const list = JSON.parse(queueStr);
+      if (Array.isArray(list)) {
+        list.forEach(item => {
+          let raw = {};
+          if (item.mem_scrn_q30) { try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {} }
+          const pId = item.participant_id || item.mem_scrn_part_id || raw.participant_id;
+          if (pId) {
+            const m = String(pId).toUpperCase().match(new RegExp(`^NCD${prefix}(\\d+)$`, 'i'));
+            if (m) {
+              const num = parseInt(m[1], 10);
+              if (!isNaN(num) && num > maxSeq) maxSeq = num;
+            }
+          }
+        });
+      }
+    }
+  } catch (e) {}
+
+  // 2. Fetch max from DB API
+  try {
+    const res = await api.get(`/api/v1/screening/next-participant-id?location=${encodeURIComponent(loc)}`);
+    if (res && res.status === 'success' && res.max_seq !== undefined) {
+      const dbMaxSeq = parseInt(res.max_seq, 10);
+      if (!isNaN(dbMaxSeq) && dbMaxSeq > maxSeq) {
+        maxSeq = dbMaxSeq;
+      }
+    }
+  } catch (e) {
+    console.warn("Could not fetch next participant ID from DB, using fallback maxSeq", e);
+  }
+
+  const nextSeq = maxSeq + 1;
+  const nextId = `NCD${prefix}${String(nextSeq).padStart(4, '0')}`;
+  return nextId;
 }
 
 const DEFAULT_SURVEY_QUESTIONS = [
@@ -252,12 +283,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   // Auto Participant ID in DH-MUM-0001 format & Current Date
   const currentDateFormatted = formatDateDDMMMYYYY(new Date());
 
-  const [availableParticipants, setAvailableParticipants] = useState([
-    { id: "NCDDH0001", age: "20", gender: "Transgender man", location: "Dharavi" },
-    { id: "NCDDH0002", age: "45", gender: "Male", location: "Dharavi" },
-    { id: "NCDML0001", age: "42", gender: "Female", location: "Malvani" },
-    { id: "NCDVA0001", age: "55", gender: "Male", location: "Vashi" }
-  ]);
+  const [availableParticipants, setAvailableParticipants] = useState([]);
 
   // Dynamically load queued / completed participants from local sync queue & API
   useEffect(() => {
@@ -357,6 +383,66 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   const [customQuestions, setCustomQuestions] = useState([]);
   const [activeDraft, setActiveDraft] = useState(null);
   const [isPausedModalOpen, setIsPausedModalOpen] = useState(false);
+  const [showStaffNurseTransferModal, setShowStaffNurseTransferModal] = useState(false);
+
+  const roleLowerCheck = (data.user_role || activeUser?.role_name || activeUser?.role || "").toLowerCase();
+  const isStaffNurseRole = roleLowerCheck.includes("nurse") || roleLowerCheck.includes("staff nurse");
+
+  const handleCompleteSelf = () => {
+    setShowStaffNurseTransferModal(false);
+    setData(prev => ({ ...prev, staff_nurse_section_decided: "self" }));
+    if (notify) notify("info", "Staff Nurse Section", "Proceeding to complete Section 2 clinical assessment.");
+  };
+
+  const handleTransferToCounselor = async () => {
+    setShowStaffNurseTransferModal(false);
+    
+    const updatedData = {
+      ...data,
+      staff_nurse_section_decided: "transferred_to_counselor",
+      counselor_section_required: true,
+      counselor_section_completed: false,
+      status: "Transferred to Counselor Queue for Section 8",
+      resume_section: 9
+    };
+
+    setData(updatedData);
+
+    // Clear active draft so Staff Nurse doesn't re-open Section 8 draft
+    localStorage.removeItem('ncd_active_survey_draft');
+
+    try {
+      const payload = {
+        participant_id: data.participant_id,
+        contact_number: data.contact_number,
+        fullName: data.fullName,
+        age: data.age,
+        gender: data.gender,
+        location: data.location,
+        status: "Transferred to Counselor Queue for Section 8",
+        section: 8,
+        survey_data: JSON.stringify(updatedData)
+      };
+      await saveToQueue(payload);
+
+      try {
+        const localStr = localStorage.getItem('ncd_offline_queue') || '[]';
+        const localArr = JSON.parse(localStr);
+        const existingIdx = localArr.findIndex(x => x.participant_id === data.participant_id);
+        if (existingIdx >= 0) {
+          localArr[existingIdx] = payload;
+        } else {
+          localArr.push(payload);
+        }
+        localStorage.setItem('ncd_offline_queue', JSON.stringify(localArr));
+      } catch (err) {}
+
+      if (notify) notify("success", "Participant Transferred", `Participant ${data.participant_id} moved to Counselor Queue for Section 8.`);
+    } catch (e) {}
+
+    if (onCancel) onCancel();
+    else if (onBack) onBack();
+  };
 
   // Check for saved paused draft session
   useEffect(() => {
@@ -472,21 +558,26 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
   // Auto-capture Supervisor Location into Q3 (Site/Location) question
   useEffect(() => {
-    if (customQuestions && customQuestions.length > 0 && data.location) {
+    const loc = data.location || activeCenterLoc || "Dharavi";
+    if (customQuestions && customQuestions.length > 0) {
       const q3 = customQuestions.find(q => {
         const titleLower = String(q.title || "").toLowerCase();
-        return titleLower.startsWith("q3") || titleLower.includes("site") || titleLower.includes("location");
+        const idLower = String(q.id || "").toLowerCase();
+        return idLower === "q3" || titleLower.startsWith("q3") || titleLower.includes("site") || titleLower.includes("location");
       });
       if (q3) {
         const customKey = `custom_${q3.id}`;
         setData(d => ({
           ...d,
-          [customKey]: d[customKey] || d.location,
-          [q3.id]: d[q3.id] || d.location
+          q3: loc,
+          custom_q3: loc,
+          location: loc,
+          [customKey]: loc,
+          [q3.id]: loc
         }));
       }
     }
-  }, [customQuestions, data.location]);
+  }, [customQuestions, data.location, activeCenterLoc]);
 
   // Auto-calculate 6 core clinical fields: BMI, WHR, Avg BP, HSI (Q23), AUDIT-C (Q30), Amber Review Date
   useEffect(() => {
@@ -592,35 +683,17 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         updates.hsi_high_dependence = hsiScore >= 4;
       }
 
-      // 5. AUDIT-C Total (Q30)
-      let auditScore = 0;
-      const q27Val = d.q27 || d.custom_q27;
-      const q28Val = d.q28 || d.custom_q28;
-      const q29Val = d.q29 || d.custom_q29;
-
-      const parsePoints = (v) => {
-        if (!v) return 0;
-        const str = typeof v === 'object' ? (v.code ?? v.label ?? '') : String(v);
-        const ptMatch = str.match(/(\d+)\s*pt/i) || str.match(/code\s*(\d+)/i) || str.match(/^(\d+)/);
-        if (ptMatch) return parseInt(ptMatch[1], 10);
-        const l = str.toLowerCase();
-        if (l.includes("never") || l.includes("one or two") || l.includes("1 or 2")) return 0;
-        if (l.includes("monthly or less") || l.includes("less than monthly") || l.includes("three or four") || l.includes("3 or 4")) return 1;
-        if (l.includes("two to four") || l.includes("2 to 4") || l.includes("monthly") || l.includes("five or six") || l.includes("5 or 6")) return 2;
-        if (l.includes("two to three") || l.includes("2 to 3") || l.includes("weekly") || l.includes("seven to nine") || l.includes("7 to 9")) return 3;
-        if (l.includes("four or more") || l.includes("4 or more") || l.includes("daily") || l.includes("ten or more") || l.includes("10 or more")) return 4;
-        return 0;
-      };
-
-      auditScore += parsePoints(q27Val);
-      auditScore += parsePoints(q28Val);
-      auditScore += parsePoints(q29Val);
-
-      const q30Key = Object.keys(d).find(k => k.toLowerCase().includes("q30")) || "custom_q30";
-      if (d[q30Key] !== auditScore) {
-        updates.q30 = auditScore;
-        updates.custom_q30 = auditScore;
-        updates[q30Key] = auditScore;
+      // 5. AUDIT-C Total (Q30 = Q27 + Q28 + Q29)
+      const auditRes = calculateAuditCScore(d);
+      if (auditRes.hasAnyAnswer) {
+        const auditScore = auditRes.score;
+        const q30Key = Object.keys(d).find(k => k.toLowerCase().includes("q30")) || "custom_q30";
+        if (d[q30Key] !== auditScore || d.q30 !== auditScore || d.custom_q30 !== auditScore) {
+          updates.q30 = auditScore;
+          updates.custom_q30 = auditScore;
+          updates.audit_score = auditScore;
+          updates[q30Key] = auditScore;
+        }
       }
 
       // 6. Amber Review Date (+14 days from screening date)
@@ -664,13 +737,12 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     }
 
     // Fetch active backend list & combine with local queue
-    api.get("/api/v1/dashboard/screeninglist").then(res => {
-      let rawList = [];
-      if (res && res.status === 'success' && Array.isArray(res.data)) {
-        rawList = res.data;
-      }
-      
-      // Also check local offline queue
+    const loadAllParticipants = async () => {
+      let idbQueue = [];
+      try {
+        idbQueue = await getQueue();
+      } catch (e) {}
+
       let localQueue = [];
       try {
         const localStr = localStorage.getItem('ncd_offline_queue');
@@ -680,51 +752,67 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         }
       } catch (e) {}
 
-      const allRecords = [...localQueue, ...rawList];
+      let rawList = [];
+      try {
+        const res = await api.get("/api/v1/dashboard/screeninglist");
+        if (res && res.status === 'success' && Array.isArray(res.data)) {
+          rawList = res.data;
+        }
+      } catch (e) {}
+
+      const allRecords = [...localQueue, ...(Array.isArray(idbQueue) ? idbQueue : []), ...rawList];
       const seenIds = new Set();
       const uniqueParticipants = [];
 
-      // Sync all server & offline IDs into ncd_used_participant_ids registry
       try {
         const usedIdsRaw = localStorage.getItem('ncd_used_participant_ids');
         const usedSet = new Set(usedIdsRaw ? JSON.parse(usedIdsRaw) : []);
         allRecords.forEach(r => {
           let extra = {};
-          if (r.mem_scrn_q30) { try { extra = JSON.parse(r.mem_scrn_q30); } catch(e) {} }
+          if (r.mem_scrn_q30) { try { extra = typeof r.mem_scrn_q30 === 'string' ? JSON.parse(r.mem_scrn_q30) : r.mem_scrn_q30; } catch(e) {} }
           const pId = r.participant_id || r.mem_scrn_part_id || extra.participant_id;
           if (pId) usedSet.add(String(pId).toUpperCase().trim());
         });
         localStorage.setItem('ncd_used_participant_ids', JSON.stringify(Array.from(usedSet)));
       } catch (e) {}
 
-      // Recalculate & update fresh incremented Participant ID for workstation location
       const activeLoc = data.location || activeCenterLoc || "Dharavi";
-      const freshParticipantId = generateParticipantID(activeLoc);
-      setData(d => ({
-        ...d,
-        participant_id: freshParticipantId
-      }));
+      fetchNextParticipantIDFromDB(activeLoc).then(freshParticipantId => {
+        setData(d => ({
+          ...d,
+          participant_id: freshParticipantId
+        }));
+      });
 
       allRecords.forEach((r, idx) => {
         let rawPayload = {};
         if (r.mem_scrn_q30) {
-          try { rawPayload = JSON.parse(r.mem_scrn_q30); } catch (e) {}
+          try { rawPayload = typeof r.mem_scrn_q30 === 'string' ? JSON.parse(r.mem_scrn_q30) : r.mem_scrn_q30; } catch (e) {}
         }
 
-        const partId = r.participant_id || r.mem_scrn_part_id || (r.mem_scrn_id ? `NCD-MUM-${r.mem_scrn_id}` : (r.id ? `NCD-MUM-${r.id}` : null));
+        let surveyData = {};
+        if (r.survey_data) {
+          try { surveyData = typeof r.survey_data === 'string' ? JSON.parse(r.survey_data) : r.survey_data; } catch (e) {}
+        } else if (rawPayload.survey_data) {
+          try { surveyData = typeof rawPayload.survey_data === 'string' ? JSON.parse(rawPayload.survey_data) : rawPayload.survey_data; } catch (e) {}
+        }
+
+        const combined = { ...rawPayload, ...surveyData, ...r };
+
+        const partId = r.participant_id || r.mem_scrn_part_id || combined.participant_id || (r.mem_scrn_id ? `NCD-MUM-${r.mem_scrn_id}` : (r.id ? `NCD-MUM-${r.id}` : null));
         
-        // Ignore invalid / undefined / duplicate IDs
         if (!partId || partId.includes("undefined") || seenIds.has(partId)) {
           return;
         }
 
         seenIds.add(partId);
 
-        const nameVal = rawPayload.fullName || r.fullName || r.mem_scrn_q16;
+        const nameVal = combined.fullName || r.fullName || r.mem_scrn_q16;
         const displayName = (nameVal && nameVal !== "Unnamed Participant") ? nameVal : partId;
-        const ageVal = rawPayload.age || r.age || r.mem_scrn_q1 || "45";
-        const genderVal = rawPayload.gender || r.gender || (r.mem_scrn_q2 == "1" ? "Male" : "Female");
-        const locVal = rawPayload.location || r.location || r.mem_scrn_q17 || "Dharavi";
+        const ageVal = combined.age || r.age || r.mem_scrn_q1 || "45";
+        const genderVal = combined.gender || r.gender || (r.mem_scrn_q2 == "1" ? "Male" : "Female");
+        const locVal = combined.location || r.location || r.mem_scrn_q17 || "Dharavi";
+        const statusVal = combined.status || r.status || "Demographics Completed";
 
         uniqueParticipants.push({
           id: partId,
@@ -732,17 +820,21 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
           age: ageVal,
           gender: genderVal,
           location: locVal,
-          status: r.status || "Demographics Completed",
-          bp: rawPayload.bp_systolic ? `${rawPayload.bp_systolic}/${rawPayload.bp_diastolic}` : "130/84",
-          glucose: rawPayload.random_blood_glucose || "135",
-          rawPayload
+          status: statusVal,
+          counselor_section_required: Boolean(combined.counselor_section_required || String(statusVal).toLowerCase().includes("counselor")),
+          counselor_section_completed: Boolean(combined.counselor_section_completed || String(statusVal).toLowerCase().includes("counseling completed")),
+          bp: combined.bp_systolic ? `${combined.bp_systolic}/${combined.bp_diastolic}` : "130/84",
+          glucose: combined.random_blood_glucose || "135",
+          rawPayload: combined
         });
       });
 
       if (uniqueParticipants.length > 0) {
         setAvailableParticipants(uniqueParticipants);
       }
-    }).catch(e => console.error("Failed to load participant list", e));
+    };
+
+    loadAllParticipants();
   }, []);
 
   const getLoggedInUserSafely = () => {
@@ -846,6 +938,64 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   });
   const hasCustomQuestions = activeCustomQuestions.length > 0;
 
+  // Trigger Staff Nurse Transfer Modal ONLY when Staff Nurse actively navigates to Section 8
+  useEffect(() => {
+    if (!isStaffNurseRole || data.staff_nurse_section_decided) return;
+    if (step < 1 || !data.participant_id) return;
+
+    const activeQs = activeCustomQuestions;
+    if (!activeQs || activeQs.length === 0) return;
+
+    const pagesList = [];
+    let curP = [];
+    let qCount = 0;
+    activeQs.forEach(q => {
+      const isH = q.type === 'section_header' || String(q.id || '').startsWith('sec_');
+      if (isH) {
+        if (curP.length > 0) {
+          pagesList.push(curP);
+          curP = [];
+          qCount = 0;
+        }
+        curP.push(q);
+      } else {
+        curP.push(q);
+        qCount++;
+        if (qCount >= 1) {
+          pagesList.push(curP);
+          curP = [];
+          qCount = 0;
+        }
+      }
+    });
+    if (curP.length > 0) pagesList.push(curP);
+
+    if (pagesList.length <= 1) return;
+
+    const safeQPage = Math.min(qPage, Math.max(0, pagesList.length - 1));
+    if (safeQPage === 0) return;
+
+    const currentBatch = pagesList[safeQPage] || [];
+
+    const isSection8Page = currentBatch.some(q => {
+      const secNum = parseInt(q.section, 10);
+      const titleLower = String(q.title || '').toLowerCase();
+      const idLower = String(q.id || '').toLowerCase();
+      return (
+        secNum === 8 || 
+        titleLower.includes("section 8") || 
+        titleLower.includes("sec 8") || 
+        idLower.includes("sec_8") || 
+        idLower === "sec_8" || 
+        titleLower.includes("section  8")
+      );
+    });
+
+    if (isSection8Page) {
+      setShowStaffNurseTransferModal(true);
+    }
+  }, [step, qPage, activeCustomQuestions, isStaffNurseRole, data.participant_id, data.staff_nurse_section_decided]);
+
   const set = (k) => (v) => {
     setData((d) => ({ ...d, [k]: v }));
     setFieldErrors((prev) => {
@@ -934,18 +1084,53 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   const handleParticipantSelect = (partId) => {
     const found = availableParticipants.find(p => p.id === partId);
     if (found) {
+      const statusStr = String(found.status || "").toLowerCase();
+      const rawP = found.rawPayload || {};
+      let surData = {};
+      try {
+        surData = typeof rawP.survey_data === 'string' ? JSON.parse(rawP.survey_data) : (rawP.survey_data || {});
+      } catch (e) {}
+
+      const isSec8Pending = (statusStr.includes("counselor queue") || surData.counselor_section_required) && !surData.counselor_section_completed;
+      const isSec15Pending = (statusStr.includes("sec 15") || statusStr.includes("section 14 completed") || surData.counselor_sec15_required) && !surData.counselor_sec15_completed;
+
+      if (isStaffNurseRole && isSec8Pending) {
+        notify("warning", "Participant in Counselor Queue", `Participant ${found.id} is currently with the Counselor for Section 8. Staff Nurse can resume Section 9 after the Counselor completes Section 8.`);
+        return;
+      }
+
       setData(d => ({
         ...d,
         ...(found.rawPayload || {}),
+        ...surData,
         participant_id: found.id,
         age: String(found.age),
         gender: found.gender,
         location: found.location,
         user_role: activeUser?.role_name || activeUser?.role || d.user_role
       }));
+
       notify("info", "Participant Selected", `Loaded details for Participant ${found.id}. Proceeding to ${activeUser?.role_name || data.user_role || "Clinical"} modules.`);
       setStep(1);
-      setQPage(0);
+
+      const userRoleCheck = (activeUser?.role_name || data.user_role || "").toLowerCase();
+      const isCounselor = userRoleCheck.includes("counselor");
+
+      if (isCounselor) {
+        if (isSec15Pending || surData.counselor_sec15_required) {
+          setQPage(14); // Section 15
+        } else {
+          setQPage(7); // Section 8
+        }
+      } else if (isStaffNurseRole) {
+        if (surData.counselor_section_completed || surData.resume_section === 9 || surData.next_section === 9) {
+          setQPage(8); // Section 9
+        } else {
+          setQPage(0);
+        }
+      } else {
+        setQPage(0);
+      }
     }
   };
 
@@ -1001,9 +1186,112 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     return false;
   };
 
+  const isMatrixQuestion = (q) => {
+    if (!q) return false;
+    const qIdLower = String(q.id || "").toLowerCase();
+    const qTitleLower = String(q.title || "").toLowerCase();
+    const qTypeLower = String(q.type || "").toLowerCase();
+
+    if (qTypeLower === 'matrix' || qTypeLower === 'grid' || qTypeLower === 'table') return true;
+    if (qIdLower.includes('q86') || qTitleLower.includes('q86') || qTitleLower.includes('fat loss')) return true;
+    if (qIdLower.includes('q87') || qTitleLower.includes('q87') || qTitleLower.includes('muscle loss')) return true;
+    if (q.rows && Array.isArray(q.rows) && q.rows.length > 0) return true;
+    if (q.matrix_rows && Array.isArray(q.matrix_rows) && q.matrix_rows.length > 0) return true;
+    return false;
+  };
+
+  const getMatrixRows = (q) => {
+    if (!q) return [];
+    if (q.rows && Array.isArray(q.rows) && q.rows.length > 0) return q.rows;
+    if (q.matrix_rows && Array.isArray(q.matrix_rows) && q.matrix_rows.length > 0) return q.matrix_rows;
+
+    const qIdLower = String(q.id || "").toLowerCase();
+    const qTitleLower = String(q.title || "").toLowerCase();
+
+    if (qIdLower.includes('q86') || qTitleLower.includes('q86') || qTitleLower.includes('fat loss')) {
+      return [
+        { id: "row_1", label: "1. Temple / Orbital Region (Fat pad under eyes)" },
+        { id: "row_2", label: "2. Clavicle / Subclavicular Region" },
+        { id: "row_3", label: "3. Thoracic / Rib Region" },
+        { id: "row_4", label: "4. Deltoid / Shoulder Region" },
+        { id: "row_5", label: "5. Quadriceps / Thigh Region" },
+        { id: "row_6", label: "6. Calf / Lower Leg Region" }
+      ];
+    }
+
+    if (qIdLower.includes('q87') || qTitleLower.includes('q87') || qTitleLower.includes('muscle loss')) {
+      return [
+        { id: "row_1", label: "1. Temple (Temporalis muscle)" },
+        { id: "row_2", label: "2. Clavicle (Pectoralis & Deltoid)" },
+        { id: "row_3", label: "3. Shoulder (Acromion process)" },
+        { id: "row_4", label: "4. Scapula (Infraspinatus & Supraspinatus)" },
+        { id: "row_5", label: "5. Hands (Interosseous muscle)" },
+        { id: "row_6", label: "6. Quadriceps (Anterior thigh)" },
+        { id: "row_7", label: "7. Calf (Gastrocnemius)" }
+      ];
+    }
+
+    return [
+      { id: "row_1", label: "1. Parameter / Assessment Site 1" },
+      { id: "row_2", label: "2. Parameter / Assessment Site 2" },
+      { id: "row_3", label: "3. Parameter / Assessment Site 3" }
+    ];
+  };
+
+  const getMatrixCols = (q) => {
+    if (!q) return [];
+    if (q.cols && Array.isArray(q.cols) && q.cols.length > 0) return q.cols;
+    if (q.columns && Array.isArray(q.columns) && q.columns.length > 0) return q.columns;
+
+    return [
+      { code: "1", label: "Normal (No loss)" },
+      { code: "2", label: "Mild loss" },
+      { code: "3", label: "Moderate loss" },
+      { code: "4", label: "Severe loss" }
+    ];
+  };
+
+  const isQ88HandGripQuestion = (q) => {
+    if (!q) return false;
+    const idL = String(q.id || "").toLowerCase();
+    const titleL = String(q.title || "").toLowerCase();
+    return idL === "q88" || idL.includes("q88") || titleL.includes("q88") || titleL.includes("hand-grip") || titleL.includes("hand grip");
+  };
+
   const getQuestionValue = (q) => {
     if (!q || !q.id) return undefined;
     
+    if (isQ3LocationQuestion(q)) {
+      const q3Loc = data[`custom_${q.id}`] || data[q.id] || data.q3 || data.custom_q3 || data.location || activeCenterLoc || "Dharavi";
+      if (q3Loc !== undefined && q3Loc !== null && String(q3Loc).trim() !== "") {
+        return String(q3Loc).trim();
+      }
+    }
+
+    if (isQ88HandGripQuestion(q)) {
+      const val = data.q88_avg || data.q88 || data.custom_q88 || data.q88_reading1 || data[`custom_${q.id}`] || data[q.id];
+      if (val !== undefined && val !== null && String(val).trim() !== "") {
+        return String(val).trim();
+      }
+    }
+
+    if (isMatrixQuestion(q)) {
+      const mRows = getMatrixRows(q);
+      let answeredCount = 0;
+      mRows.forEach((row, rIdx) => {
+        const rowKey = typeof row === 'object' ? row.id || `row_${rIdx + 1}` : `row_${rIdx + 1}`;
+        const matrixValKey = `${q.id}_${rowKey}`;
+        const val = data[matrixValKey] || (data[q.id] && data[q.id][rowKey]);
+        if (val !== undefined && val !== null && String(val).trim() !== "") {
+          answeredCount++;
+        }
+      });
+      if (answeredCount > 0) {
+        return `${answeredCount} of ${mRows.length} assessed`;
+      }
+      return undefined;
+    }
+
     if (data[q.id] !== undefined && data[q.id] !== null && data[q.id] !== "") return data[q.id];
     if (data[`custom_${q.id}`] !== undefined && data[`custom_${q.id}`] !== null && data[`custom_${q.id}`] !== "") return data[`custom_${q.id}`];
 
@@ -1203,6 +1491,37 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     notify("info", "Submitting", `Saving ${data.user_role} clinical module entry...`);
 
     try {
+      const userRoleStr = (data.user_role || activeUser?.role_name || "").toLowerCase();
+      const isCounselorSubmission = userRoleStr.includes("counselor");
+      const isCoordinatorSubmission = userRoleStr.includes("coordinator");
+
+      let cSec8Done = Boolean(data.counselor_section_completed);
+      let cSec15Req = Boolean(data.counselor_sec15_required);
+      let cSec15Done = Boolean(data.counselor_sec15_completed);
+      let statusVal = data.status || "Clinical Entry Completed";
+      let queueVal = data.current_queue || "Active Pipeline";
+      let nextSec = data.section || 2;
+
+      if (isCounselorSubmission) {
+        if (data.counselor_sec15_required || qPage >= 13) {
+          cSec15Done = true;
+          statusVal = "Section 15 Health Counseling Completed";
+          queueVal = "Completed";
+          nextSec = 16;
+        } else {
+          cSec8Done = true;
+          statusVal = "Section 8 Counseling Completed - Ready for Nurse (Sec 9)";
+          queueVal = "Staff Nurse Queue";
+          nextSec = 9;
+        }
+      } else if (isCoordinatorSubmission) {
+        cSec15Req = true;
+        cSec15Done = false;
+        statusVal = "Section 14 Completed - Counselor Queue for Sec 15";
+        queueVal = "Counselor Queue (Sec 15)";
+        nextSec = 15;
+      }
+
       const payload = {
         ...data,
         mem_scrn_part_id: data.participant_id,
@@ -1211,12 +1530,17 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         mem_scrn_q2: data.gender === "Male" ? "1" : "2",
         mem_scrn_q17: data.location,
         submitted_by_role: data.user_role,
-        submitted_at: new Date().toISOString()
+        submitted_at: new Date().toISOString(),
+        counselor_section_completed: cSec8Done,
+        counselor_sec15_required: cSec15Req,
+        counselor_sec15_completed: cSec15Done,
+        status: statusVal,
+        current_queue: queueVal,
+        section: nextSec
       };
 
       await saveToQueue(payload);
       
-      // Instantly update local initiated participants registry for real-time Admin Participant Directory sync
       try {
         const existingStr = localStorage.getItem('ncd_local_initiated_participants');
         const existingList = existingStr ? JSON.parse(existingStr) : [];
@@ -1229,7 +1553,6 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       if (contactDigits.length === 10) {
         registerContactNumber(contactDigits, data.participant_id);
       }
-      incrementParticipantIDCounter(data.location || "Dharavi");
 
       if (navigator.onLine) {
         try {
@@ -1241,8 +1564,15 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
       const succMsg = isFieldSupervisor 
         ? `Participant ${data.participant_id} demographics saved & sent to Staff Nurse queue.`
-        : `Participant ${data.participant_id} updated under ${data.user_role}.`;
-      notify("success", isFieldSupervisor ? "Demographics Completed" : "Section Completed", succMsg);
+        : isCounselorSubmission
+          ? cSec15Done
+            ? `Section 15 Health Counseling completed for Participant ${data.participant_id}!`
+            : `Section 8 Counseling completed! Participant ${data.participant_id} moved back to Staff Nurse Queue for Section 9.`
+          : isCoordinatorSubmission
+            ? `Section 14 Linkages completed! Participant ${data.participant_id} sent back to Counselor Queue for Section 15 Health Counseling.`
+            : `Participant ${data.participant_id} updated under ${data.user_role}.`;
+
+      notify("success", isCounselorSubmission ? "Counseling Completed" : (isCoordinatorSubmission ? "Section 14 Completed" : (isFieldSupervisor ? "Demographics Completed" : "Section Completed")), succMsg);
       setIsSubmitted(true);
     } catch (err) {
       console.error(err);
@@ -1433,9 +1763,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
               </button>
 
               <button
-                onClick={() => {
-                  incrementParticipantIDCounter(data.location || "Dharavi");
-                  const nextId = generateParticipantID(data.location || "Dharavi");
+                onClick={async () => {
+                  const nextId = await fetchNextParticipantIDFromDB(data.location || "Dharavi");
                   setIsSubmitted(false);
                   setStep(0);
                   setQPage(0);
@@ -1504,29 +1833,57 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
               {/* PARTICIPANT DROPDOWN SELECTOR FOR NON-SUPERVISOR ROLES ONLY */}
               {!isFieldSupervisor && (() => {
+                const isCounselorLogin = (data.user_role || activeUser?.role_name || "").toLowerCase().includes("counselor");
+
                 const filteredParticipantsByLocation = availableParticipants.filter(p => {
-                  if (!data.location || data.location === "All") return true;
-                  const pLoc = String(p.location || "").toLowerCase().trim();
-                  const selLoc = String(data.location || "").toLowerCase().trim();
-                  const pPrefix = getlocationPrefix(p.location);
-                  const selPrefix = getlocationPrefix(data.location);
-                  return pLoc.includes(selLoc) || selLoc.includes(pLoc) || pPrefix === selPrefix || (p.id && p.id.includes(`NCD${selPrefix}`));
+                  // Location Filter
+                  if (data.location && data.location !== "All") {
+                    const pLoc = String(p.location || "").toLowerCase().trim();
+                    const selLoc = String(data.location || "").toLowerCase().trim();
+                    const pPrefix = getlocationPrefix(p.location);
+                    const selPrefix = getlocationPrefix(data.location);
+                    const locMatch = pLoc.includes(selLoc) || selLoc.includes(pLoc) || pPrefix === selPrefix || (p.id && p.id.includes(`NCD${selPrefix}`));
+                    if (!locMatch) return false;
+                  }
+
+                  // Counselor-specific queue filter: ONLY show pending Counselor Queue Section 8 records
+                  if (isCounselorLogin) {
+                    const rawP = p.rawPayload || {};
+                    const statusStr = String(p.status || rawP.status || "").toLowerCase();
+                    const isReq = p.counselor_section_required || rawP.counselor_section_required || statusStr.includes("counselor queue") || statusStr.includes("counselor") || statusStr.includes("counselling");
+                    const isDone = p.counselor_section_completed || rawP.counselor_section_completed || statusStr.includes("counseling completed") || statusStr.includes("counselor completed");
+
+                    return isReq && !isDone;
+                  }
+
+                  return true;
                 });
 
                 return (
                   <div className="p-5 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-3">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-bold uppercase tracking-wider font-mono text-amber-950 flex items-center gap-1.5">
-                        <UserCheck size={14} className="text-amber-700" /> Select Participant from Queue / Database ({data.location}) *
+                        <UserCheck size={14} className="text-amber-700" /> 
+                        {isCounselorLogin 
+                          ? `Select Participant from Counselor Queue (${data.location}) *` 
+                          : `Select Participant from Queue / Database (${data.location}) *`}
                       </label>
-                      <span className="text-[11px] font-bold text-amber-800 font-mono">{filteredParticipantsByLocation.length} Records Available</span>
+                      <span className="text-[11px] font-bold text-amber-800 font-mono">
+                        {filteredParticipantsByLocation.length} {isCounselorLogin ? "Counselor Pending Records" : "Records Available"}
+                      </span>
                     </div>
                     <select 
                       value={data.participant_id} 
                       onChange={(e) => handleParticipantSelect(e.target.value)}
                       className="w-full px-4 py-3 rounded-xl bg-white border border-amber-300 text-sm font-bold text-slate-900 font-mono outline-none shadow-2xs cursor-pointer focus:ring-2 focus:ring-amber-400"
                     >
-                      <option value="">-- Choose Participant ID for {data.location} Center --</option>
+                      <option value="">
+                        {isCounselorLogin 
+                          ? filteredParticipantsByLocation.length > 0 
+                            ? `-- Choose Participant from Counselor Queue (${data.location}) --` 
+                            : `-- No Pending Participants in Counselor Queue (${data.location}) --`
+                          : `-- Choose Participant ID for ${data.location} Center --`}
+                      </option>
                       {filteredParticipantsByLocation.map(p => (
                         <option key={p.id} value={p.id}>
                           {p.id} ({p.age ? `${p.age} yrs` : 'Demographics Recorded'}, {p.gender || 'Completed'}) [{p.location || data.location}]
@@ -1799,7 +2156,11 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                             {qTitleDisplay} {q.required && <span className="text-red-500">*</span>}
                           </label>
 
-                          {opts.length > 0 && (
+                          {isQ3LocationQuestion(q) ? (
+                            <span className="text-[10px] font-mono font-extrabold px-2.5 py-1 rounded-xl bg-amber-50 text-amber-950 border border-amber-300 shadow-2xs shrink-0">
+                              Auto-Fetched (Read-Only)
+                            </span>
+                          ) : opts.length > 0 ? (
                             <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200/80 shadow-2xs shrink-0 font-mono">
                               <button
                                 type="button"
@@ -1820,30 +2181,19 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                 <span>Dropdown</span>
                               </button>
                             </div>
-                          )}
+                          ) : null}
                         </div>
                         
-                        {/* Custom Score Cards & Auto-Fetched Q3 Site Location */}
+                        {/* Non-editable, clean readable Q3 Site Location input field */}
                         {(isQ3LocationQuestion(q)) ? (
-                          <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-300/90 shadow-2xs font-mono my-2 animate-in fade-in duration-200">
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-2xs shrink-0">
-                                  <MapPin size={20} />
-                                </div>
-                                <div>
-                                  <span className="text-[10px] uppercase font-black tracking-widest text-amber-900 font-mono block">
-                                    Auto-Fetched Site / Location
-                                  </span>
-                                  <div className="text-base sm:text-lg font-black text-slate-950 font-sans tracking-tight pt-0.5">
-                                    {data[`custom_${q.id}`] || data[q.id] || data.q3 || data.custom_q3 || data.location || activeCenterLoc || "Dharavi"}
-                                  </div>
-                                </div>
-                              </div>
-                              <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-200/80 text-amber-950 border border-amber-300 shadow-2xs font-mono shrink-0">
-                                Active Center
-                              </span>
-                            </div>
+                          <div className="w-full relative">
+                            <input 
+                              type="text" 
+                              readOnly 
+                              disabled 
+                              value={data[`custom_${q.id}`] || data[q.id] || data.q3 || data.custom_q3 || data.location || activeCenterLoc || "Dharavi"} 
+                              className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-100/90 text-xs sm:text-sm font-extrabold text-slate-900 outline-none cursor-not-allowed select-none shadow-2xs font-sans" 
+                            />
                           </div>
                         ) : (q.id === "q23" || (q.title && q.title.toLowerCase().includes("q23"))) ? (
                           <div className="space-y-3">
@@ -1900,12 +2250,17 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                             })()}
                           </div>
                         ) : (isGadTotalQuestion(q)) ? (
-                          <div className="rounded-2xl border border-slate-700 overflow-hidden shadow-md font-mono my-2 animate-in fade-in duration-200">
-                            <div className="bg-[#b4c6ff] text-slate-950 px-5 py-3 font-extrabold text-sm border-b border-slate-600">
-                              GAD-7 total score:
+                          <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs font-sans my-2 bg-white animate-in fade-in duration-200">
+                            <div className="bg-slate-50 px-5 py-3 border-b border-slate-200/90 flex items-center justify-between">
+                              <span className="text-xs font-black uppercase text-slate-800 font-mono tracking-wider">
+                                GAD-7 Total Score
+                              </span>
+                              <span className="text-[10px] font-mono font-extrabold px-2.5 py-1 rounded-xl bg-amber-50 text-amber-950 border border-amber-300 shadow-2xs">
+                                Score Input
+                              </span>
                             </div>
-                            <div className="bg-[#242426] text-white px-5 py-4 flex items-center justify-between">
-                              <div className="flex items-baseline gap-2">
+                            <div className="p-5 bg-white flex items-center justify-between gap-4">
+                              <div className="flex items-baseline gap-2 font-mono">
                                 <input
                                   type="number"
                                   min={0}
@@ -1928,25 +2283,27 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                     }
                                     updateCustomField(q, val);
                                   }}
-                                  className="w-24 bg-transparent font-black text-2xl text-amber-400 border-b-2 border-amber-400 text-center outline-none"
+                                  className="w-24 px-3 py-2 bg-slate-50 border border-slate-300 focus:border-amber-400 rounded-xl font-mono font-black text-2xl text-slate-900 text-center outline-none transition-all shadow-inner"
                                 />
-                                <span className="text-xl font-bold text-slate-300">/ 21</span>
+                                <span className="text-base font-bold text-slate-400">/ 21</span>
                               </div>
-                              <span className="text-xs font-mono font-bold px-3 py-1 rounded-lg bg-slate-800 text-amber-300 border border-slate-700">
-                                Score Input
-                              </span>
                             </div>
-                            <div className="bg-[#32343a] text-slate-200 px-5 py-3 text-xs italic font-medium border-t border-slate-700 leading-relaxed">
-                              Bands: 0 to 4 minimal, 5 to 9 mild, 10 to 14 moderate, 15 to 21 severe. 10 or more is clinically significant.
+                            <div className="px-5 py-3 bg-slate-50/80 border-t border-slate-200/90 text-xs font-medium text-slate-600 leading-relaxed font-sans">
+                              <span className="font-bold text-slate-800">Clinical Bands:</span> 0–4 minimal, 5–9 mild, 10–14 moderate, 15–21 severe. (Score 10 or higher is clinically significant).
                             </div>
                           </div>
                         ) : (isPhqTotalQuestion(q)) ? (
-                          <div className="rounded-2xl border border-slate-700 overflow-hidden shadow-md font-mono my-2 animate-in fade-in duration-200">
-                            <div className="bg-[#b4c6ff] text-slate-950 px-5 py-3 font-extrabold text-sm border-b border-slate-600">
-                              PHQ-9 total score:
+                          <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs font-sans my-2 bg-white animate-in fade-in duration-200">
+                            <div className="bg-slate-50 px-5 py-3 border-b border-slate-200/90 flex items-center justify-between">
+                              <span className="text-xs font-black uppercase text-slate-800 font-mono tracking-wider">
+                                PHQ-9 Total Score
+                              </span>
+                              <span className="text-[10px] font-mono font-extrabold px-2.5 py-1 rounded-xl bg-amber-50 text-amber-950 border border-amber-300 shadow-2xs">
+                                Score Input
+                              </span>
                             </div>
-                            <div className="bg-[#242426] text-white px-5 py-4 flex items-center justify-between">
-                              <div className="flex items-baseline gap-2">
+                            <div className="p-5 bg-white flex items-center justify-between gap-4">
+                              <div className="flex items-baseline gap-2 font-mono">
                                 <input
                                   type="number"
                                   min={0}
@@ -1969,25 +2326,27 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                     }
                                     updateCustomField(q, val);
                                   }}
-                                  className="w-24 bg-transparent font-black text-2xl text-amber-400 border-b-2 border-amber-400 text-center outline-none"
+                                  className="w-24 px-3 py-2 bg-slate-50 border border-slate-300 focus:border-amber-400 rounded-xl font-mono font-black text-2xl text-slate-900 text-center outline-none transition-all shadow-inner"
                                 />
-                                <span className="text-xl font-bold text-slate-300">/ 27</span>
+                                <span className="text-base font-bold text-slate-400">/ 27</span>
                               </div>
-                              <span className="text-xs font-mono font-bold px-3 py-1 rounded-lg bg-slate-800 text-amber-300 border border-slate-700">
-                                Score Input
-                              </span>
                             </div>
-                            <div className="bg-[#32343a] text-slate-200 px-5 py-3 text-xs italic font-medium border-t border-slate-700 leading-relaxed">
-                              Bands: 0 to 4 minimal, 5 to 9 mild, 10 to 14 moderate, 15 to 19 moderately severe, 20 to 27 severe. 10 or more is clinically significant.
+                            <div className="px-5 py-3 bg-slate-50/80 border-t border-slate-200/90 text-xs font-medium text-slate-600 leading-relaxed font-sans">
+                              <span className="font-bold text-slate-800">Clinical Bands:</span> 0–4 minimal, 5–9 mild, 10–14 moderate, 15–19 moderately severe, 20–27 severe. (Score 10 or higher is clinically significant).
                             </div>
                           </div>
                         ) : (isAuditTotalQuestion(q)) ? (
-                          <div className="rounded-2xl border border-slate-700 overflow-hidden shadow-md font-mono my-2 animate-in fade-in duration-200">
-                            <div className="bg-[#b4c6ff] text-slate-950 px-5 py-3 font-extrabold text-sm border-b border-slate-600">
-                              AUDIT-C Total Score:
+                          <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs font-sans my-2 bg-white animate-in fade-in duration-200">
+                            <div className="bg-slate-50 px-5 py-3 border-b border-slate-200/90 flex items-center justify-between">
+                              <span className="text-xs font-black uppercase text-slate-800 font-mono tracking-wider">
+                                AUDIT-C Total Score
+                              </span>
+                              <span className="text-[10px] font-mono font-extrabold px-2.5 py-1 rounded-xl bg-amber-50 text-amber-950 border border-amber-300 shadow-2xs">
+                                Auto-Calculated
+                              </span>
                             </div>
-                            <div className="bg-[#242426] text-white px-5 py-4 flex items-center justify-between">
-                              <div className="flex items-baseline gap-2">
+                            <div className="p-5 bg-white flex items-center justify-between gap-4">
+                              <div className="flex items-baseline gap-2 font-mono">
                                 <input
                                   type="number"
                                   min={0}
@@ -2010,75 +2369,208 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                     }
                                     updateCustomField(q, val);
                                   }}
-                                  className="w-24 bg-transparent font-black text-2xl text-amber-400 border-b-2 border-amber-400 text-center outline-none"
+                                  className="w-24 px-3 py-2 bg-slate-50 border border-slate-300 focus:border-amber-400 rounded-xl font-mono font-black text-2xl text-slate-900 text-center outline-none transition-all shadow-inner"
                                 />
-                                <span className="text-xl font-bold text-slate-300">/ 12</span>
+                                <span className="text-base font-bold text-slate-400">/ 12</span>
                               </div>
-                              <span className="text-xs font-mono font-bold px-3 py-1 rounded-lg bg-slate-800 text-amber-300 border border-slate-700">
-                                Auto-Calculated
-                              </span>
                             </div>
-                            <div className="bg-[#32343a] text-slate-200 px-5 py-3 text-xs italic font-medium border-t border-slate-700 leading-relaxed">
-                              Bands: Positive screen is 4 or more for men, 3 or more for women and transgender participants.
+                            <div className="px-5 py-3 bg-slate-50/80 border-t border-slate-200/90 text-xs font-medium text-slate-600 leading-relaxed font-sans">
+                              <span className="font-bold text-slate-800">Clinical Bands:</span> Positive screen is 4 or more for men, 3 or more for women and transgender participants.
                             </div>
                           </div>
                         ) : (isBmiQuestion(q)) ? (
-                          <div className="rounded-2xl border border-slate-700 overflow-hidden shadow-md font-mono my-2 animate-in fade-in duration-200">
-                            <div className="bg-[#b4c6ff] text-slate-950 px-5 py-3 font-extrabold text-sm border-b border-slate-600 flex items-center justify-between">
-                              <span>Q69. Body Mass Index (BMI) — Auto-Calculated</span>
-                              <span className="text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded bg-slate-900 text-amber-300 font-bold">
+                          <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs font-sans my-2 bg-white animate-in fade-in duration-200">
+                            <div className="bg-slate-50 px-5 py-3 border-b border-slate-200/90 flex items-center justify-between">
+                              <span className="text-xs font-black uppercase text-slate-800 font-mono tracking-wider">
+                                Q69. Body Mass Index (BMI)
+                              </span>
+                              <span className="text-[10px] uppercase font-mono tracking-wider px-2.5 py-1 rounded-xl bg-amber-50 text-amber-950 border border-amber-300 font-extrabold shadow-2xs">
                                 Formula: Weight (kg) / [Height (m)]²
                               </span>
                             </div>
-                            <div className="bg-[#242426] text-white px-5 py-4 flex items-center justify-between">
-                              <div className="flex items-baseline gap-3">
+                            <div className="p-5 bg-white flex items-center justify-between gap-4">
+                              <div className="flex items-baseline gap-3 font-mono">
                                 <input
                                   type="text"
                                   readOnly
                                   disabled
                                   placeholder="0.00"
                                   value={data[`custom_${q.id}`] || data[q.id] || data.bmi || data.q69 || ''}
-                                  className="w-32 bg-transparent font-black text-3xl text-amber-400 border-b-2 border-amber-400 text-center outline-none cursor-not-allowed select-none"
+                                  className="w-32 px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl font-mono font-black text-2xl text-slate-900 text-center outline-none cursor-not-allowed select-none shadow-2xs"
                                 />
-                                <span className="text-xl font-bold text-slate-300">kg/m²</span>
+                                <span className="text-base font-bold text-slate-400">kg/m²</span>
                               </div>
 
                               {(() => {
                                 const bmiNum = parseFloat(data[`custom_${q.id}`] || data[q.id] || data.bmi || data.q69 || 0);
                                 let category = "Pending Q67 Height & Q68 Weight";
-                                let badgeColor = "bg-slate-800 text-slate-300 border-slate-700";
+                                let badgeColor = "bg-slate-100 text-slate-700 border-slate-300";
 
                                 if (bmiNum > 0) {
                                   if (bmiNum < 18.5) {
                                     category = "Underweight (< 18.5)";
-                                    badgeColor = "bg-sky-900 text-sky-200 border-sky-600";
+                                    badgeColor = "bg-sky-50 text-sky-900 border-sky-300 font-bold";
                                   } else if (bmiNum <= 24.9) {
                                     category = "Normal / Healthy (18.5 - 24.9)";
-                                    badgeColor = "bg-emerald-900 text-emerald-200 border-emerald-600";
+                                    badgeColor = "bg-emerald-50 text-emerald-900 border-emerald-300 font-bold";
                                   } else if (bmiNum <= 29.9) {
                                     category = "Overweight (25.0 - 29.9)";
-                                    badgeColor = "bg-amber-900 text-amber-200 border-amber-600";
+                                    badgeColor = "bg-amber-50 text-amber-900 border-amber-300 font-bold";
                                   } else {
                                     category = "Obese (≥ 30.0)";
-                                    badgeColor = "bg-red-900 text-red-200 border-red-600";
+                                    badgeColor = "bg-red-50 text-red-900 border-red-300 font-bold";
                                   }
                                 }
 
                                 return (
-                                  <div className="flex flex-col items-end gap-1">
-                                    <span className={`text-xs font-mono font-bold px-3 py-1.5 rounded-xl border shadow-2xs ${badgeColor}`}>
+                                  <div className="flex flex-col items-end gap-1 font-mono">
+                                    <span className={`text-xs font-bold px-3 py-1.5 rounded-xl border shadow-2xs ${badgeColor}`}>
                                       {category}
                                     </span>
-                                    <span className="text-[10px] text-slate-400 font-mono">
+                                    <span className="text-[10px] text-slate-500 font-semibold">
                                       Height: {data.q67 || data.custom_q67 || data.height || '—'} cm | Weight: {data.q68 || data.custom_q68 || data.weight || '—'} kg
                                     </span>
                                   </div>
                                 );
                               })()}
                             </div>
-                            <div className="bg-[#32343a] text-slate-200 px-5 py-3 text-xs italic font-medium border-t border-slate-700 leading-relaxed flex items-center justify-between">
+                            <div className="px-5 py-3 bg-slate-50/80 text-slate-600 text-xs font-medium border-t border-slate-200/90 leading-relaxed flex items-center justify-between font-sans">
                               <span>Auto-computed from Q67 (Height) & Q68 (Weight). Plausibility range: 10.0 to 60.0 kg/m².</span>
-                              <span className="font-bold text-amber-300 not-italic">Auto-Locked</span>
+                              <span className="font-bold text-amber-900 font-mono text-[10px] bg-amber-100 px-2 py-0.5 rounded border border-amber-300">Auto-Locked</span>
+                            </div>
+                          </div>
+                        ) : (isQ88HandGripQuestion(q)) ? (
+                          <div className="space-y-4 my-2 animate-in fade-in duration-200">
+                            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs font-sans">
+                              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                                <div>
+                                  <span className="text-xs font-black uppercase text-slate-800 font-mono tracking-wider block">
+                                    Q88. Hand-Grip Strength (kg) — 3 Individual Readings & Average
+                                  </span>
+                                  <span className="text-[11px] text-slate-500 font-medium pt-0.5 block">
+                                    ➔ Measured only if BMI at Q69 is below 20.0 kg/m²
+                                  </span>
+                                </div>
+                                <span className="text-[10px] font-mono font-extrabold px-2.5 py-1 rounded-xl bg-amber-50 text-amber-950 border border-amber-300 shadow-2xs shrink-0">
+                                  BMI &lt; 20 Filtered
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                                {/* Reading 1 */}
+                                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                                  <label className="text-[11px] font-extrabold uppercase text-slate-700 font-mono block">
+                                    Reading 1 (kg)
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="0.1"
+                                    min="0"
+                                    placeholder="0.0"
+                                    value={data.q88_reading1 !== undefined ? data.q88_reading1 : ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const r1 = parseFloat(val || 0);
+                                      const r2 = parseFloat(data.q88_reading2 || 0);
+                                      const r3 = parseFloat(data.q88_reading3 || 0);
+                                      const valid = [r1, r2, r3].filter(v => v > 0);
+                                      const avg = valid.length > 0 ? (valid.reduce((a, b) => a + b, 0) / valid.length).toFixed(2) : "";
+
+                                      setData(prev => ({
+                                        ...prev,
+                                        q88_reading1: val,
+                                        q88_avg: avg,
+                                        q88: avg,
+                                        [`custom_${q.id}`]: avg,
+                                        [q.id]: avg
+                                      }));
+                                    }}
+                                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-mono font-bold text-slate-900 outline-none focus:ring-2 focus:ring-amber-400 shadow-2xs"
+                                  />
+                                </div>
+
+                                {/* Reading 2 */}
+                                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                                  <label className="text-[11px] font-extrabold uppercase text-slate-700 font-mono block">
+                                    Reading 2 (kg)
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="0.1"
+                                    min="0"
+                                    placeholder="0.0"
+                                    value={data.q88_reading2 !== undefined ? data.q88_reading2 : ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const r1 = parseFloat(data.q88_reading1 || 0);
+                                      const r2 = parseFloat(val || 0);
+                                      const r3 = parseFloat(data.q88_reading3 || 0);
+                                      const valid = [r1, r2, r3].filter(v => v > 0);
+                                      const avg = valid.length > 0 ? (valid.reduce((a, b) => a + b, 0) / valid.length).toFixed(2) : "";
+
+                                      setData(prev => ({
+                                        ...prev,
+                                        q88_reading2: val,
+                                        q88_avg: avg,
+                                        q88: avg,
+                                        [`custom_${q.id}`]: avg,
+                                        [q.id]: avg
+                                      }));
+                                    }}
+                                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-mono font-bold text-slate-900 outline-none focus:ring-2 focus:ring-amber-400 shadow-2xs"
+                                  />
+                                </div>
+
+                                {/* Reading 3 */}
+                                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                                  <label className="text-[11px] font-extrabold uppercase text-slate-700 font-mono block">
+                                    Reading 3 (kg)
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="0.1"
+                                    min="0"
+                                    placeholder="0.0"
+                                    value={data.q88_reading3 !== undefined ? data.q88_reading3 : ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const r1 = parseFloat(data.q88_reading1 || 0);
+                                      const r2 = parseFloat(data.q88_reading2 || 0);
+                                      const r3 = parseFloat(val || 0);
+                                      const valid = [r1, r2, r3].filter(v => v > 0);
+                                      const avg = valid.length > 0 ? (valid.reduce((a, b) => a + b, 0) / valid.length).toFixed(2) : "";
+
+                                      setData(prev => ({
+                                        ...prev,
+                                        q88_reading3: val,
+                                        q88_avg: avg,
+                                        q88: avg,
+                                        [`custom_${q.id}`]: avg,
+                                        [q.id]: avg
+                                      }));
+                                    }}
+                                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-mono font-bold text-slate-900 outline-none focus:ring-2 focus:ring-amber-400 shadow-2xs"
+                                  />
+                                </div>
+
+                                {/* Average */}
+                                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <label className="text-[11px] font-extrabold uppercase text-amber-900 font-mono block">
+                                      Average (kg)
+                                    </label>
+                                    <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-200 text-amber-950">Auto</span>
+                                  </div>
+                                  <input
+                                    type="text"
+                                    readOnly
+                                    disabled
+                                    placeholder="0.00"
+                                    value={data.q88_avg || data.q88 || data[`custom_${q.id}`] || ''}
+                                    className="w-full px-3 py-2 bg-white border border-amber-300 rounded-lg text-sm font-mono font-black text-amber-950 outline-none cursor-not-allowed select-none shadow-2xs"
+                                  />
+                                </div>
+                              </div>
                             </div>
                           </div>
                         ) : qType === 'short_text' ? (
@@ -2113,8 +2605,84 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                           />
                         ) : null}
 
+                        {/* Matrix Question Type (Q86 Fat Loss, Q87 Muscle Loss, etc.) */}
+                        {isMatrixQuestion(q) && (
+                          <div className="w-full overflow-x-auto rounded-2xl border border-slate-200/90 shadow-2xs my-2 font-sans bg-white">
+                            <table className="w-full text-left border-collapse min-w-[640px]">
+                              <thead>
+                                <tr className="bg-amber-50/70 border-b border-amber-200/80 font-mono">
+                                  <th className="py-3 px-4 text-xs font-black text-slate-800 uppercase tracking-wider">
+                                    Assessment Site / Row Parameter
+                                  </th>
+                                  {getMatrixCols(q).map((col, cIdx) => (
+                                    <th key={cIdx} className="py-3 px-3 text-center text-xs font-extrabold text-slate-900">
+                                      <span className="inline-flex items-center gap-1.5 justify-center">
+                                        <span className="px-1.5 py-0.5 rounded bg-amber-200/80 text-amber-950 font-black text-[11px] border border-amber-300">
+                                          {getOptionCode(col, cIdx)}
+                                        </span>
+                                        <span className="font-sans font-extrabold text-xs">{getOptionLabel(col)}</span>
+                                      </span>
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {getMatrixRows(q).map((row, rIdx) => {
+                                  const rowKey = typeof row === 'object' ? row.id || `row_${rIdx + 1}` : `row_${rIdx + 1}`;
+                                  const rowLabel = typeof row === 'object' ? row.label || row.title || row.name : row;
+                                  const matrixValKey = `${q.id}_${rowKey}`;
+                                  const curRowVal = data[matrixValKey] || (data[q.id] && data[q.id][rowKey]) || '';
+
+                                  return (
+                                    <tr key={rIdx} className="hover:bg-amber-50/20 transition-colors">
+                                      <td className="py-3 px-4 text-xs sm:text-sm font-extrabold text-slate-900 leading-snug">
+                                        {rowLabel}
+                                      </td>
+                                      {getMatrixCols(q).map((col, cIdx) => {
+                                        const colVal = getOptionLabel(col);
+                                        const colCode = getOptionCode(col, cIdx);
+                                        const isChecked = String(curRowVal).trim() === String(colVal).trim() || String(curRowVal).trim() === String(colCode).trim();
+
+                                        return (
+                                          <td key={cIdx} className="py-3 px-3 text-center">
+                                            <label 
+                                              onClick={() => {
+                                                updateCustomField({ id: matrixValKey }, colVal);
+                                                setData(prev => {
+                                                  const curObj = (typeof prev[q.id] === 'object' && prev[q.id] !== null) ? prev[q.id] : {};
+                                                  return {
+                                                    ...prev,
+                                                    [matrixValKey]: colVal,
+                                                    [q.id]: {
+                                                      ...curObj,
+                                                      [rowKey]: colVal
+                                                    }
+                                                  };
+                                                });
+                                              }}
+                                              className={`inline-flex items-center justify-center p-2.5 rounded-xl border transition-all cursor-pointer ${isChecked ? 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs ring-2 ring-amber-400' : 'bg-slate-50/60 border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-700'}`}
+                                            >
+                                              <input
+                                                type="radio"
+                                                name={`${q.id}_${rowKey}`}
+                                                checked={isChecked}
+                                                onChange={() => {}}
+                                                className="w-4 h-4 text-amber-600 focus:ring-0 cursor-pointer"
+                                              />
+                                            </label>
+                                          </td>
+                                        );
+                                      })}
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+
                         {/* Single Choice (Custom Dropdown vs Grid/Pills) */}
-                        {(qType === 'dropdown' || qType === 'single_choice' || qType === 'radio') && (
+                        {(qType === 'dropdown' || qType === 'single_choice' || qType === 'radio') && !isQ3LocationQuestion(q) && !isMatrixQuestion(q) && (
                           effectiveMode === 'dropdown' ? (
                             <div className="relative">
                               {(() => {
@@ -2731,6 +3299,57 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                     className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 transition-colors shadow-2xs cursor-pointer font-mono"
                   >
                     Back to Dashboard
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Staff Nurse Section Workflow Choice Modal */}
+          {showStaffNurseTransferModal && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+              <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-200 font-sans space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-100 border border-amber-300 text-amber-900 flex items-center justify-center shrink-0">
+                    <Stethoscope size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900 leading-tight">
+                      Section 8 · Counselor Transfer Option
+                    </h3>
+                    <p className="text-xs text-slate-500 font-semibold pt-0.5">
+                      Participant ID: <span className="font-mono text-amber-900 font-bold">{data.participant_id}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs sm:text-sm text-slate-700 leading-relaxed space-y-2">
+                  <p className="font-semibold">
+                    How would you like to proceed with Section 8 (Counselor Counselling & Review)?
+                  </p>
+                  <ul className="list-disc pl-4 space-y-1 text-slate-600 text-xs">
+                    <li><strong>Complete Myself:</strong> Fill out Section 8 clinical counselling and review myself.</li>
+                    <li><strong>Move to Counselor Queue:</strong> Transfer participant directly to Counselor Queue for counselling.</li>
+                  </ul>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleCompleteSelf}
+                    className="flex-1 h-14 px-5 rounded-2xl bg-[#f5d40b] hover:bg-[#e0c20a] text-[#4a4a4c] font-black text-sm flex items-center justify-center gap-2.5 transition-all shadow-md cursor-pointer text-center leading-snug border border-[#e5c40a]"
+                  >
+                    <UserCheck size={20} className="shrink-0 text-[#4a4a4c]" />
+                    <span>I will complete this section</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleTransferToCounselor}
+                    className="flex-1 h-14 px-5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black text-sm flex items-center justify-center gap-2.5 transition-all shadow-md cursor-pointer text-center leading-snug border border-slate-800"
+                  >
+                    <ArrowRight size={20} className="shrink-0 text-white" />
+                    <span>Move to Counselor Queue</span>
                   </button>
                 </div>
               </div>

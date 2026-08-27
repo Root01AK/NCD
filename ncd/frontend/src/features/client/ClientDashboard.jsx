@@ -290,23 +290,9 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
             <span className="text-xs font-extrabold text-slate-900 font-mono tracking-tight">
               {user.role_name || "DEO Portal"}
             </span>
-            <div className="relative flex items-center gap-1.5 bg-amber-50 text-amber-950 border border-amber-300 rounded-xl px-2.5 py-1 text-xs font-mono font-bold shadow-2xs">
+            <div className="flex items-center gap-1.5 bg-amber-50 text-amber-950 border border-amber-300 rounded-xl px-3 py-1 text-xs font-mono font-extrabold shadow-2xs">
               <MapPin size={12} className="text-amber-700 shrink-0" />
-              <select
-                value={activeLocation}
-                onChange={(e) => {
-                  const selected = e.target.value;
-                  setActiveLocation(selected);
-                  localStorage.setItem('ncd_active_location', selected);
-                  notify("info", "Center Location Switch", `Switched active workstation location to ${selected} Center.`);
-                }}
-                className="bg-transparent font-extrabold text-amber-950 outline-none cursor-pointer text-xs font-mono pr-1"
-                title="Select Workstation Location Center"
-              >
-                <option value="Dharavi">Dharavi Center</option>
-                <option value="Malvani">Malvani Center</option>
-                <option value="Vashi">Vashi Center</option>
-              </select>
+              <span>{activeLocation} Center</span>
             </div>
           </div>
         </div>
@@ -474,31 +460,20 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                   <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 font-mono">Total Initiated</p>
                   <p className="text-3xl font-black text-slate-900 font-mono tracking-tight">
                     {(() => {
-                      let apiList = [];
-                      let apiResponded = false;
-                      try {
-                        const res = api.get("/api/v1/dashboard/screeninglist");
-                        if (res && res.status === 'success' && Array.isArray(res.data)) {
-                          apiResponded = true;
-                          apiList = res.data;
-                        }
-                      } catch (e) {}
-
-                      let localInit = [];
-                      try {
-                        const initStr = localStorage.getItem('ncd_local_initiated_participants') || localStorage.getItem('ncd_offline_queue');
-                        if (initStr) {
-                          const parsed = JSON.parse(initStr);
-                          if (Array.isArray(parsed)) localInit = parsed;
-                        }
-                      } catch(e) {}
-
-                      if (apiResponded && apiList.length === 0) {
-                        localStorage.removeItem('ncd_local_initiated_participants');
-                        localInit = [];
-                      }
-                      const total = localInit.length + syncQueue.length + completedRecords.length;
-                      return total > 0 ? total : completedRecords.length;
+                      const pIds = new Set();
+                      syncQueue.forEach(r => {
+                        let raw = {};
+                        if (r.mem_scrn_q30) { try { raw = typeof r.mem_scrn_q30 === 'string' ? JSON.parse(r.mem_scrn_q30) : r.mem_scrn_q30; } catch (e) {} }
+                        const id = r.participant_id || r.mem_scrn_part_id || raw.participant_id;
+                        if (id) pIds.add(String(id).toUpperCase().trim());
+                      });
+                      completedRecords.forEach(r => {
+                        let raw = {};
+                        if (r.mem_scrn_q30) { try { raw = typeof r.mem_scrn_q30 === 'string' ? JSON.parse(r.mem_scrn_q30) : r.mem_scrn_q30; } catch (e) {} }
+                        const id = r.participant_id || r.mem_scrn_part_id || raw.participant_id;
+                        if (id) pIds.add(String(id).toUpperCase().trim());
+                      });
+                      return Math.max(pIds.size, syncQueue.length + completedRecords.length);
                     })()}
                   </p>
                   <span className="text-[10px] font-bold text-amber-900 bg-amber-100/70 px-2 py-0.5 rounded-md font-mono inline-block">
@@ -885,13 +860,40 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                       <span>Select All Filtered Records ({queueToRender.length})</span>
                     </label>
 
-                    <button
-                      onClick={() => exportSyncQueueCSV(queueToRender)}
-                      className="flex items-center gap-1 text-amber-900 hover:text-amber-950 font-bold cursor-pointer"
-                    >
-                      <Download size={12} />
-                      <span>Export Filtered ({queueToRender.length})</span>
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={async () => {
+                          if (window.confirm("Are you sure you want to delete ALL participant records from queue & database and reset sequence to 0001?")) {
+                            try {
+                              await api.post("/api/v1/screening/reset-all");
+                            } catch(e) {}
+                            localStorage.removeItem('ncd_offline_queue');
+                            localStorage.removeItem('ncd_local_initiated_participants');
+                            localStorage.removeItem('ncd_used_participant_ids');
+                            localStorage.removeItem('ncd_participant_seq_DH');
+                            localStorage.removeItem('ncd_participant_seq_ML');
+                            localStorage.removeItem('ncd_participant_seq_VA');
+                            localStorage.removeItem('ncd_participant_seq_OT');
+                            setSyncQueue([]);
+                            setCompletedRecords([]);
+                            setSelectedSyncIds([]);
+                            notify("success", "Records Reset", "All participant records deleted! Next Participant ID will start from 0001.");
+                          }
+                        }}
+                        className="flex items-center gap-1 text-red-600 hover:text-red-700 font-bold cursor-pointer text-xs"
+                      >
+                        <Trash2 size={12} />
+                        <span>Reset Sequence to 0001</span>
+                      </button>
+
+                      <button
+                        onClick={() => exportSyncQueueCSV(queueToRender)}
+                        className="flex items-center gap-1 text-amber-900 hover:text-amber-950 font-bold cursor-pointer text-xs"
+                      >
+                        <Download size={12} />
+                        <span>Export Filtered ({queueToRender.length})</span>
+                      </button>
+                    </div>
                   </div>
 
                   {queueToRender.map((item, index) => {
@@ -917,6 +919,41 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                       return String(loc).substring(0, 2).toUpperCase();
                     })();
 
+                    let surData = {};
+                    if (item.survey_data) {
+                      try {
+                        surData = typeof item.survey_data === 'string' ? JSON.parse(item.survey_data) : item.survey_data;
+                      } catch (e) {}
+                    }
+
+                    const statusStr = String(item.status || raw.status || surData.status || "Demographics Completed");
+                    const isSec8CounselorQueue = statusStr.toLowerCase().includes("counselor queue for section 8") || (surData.counselor_section_required && !surData.counselor_section_completed);
+                    const isSec15CounselorQueue = statusStr.toLowerCase().includes("sec 15") || statusStr.toLowerCase().includes("section 14 completed") || (surData.counselor_sec15_required && !surData.counselor_sec15_completed);
+                    const isSec8Completed = surData.counselor_section_completed || statusStr.toLowerCase().includes("counseling completed");
+
+                    let queueBadgeText = "Field Supervisor Queue";
+                    let queueBadgeClass = "bg-blue-50 text-blue-900 border-blue-200 font-bold";
+
+                    if (isSec8CounselorQueue) {
+                      queueBadgeText = "🟡 Counselor Queue (Sec 8 Pending)";
+                      queueBadgeClass = "bg-amber-100 text-amber-950 border-amber-300 font-black";
+                    } else if (isSec15CounselorQueue) {
+                      queueBadgeText = "🟧 Counselor Queue (Sec 15 Pending)";
+                      queueBadgeClass = "bg-orange-100 text-orange-950 border-orange-300 font-black";
+                    } else if (isSec8Completed) {
+                      queueBadgeText = "🟢 Staff Nurse Queue (Ready for Sec 9)";
+                      queueBadgeClass = "bg-emerald-100 text-emerald-950 border-emerald-300 font-black";
+                    } else if (statusStr.toLowerCase().includes("coordinator")) {
+                      queueBadgeText = "📂 Coordinator Queue (Sec 14)";
+                      queueBadgeClass = "bg-sky-100 text-sky-950 border-sky-300 font-bold";
+                    } else if (statusStr.toLowerCase().includes("nurse")) {
+                      queueBadgeText = "🩺 Staff Nurse Queue";
+                      queueBadgeClass = "bg-emerald-50 text-emerald-900 border-emerald-200 font-bold";
+                    } else if (statusStr.toLowerCase().includes("doctor")) {
+                      queueBadgeText = "🩺 Doctor Queue";
+                      queueBadgeClass = "bg-purple-50 text-purple-900 border-purple-200 font-bold";
+                    }
+
                     return (
                       <div key={item.local_id || index} className={`bg-white rounded-2xl p-4 border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 transition-all ${isChecked ? 'border-amber-400 ring-2 ring-amber-400 bg-amber-50/20' : 'border-slate-200 hover:border-slate-300 shadow-2xs'}`}>
                         <div className="flex items-start gap-3">
@@ -941,6 +978,9 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                               <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 font-mono flex items-center gap-1">
                                 <MapPin size={10} className="text-amber-600" />
                                 <span>{loc} ({locShortCode})</span>
+                              </span>
+                              <span className={`text-[10px] px-2.5 py-0.5 rounded-lg border font-mono ${queueBadgeClass}`}>
+                                {queueBadgeText}
                               </span>
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono">
                                 Pending Sync
@@ -972,14 +1012,19 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
 
                         <button
                           onClick={async () => {
-                            if (item.local_id) {
-                              await deleteFromQueue(item.local_id);
+                            if (window.confirm(`Are you sure you want to delete participant record ${pid}?`)) {
+                              if (item.local_id) {
+                                await deleteFromQueue(item.local_id);
+                              }
+                              try {
+                                await api.post("/api/v1/screening/delete", { participant_id: pid, mem_scrn_part_id: pid });
+                              } catch (e) {}
                               await loadQueue();
-                              notify("info", "Record Removed", `Deleted ${pid} from local queue.`);
+                              notify("info", "Record Removed", `Deleted ${pid} from queue and database.`);
                             }
                           }}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold transition-all border border-red-200 cursor-pointer shadow-2xs"
-                          title="Delete record from local queue"
+                          title="Delete record from local queue and database"
                         >
                           <Trash2 size={13} className="text-red-600" />
                           <span>Delete</span>

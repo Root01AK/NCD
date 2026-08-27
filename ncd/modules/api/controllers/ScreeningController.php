@@ -43,6 +43,62 @@ class ScreeningController extends Controller
         Yii::$app->getResponse()->setStatusCode(200);
     }
 
+    public function actionNextParticipantId()
+    {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
+        $location = Yii::$app->request->get('location') ?: (Yii::$app->request->post('location') ?: 'Dharavi');
+        $locLower = strtolower(trim($location));
+
+        $prefix = 'DH';
+        if (str_contains($locLower, 'dharavi') || str_contains($locLower, 'dh')) {
+            $prefix = 'DH';
+        } elseif (str_contains($locLower, 'malvani') || str_contains($locLower, 'ml')) {
+            $prefix = 'ML';
+        } elseif (str_contains($locLower, 'vashi') || str_contains($locLower, 'va')) {
+            $prefix = 'VA';
+        } elseif (str_contains($locLower, 'other') || str_contains($locLower, 'ot')) {
+            $prefix = 'OT';
+        } else {
+            $clean = preg_replace('/[^a-z0-9]/i', '', $locLower);
+            if (strlen($clean) >= 2) {
+                $prefix = strtoupper(substr($clean, 0, 2));
+            }
+        }
+
+        $db = Yii::$app->db;
+        $prefixKey = "NCD" . $prefix;
+
+        $rows = (new \yii\db\Query())
+            ->select(['mem_scrn_part_id'])
+            ->from('cms_screening')
+            ->where(['like', 'mem_scrn_part_id', $prefixKey . '%', false])
+            ->all($db);
+
+        $maxSeq = 0;
+        foreach ($rows as $row) {
+            $pId = strtoupper(trim($row['mem_scrn_part_id'] ?? ''));
+            if (preg_match('/^NCD' . $prefix . '(\d+)$/i', $pId, $matches)) {
+                $num = (int)$matches[1];
+                if ($num > $maxSeq) {
+                    $maxSeq = $num;
+                }
+            }
+        }
+
+        $nextSeq = $maxSeq + 1;
+        $nextParticipantId = sprintf('NCD%s%04d', $prefix, $nextSeq);
+
+        return [
+            'status' => 'success',
+            'location' => $location,
+            'prefix' => $prefix,
+            'max_seq' => $maxSeq,
+            'next_seq' => $nextSeq,
+            'participant_id' => $nextParticipantId
+        ];
+    }
+
     private function getPayload()
     {
         $payload = [];
@@ -150,10 +206,12 @@ class ScreeningController extends Controller
 
             $db = Yii::$app->db;
             if ($id) {
-                $db->createCommand()->delete('cms_mdhl', ['mem_scrn_id' => $id])->execute();
+                $db->createCommand()->delete('cms_screening', ['mem_scrn_id' => $id])->execute();
+                try { $db->createCommand()->delete('cms_mdhl', ['mem_scrn_id' => $id])->execute(); } catch (\Throwable $e) {}
             }
             if ($partId) {
-                $db->createCommand()->delete('cms_mdhl', ['mem_scrn_part_id' => $partId])->execute();
+                $db->createCommand()->delete('cms_screening', ['mem_scrn_part_id' => $partId])->execute();
+                try { $db->createCommand()->delete('cms_mdhl', ['mem_scrn_part_id' => $partId])->execute(); } catch (\Throwable $e) {}
                 try { $db->createCommand()->delete('cms_apm', ['apm_pid' => $partId])->execute(); } catch (\Throwable $e) {}
                 try { $db->createCommand()->delete('cms_bsr', ['bsr_pid' => $partId])->execute(); } catch (\Throwable $e) {}
                 try { $db->createCommand()->delete('cms_ce', ['ce_pid' => $partId])->execute(); } catch (\Throwable $e) {}
@@ -168,6 +226,33 @@ class ScreeningController extends Controller
         } catch (\Throwable $e) {
             Yii::$app->response->statusCode = 500;
             return ['status' => 'error', 'message' => 'Failed to delete record: ' . $e->getMessage()];
+        }
+    }
+
+    public function actionResetAll()
+    {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
+        try {
+            $db = Yii::$app->db;
+            $db->createCommand()->delete('cms_screening')->execute();
+            try { $db->createCommand()->delete('cms_mdhl')->execute(); } catch (\Throwable $e) {}
+            try { $db->createCommand()->delete('cms_apm')->execute(); } catch (\Throwable $e) {}
+            try { $db->createCommand()->delete('cms_bsr')->execute(); } catch (\Throwable $e) {}
+            try { $db->createCommand()->delete('cms_ce')->execute(); } catch (\Throwable $e) {}
+            try { $db->createCommand()->delete('cms_cml')->execute(); } catch (\Throwable $e) {}
+            try { $db->createCommand()->delete('cms_cprca')->execute(); } catch (\Throwable $e) {}
+            try { $db->createCommand()->delete('cms_dg')->execute(); } catch (\Throwable $e) {}
+            try { $db->createCommand()->delete('cms_fupm')->execute(); } catch (\Throwable $e) {}
+            try { $db->createCommand()->delete('cms_vital')->execute(); } catch (\Throwable $e) {}
+
+            return [
+                'status' => 'success',
+                'message' => 'All participant screening records deleted from database. Sequence reset to 0001.'
+            ];
+        } catch (\Throwable $e) {
+            Yii::$app->response->statusCode = 500;
+            return ['status' => 'error', 'message' => 'Failed to reset records: ' . $e->getMessage()];
         }
     }
 }

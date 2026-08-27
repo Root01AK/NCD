@@ -37,27 +37,70 @@ export function getOptionLabel(opt) {
  * Auto-calculates AUDIT-C score and checks threshold (Positive >= 4 for Males, >= 3 for Females / Transgender)
  */
 export function calculateAuditCScore(formData) {
-  if (!formData) return { score: 0, threshold: 4, isPositive: false };
+  if (!formData) return { score: 0, threshold: 4, isPositive: false, hasAnyAnswer: false };
 
   const g = String(formData.gender || formData.mem_scrn_q2 || "").toLowerCase();
   const isMale = g.includes("male") && !g.includes("trans") && !g.includes("female");
   const threshold = isMale ? 4 : 3;
 
   let score = 0;
-  ["q27", "q28", "q29", "q30"].forEach(qId => {
-    const val = formData[`custom_${qId}`] !== undefined ? formData[`custom_${qId}`] : formData[qId];
-    if (val !== undefined && val !== null && val !== "") {
-      const match = String(val).match(/\d+/);
-      if (match) {
-        score += parseInt(match[0], 10);
+  let hasAnyAnswer = false;
+
+  const parseAuditPoints = (v) => {
+    if (!v) return 0;
+    const str = typeof v === 'object' ? `${v.code || ''} ${v.label || ''}`.trim() : String(v).trim();
+    if (!str) return 0;
+
+    const explicitPtMatch = str.match(/(\d+)\s*pt/i) || str.match(/(\d+)\s*point/i);
+    if (explicitPtMatch) {
+      return parseInt(explicitPtMatch[1], 10);
+    }
+
+    const codeMatch = str.match(/^(?:Code\s*(\d+)|(\d+)\s*[:.\-]\s*)/i);
+    if (codeMatch) {
+      const codeNum = parseInt(codeMatch[1] || codeMatch[2], 10);
+      if (!isNaN(codeNum) && codeNum >= 1 && codeNum <= 5) {
+        return codeNum - 1;
       }
+    }
+
+    const rawMatch = str.match(/^(\d+)$/);
+    if (rawMatch) {
+      const num = parseInt(rawMatch[1], 10);
+      if (num >= 0 && num <= 4) return num;
+      if (num >= 1 && num <= 5) return num - 1;
+    }
+
+    const l = str.toLowerCase();
+    if (l.includes("never") || l.includes("1 or 2") || l.includes("one or two")) return 0;
+    if (l.includes("monthly or less") || l.includes("less than monthly") || l.includes("3 or 4") || l.includes("three or four")) return 1;
+    if (l.includes("2 to 4") || l.includes("5 or 6") || (l.includes("monthly") && !l.includes("less"))) return 2;
+    if (l.includes("2 to 3") || l.includes("7 to 9") || l.includes("weekly")) return 3;
+    if (l.includes("four or more") || l.includes("4 or more") || l.includes("daily") || l.includes("ten or more") || l.includes("10 or more")) return 4;
+
+    return 0;
+  };
+
+  ["q27", "q28", "q29"].forEach(qId => {
+    const keys = [`custom_${qId}`, qId, `mem_scrn_${qId}`, `custom_${qId.toUpperCase()}`, qId.toUpperCase()];
+    let val = null;
+    for (const k of keys) {
+      if (formData[k] !== undefined && formData[k] !== null && formData[k] !== "") {
+        val = formData[k];
+        break;
+      }
+    }
+    if (val !== null && val !== undefined && val !== "") {
+      hasAnyAnswer = true;
+      score += parseAuditPoints(val);
     }
   });
 
   return {
     score,
     threshold,
-    isPositive: score >= threshold
+    isPositive: score >= threshold,
+    hasAnyAnswer
   };
 }
 
@@ -652,6 +695,14 @@ export function isQuestionSkipped(q, allQuestions, formData) {
     });
     return foundK ? formData[foundK] : null;
   };
+
+  // Explicit Rule: Q88 Hand-grip strength — Skip if BMI at Q69 is 20 or above (BMI >= 20). Only ask if BMI < 20!
+  if (qNum === 88 || qIdStr.includes("q88") || titleStr.toLowerCase().includes("q88") || titleStr.toLowerCase().includes("hand-grip")) {
+    const bmiNum = calculateBMIFromForm(formData);
+    if (bmiNum !== null && !isNaN(bmiNum) && bmiNum >= 20.0) {
+      return true; // Skip Q88 if BMI >= 20
+    }
+  }
 
   // Explicit Rule 1: Q11 Family History Skip (Q12)
   if (qNum === 12) {

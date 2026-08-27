@@ -9,6 +9,7 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey, onOpenM
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [viewingCodebookSurvey, setViewingCodebookSurvey] = useState(null);
+  const [previewingSurvey, setPreviewingSurvey] = useState(null);
 
   const fetchSurveys = async () => {
     setLoading(true);
@@ -180,6 +181,14 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey, onOpenM
                   </div>
                   
                   <div className="flex items-center gap-1.5 flex-wrap">
+                    <button 
+                      onClick={() => setPreviewingSurvey(s)}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-amber-950 border border-amber-500 hover:bg-amber-500 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs font-mono"
+                      title="Preview Live Survey Form"
+                    >
+                      <Eye size={14} className="text-amber-950" />
+                      <span>Preview</span>
+                    </button>
                     <button 
                       onClick={() => setViewingCodebookSurvey(s)}
                       className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-100 text-amber-950 border border-amber-300 hover:bg-amber-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs font-mono"
@@ -356,6 +365,96 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey, onOpenM
                   className="px-6 py-2 rounded-full text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 transition-colors cursor-pointer"
                 >
                   Close Codebook
+                </button>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* Live Survey Form Preview Modal */}
+        {previewingSurvey && (
+          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-amber-50/70">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-400 border border-amber-500 text-amber-950 flex items-center justify-center shrink-0">
+                    <Eye size={20} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-bold text-slate-900">{previewingSurvey.sur_title}</h2>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-200 text-amber-950">
+                        Live Preview Mode
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 font-mono mt-0.5">
+                      Survey ID: {previewingSurvey.sur_id} • Location: {previewingSurvey.location || 'All Locations'}
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setPreviewingSurvey(null)}
+                  className="p-2 rounded-full hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto space-y-4 flex-1 bg-slate-50/50">
+                {(() => {
+                  let schemaQs = [];
+                  if (previewingSurvey.sur_url) {
+                    try {
+                      schemaQs = JSON.parse(previewingSurvey.sur_url);
+                    } catch (e) {}
+                  }
+
+                  if (!Array.isArray(schemaQs) || schemaQs.length === 0) {
+                    return (
+                      <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 space-y-2">
+                        <FileText size={32} className="mx-auto text-slate-300" />
+                        <p className="text-sm font-bold text-slate-700">No Custom Questions Configured</p>
+                        <p className="text-xs text-slate-500">Edit this survey in Survey Builder to add module questions.</p>
+                      </div>
+                    );
+                  }
+
+                  return schemaQs.map((q, idx) => {
+                    const opts = Array.isArray(q.options) ? q.options : [];
+                    return (
+                      <div key={q.id || idx} className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-900 font-mono">{q.title || `Q${idx + 1}`}</span>
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 uppercase border border-slate-200">{q.type}</span>
+                        </div>
+                        {opts.length > 0 && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                            {opts.map((opt, oIdx) => {
+                              const labelVal = typeof opt === 'object' && opt !== null ? opt.label : String(opt);
+                              const codeVal = typeof opt === 'object' && opt !== null ? (opt.code ?? String(oIdx + 1)) : String(oIdx + 1);
+                              return (
+                                <div key={oIdx} className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800">
+                                  <span>{labelVal}</span>
+                                  <span className="font-mono text-[10px] font-bold bg-amber-100 text-amber-950 px-2 py-0.5 rounded border border-amber-200">Code {codeVal}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+
+              <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
+                <button 
+                  onClick={() => setPreviewingSurvey(null)}
+                  className="px-6 py-2.5 rounded-2xl text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 transition-colors shadow-md cursor-pointer"
+                >
+                  Close Preview
                 </button>
               </div>
 
