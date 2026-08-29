@@ -190,3 +190,51 @@ Reading 1        Reading 2        Reading 3        Average
 
 
 Q30. AUDIT-C total (Q27 + Q28 + Q29)
+
+
+Q95. Scheduled date:
+ DD-MMM-YYYY  Date actually attempted:  DD-MMM-YYYY 
+
+Q67. Height (cm):
+         
+
+Q68. Weight (kg):
+         
+
+Q69. BMI (kg/m²):
+         
+Auto-calculated.
+
+Q70. Waist circumference (cm):
+         
+
+Q71. Hip circumference (cm):
+         
+
+Q72. Waist-hip ratio:
+         
+
+
+
+Q74. Pulse (bpm):
+         
+
+Q75. Blood pressure, reading 1:
+Systolic          Diastolic          
+
+Q76. Blood pressure, reading 2:
+Systolic          Diastolic          
+Reading 2 at least one minute after reading 1, same arm, participant seated.
+
+Q77. Average blood pressure:
+       /       
+Auto-calculated. This average drives the categorisation at Q90.
+
+Q78. SpO₂ (%):
+         
+
+Q79. Random blood sugar (mg/dL):
+         
+
+Q80. Haemoglobin (g/dL):
+         

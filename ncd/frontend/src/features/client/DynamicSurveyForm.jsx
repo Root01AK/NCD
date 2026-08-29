@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { FileText, ChevronLeft, ChevronDown, Check, Calendar, Phone, User, ShieldCheck, Shield, Clock, PlusCircle, ArrowRight, Save, MapPin, Activity, Stethoscope, HeartPulse, Brain, Link2, CheckCircle2, UserCheck, AlertCircle, LayoutGrid, CheckSquare, ListFilter, X, PauseCircle, Play, Trash2, Bookmark } from "lucide-react";
+import { FileText, ChevronLeft, ChevronDown, Check, Calendar, Phone, User, ShieldCheck, Shield, Clock, PlusCircle, ArrowRight, Save, MapPin, Activity, Stethoscope, HeartPulse, Brain, Link2, CheckCircle2, UserCheck, AlertCircle, AlertTriangle, LayoutGrid, CheckSquare, ListFilter, X, PauseCircle, Play, Trash2, Bookmark } from "lucide-react";
 import { T } from "../../lib/theme";
 import { saveToQueue, getQueue } from "../../lib/db";
 import { api } from "../../lib/api";
@@ -1233,6 +1233,74 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     return idL === "q69" || idL.includes("bmi") || titleL.includes("body mass index") || titleL.includes("bmi");
   };
 
+  const isWhrQuestion = (q) => {
+    if (!q) return false;
+    const idL = String(q.id || "").toLowerCase();
+    const titleL = String(q.title || "").toLowerCase();
+    if (titleL.includes("waist circumference") || titleL.includes("hip circumference") || titleL.includes("q70") || titleL.includes("q71")) return false;
+    return idL === "q72" || idL.includes("whr") || titleL.includes("waist-hip") || titleL.includes("whr");
+  };
+
+  const isQ74PulseQuestion = (q) => {
+    if (!q) return false;
+    const idL = String(q.id || "").toLowerCase();
+    const titleL = String(q.title || "").toLowerCase();
+    return idL === "q74" || idL.includes("q74") || titleL.includes("q74") || titleL.includes("pulse");
+  };
+
+  const isQ75BP1Question = (q) => {
+    if (!q) return false;
+    const idL = String(q.id || "").toLowerCase();
+    const titleL = String(q.title || "").toLowerCase();
+    return idL === "q75" || idL.includes("q75") || titleL.includes("q75") || (titleL.includes("blood pressure") && titleL.includes("reading 1"));
+  };
+
+  const isQ76BP2Question = (q) => {
+    if (!q) return false;
+    const idL = String(q.id || "").toLowerCase();
+    const titleL = String(q.title || "").toLowerCase();
+    return idL === "q76" || idL.includes("q76") || titleL.includes("q76") || (titleL.includes("blood pressure") && titleL.includes("reading 2"));
+  };
+
+  const isQ77AvgBPQuestion = (q) => {
+    if (!q) return false;
+    const idL = String(q.id || "").toLowerCase();
+    const titleL = String(q.title || "").toLowerCase();
+    return idL === "q77" || idL.includes("q77") || titleL.includes("q77") || titleL.includes("average blood pressure") || titleL.includes("avg bp") || titleL.includes("average bp");
+  };
+
+  const isQ78SpO2Question = (q) => {
+    if (!q) return false;
+    const idL = String(q.id || "").toLowerCase();
+    const titleL = String(q.title || "").toLowerCase();
+    return idL === "q78" || idL.includes("q78") || titleL.includes("q78") || titleL.includes("spo2") || titleL.includes("oxygen saturation");
+  };
+
+  const isQ79RbsQuestion = (q) => {
+    if (!q) return false;
+    const idL = String(q.id || "").toLowerCase();
+    const titleL = String(q.title || "").toLowerCase();
+    return idL === "q79" || idL.includes("q79") || titleL.includes("q79") || titleL.includes("random blood sugar") || titleL.includes("rbs");
+  };
+
+  const isQ80HbQuestion = (q) => {
+    if (!q) return false;
+    const idL = String(q.id || "").toLowerCase();
+    const titleL = String(q.title || "").toLowerCase();
+    return idL === "q80" || idL.includes("q80") || titleL.includes("q80") || titleL.includes("haemoglobin") || titleL.includes("hemoglobin");
+  };
+
+  const isQ93FollowupDateQuestion = (q) => {
+    if (!q) return false;
+    const idL = String(q.id || "").toLowerCase().trim();
+    const titleL = String(q.title || "").toLowerCase().trim();
+    const typeL = String(q.type || "").toLowerCase().trim();
+    if (idL === "q93" || idL.includes("q93") || idL.includes("sec_12_q93") || idL.includes("q_93")) return true;
+    if (titleL.includes("q93") || (titleL.includes("follow-up") && titleL.includes("date")) || (titleL.includes("appointment") && titleL.includes("date")) || (titleL.includes("review") && titleL.includes("date"))) return true;
+    if (typeL === 'date' && (idL.includes('93') || titleL.includes('93'))) return true;
+    return false;
+  };
+
   const isAutoCalculatedQuestion = (q) => {
     if (!q) return false;
     if (q.type === 'calculated' || q.type === 'computed' || q.type === 'readonly' || q.readOnly || q.required === false) return true;
@@ -1504,8 +1572,12 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
   const validatePlausibilityRanges = () => {
     const checks = [
-      { keys: ["waist_hip_ratio", "whr", "custom_whr", "q72", "custom_q72"], min: 0.60, max: 1.40, label: "Waist-Hip Ratio" },
-      { keys: ["bmi", "custom_bmi", "q69", "custom_q69"], min: 10.0, max: 60.0, label: "BMI" },
+      { keys: ["q67", "custom_q67", "height", "Q67"], min: 50.0, max: 250.0, label: "Q67. Height (cm)" },
+      { keys: ["q68", "custom_q68", "weight", "Q68"], min: 10.0, max: 300.0, label: "Q68. Weight (kg)" },
+      { keys: ["bmi", "custom_bmi", "q69", "custom_q69", "Q69"], min: 10.0, max: 60.0, label: "Q69. BMI (kg/m²)" },
+      { keys: ["waist", "q70", "custom_q70", "Q70"], min: 30.0, max: 200.0, label: "Q70. Waist Circumference (cm)" },
+      { keys: ["hip", "q71", "custom_q71", "Q71"], min: 30.0, max: 200.0, label: "Q71. Hip Circumference (cm)" },
+      { keys: ["waist_hip_ratio", "whr", "custom_whr", "q72", "custom_q72", "Q72"], min: 0.40, max: 2.00, label: "Q72. Waist-Hip Ratio" },
       { keys: ["sys_bp", "systolic", "sbp", "custom_sys_bp", "sys_bp_1", "sys_bp_2"], min: 70, max: 260, label: "Systolic Blood Pressure (mmHg)" },
       { keys: ["dia_bp", "diastolic", "dbp", "custom_dia_bp", "dia_bp_1", "dia_bp_2"], min: 40, max: 160, label: "Diastolic Blood Pressure (mmHg)" },
       { keys: ["rbs", "blood_sugar", "custom_rbs"], min: 30, max: 600, label: "Random Blood Sugar (RBS mg/dL)" },
@@ -2471,6 +2543,240 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                               <span className="font-bold text-amber-900 font-mono text-[10px] bg-amber-100 px-2 py-0.5 rounded border border-amber-300">Auto-Locked</span>
                             </div>
                           </div>
+                        ) : (isWhrQuestion(q)) ? (
+                          <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs font-sans my-2 bg-white animate-in fade-in duration-200">
+                            <div className="bg-slate-50 px-5 py-3 border-b border-slate-200/90 flex items-center justify-between">
+                              <span className="text-xs font-black uppercase text-slate-800 font-mono tracking-wider">
+                                Q72. Waist-Hip Ratio (WHR)
+                              </span>
+                              <span className="text-[10px] uppercase font-mono tracking-wider px-2.5 py-1 rounded-xl bg-amber-50 text-amber-950 border border-amber-300 font-extrabold shadow-2xs">
+                                Formula: Waist (cm) / Hip (cm)
+                              </span>
+                            </div>
+                            <div className="p-5 bg-white flex items-center justify-between gap-4">
+                              <div className="flex items-baseline gap-3 font-mono">
+                                <input
+                                  type="text"
+                                  readOnly
+                                  disabled
+                                  placeholder="0.00"
+                                  value={data[`custom_${q.id}`] || data[q.id] || data.whr || data.q72 || data.waist_hip_ratio || ''}
+                                  className="w-32 px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl font-mono font-black text-2xl text-slate-900 text-center outline-none cursor-not-allowed select-none shadow-2xs"
+                                />
+                                <span className="text-base font-bold text-slate-400">ratio</span>
+                              </div>
+
+                              {(() => {
+                                const whrNum = parseFloat(data[`custom_${q.id}`] || data[q.id] || data.whr || data.q72 || data.waist_hip_ratio || 0);
+                                const genderStr = String(data.gender || data.mem_scrn_q2 || "").toLowerCase();
+                                const isFemale = genderStr.includes("female") || genderStr.includes("woman");
+                                const highRiskThreshold = isFemale ? 0.85 : 0.90;
+
+                                let category = "Pending Q70 Waist & Q71 Hip";
+                                let badgeColor = "bg-slate-100 text-slate-700 border-slate-300";
+
+                                if (whrNum > 0) {
+                                  if (whrNum < highRiskThreshold) {
+                                    category = `Low Risk (< ${highRiskThreshold})`;
+                                    badgeColor = "bg-emerald-50 text-emerald-900 border-emerald-300 font-bold";
+                                  } else {
+                                    category = `Substantial / High Risk (≥ ${highRiskThreshold})`;
+                                    badgeColor = "bg-red-50 text-red-900 border-red-300 font-bold";
+                                  }
+                                }
+
+                                return (
+                                  <div className="flex flex-col items-end gap-1 font-mono">
+                                    <span className={`text-xs font-bold px-3 py-1.5 rounded-xl border shadow-2xs ${badgeColor}`}>
+                                      {category}
+                                    </span>
+                                    <span className="text-[10px] text-slate-500 font-semibold">
+                                      Waist: {data.q70 || data.custom_q70 || data.waist || '—'} cm | Hip: {data.q71 || data.custom_q71 || data.hip || '—'} cm
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                            <div className="px-5 py-3 bg-slate-50/80 text-slate-600 text-xs font-medium border-t border-slate-200/90 leading-relaxed flex items-center justify-between font-sans">
+                              <span>Auto-computed from Q70 (Waist) & Q71 (Hip). Medical plausibility range: 0.40 to 2.00.</span>
+                              <span className="font-bold text-amber-900 font-mono text-[10px] bg-amber-100 px-2 py-0.5 rounded border border-amber-300">Auto-Locked</span>
+                            </div>
+                          </div>
+                        ) : (isQ75BP1Question(q) || isQ76BP2Question(q)) ? (
+                          <div className="space-y-4 my-2 animate-in fade-in duration-200 font-sans">
+                            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-4">
+                              <div className="flex items-center justify-between pb-2 border-b border-slate-100 font-mono">
+                                <span className="text-xs font-black uppercase text-slate-800 tracking-wider flex items-center gap-1.5">
+                                  <HeartPulse size={15} className="text-red-500" />
+                                  {q.title || (isQ75BP1Question(q) ? "Q75. Blood Pressure, Reading 1" : "Q76. Blood Pressure, Reading 2")}
+                                </span>
+                                <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-xl bg-amber-50 text-amber-950 border border-amber-300 shadow-2xs">
+                                  Systolic &gt; Diastolic
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {/* Systolic BP */}
+                                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5 font-mono">
+                                  <label className="text-[11px] font-extrabold uppercase text-slate-700 block">
+                                    Systolic BP (SBP mmHg) *
+                                  </label>
+                                  <input
+                                    type="number"
+                                    placeholder="120"
+                                    min="70"
+                                    max="260"
+                                    value={(() => {
+                                      const prefix = isQ75BP1Question(q) ? "sys_bp_1" : "sys_bp_2";
+                                      const qPrefix = isQ75BP1Question(q) ? "q75_sys" : "q76_sys";
+                                      return data[prefix] || data[qPrefix] || data[`custom_${prefix}`] || '';
+                                    })()}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const sNum = parseFloat(val);
+                                      const isP1 = isQ75BP1Question(q);
+                                      const sysKey = isP1 ? "sys_bp_1" : "sys_bp_2";
+                                      const diaKey = isP1 ? "dia_bp_1" : "dia_bp_2";
+                                      const dNum = parseFloat(data[diaKey] || 0);
+
+                                      if (val !== "" && (isNaN(sNum) || sNum < 70 || sNum > 260)) {
+                                        setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Systolic BP: Must be a medically valid value between 70 and 260 mmHg." }));
+                                      } else if (dNum > 0 && sNum > 0 && sNum <= dNum) {
+                                        setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid BP: Systolic BP must be strictly greater than Diastolic BP." }));
+                                      } else {
+                                        setFieldErrors(prev => ({ ...prev, [q.id]: null }));
+                                      }
+
+                                      const sysQKey = isP1 ? "q75_sys" : "q76_sys";
+                                      updateCustomField(q, `${val}/${data[diaKey] || ''}`);
+                                      setData(prev => ({
+                                        ...prev,
+                                        [sysKey]: val,
+                                        [sysQKey]: val
+                                      }));
+                                    }}
+                                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-amber-400 shadow-2xs"
+                                  />
+                                </div>
+
+                                {/* Diastolic BP */}
+                                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5 font-mono">
+                                  <label className="text-[11px] font-extrabold uppercase text-slate-700 block">
+                                    Diastolic BP (DBP mmHg) *
+                                  </label>
+                                  <input
+                                    type="number"
+                                    placeholder="80"
+                                    min="40"
+                                    max="160"
+                                    value={(() => {
+                                      const prefix = isQ75BP1Question(q) ? "dia_bp_1" : "dia_bp_2";
+                                      const qPrefix = isQ75BP1Question(q) ? "q75_dia" : "q76_dia";
+                                      return data[prefix] || data[qPrefix] || data[`custom_${prefix}`] || '';
+                                    })()}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const dNum = parseFloat(val);
+                                      const isP1 = isQ75BP1Question(q);
+                                      const sysKey = isP1 ? "sys_bp_1" : "sys_bp_2";
+                                      const diaKey = isP1 ? "dia_bp_1" : "dia_bp_2";
+                                      const sNum = parseFloat(data[sysKey] || 0);
+
+                                      if (val !== "" && (isNaN(dNum) || dNum < 40 || dNum > 160)) {
+                                        setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Diastolic BP: Must be a medically valid value between 40 and 160 mmHg." }));
+                                      } else if (sNum > 0 && dNum > 0 && sNum <= dNum) {
+                                        setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid BP: Systolic BP must be strictly greater than Diastolic BP." }));
+                                      } else {
+                                        setFieldErrors(prev => ({ ...prev, [q.id]: null }));
+                                      }
+
+                                      const diaQKey = isP1 ? "q75_dia" : "q76_dia";
+                                      updateCustomField(q, `${data[sysKey] || ''}/${val}`);
+                                      setData(prev => ({
+                                        ...prev,
+                                        [diaKey]: val,
+                                        [diaQKey]: val
+                                      }));
+                                    }}
+                                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-amber-400 shadow-2xs"
+                                  />
+                                </div>
+                              </div>
+
+                              {fieldErrors[q.id] && (
+                                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold font-mono flex items-center gap-2 animate-in fade-in">
+                                  <AlertTriangle size={15} className="shrink-0 text-red-600" />
+                                  <span>{fieldErrors[q.id]}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (isQ77AvgBPQuestion(q)) ? (
+                          <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs font-sans my-2 bg-white animate-in fade-in duration-200">
+                            <div className="bg-slate-50 px-5 py-3 border-b border-slate-200/90 flex items-center justify-between font-mono">
+                              <span className="text-xs font-black uppercase text-slate-800 tracking-wider">
+                                Q77. Average Blood Pressure (SBP / DBP)
+                              </span>
+                              <span className="text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-xl bg-amber-50 text-amber-950 border border-amber-300 font-extrabold shadow-2xs">
+                                Formula: Avg (Reading 1 &amp; Reading 2)
+                              </span>
+                            </div>
+                            <div className="p-5 bg-white flex items-center justify-between gap-4">
+                              <div className="flex items-baseline gap-3 font-mono">
+                                <input
+                                  type="text"
+                                  readOnly
+                                  disabled
+                                  placeholder="0 / 0"
+                                  value={data.avg_bp || data.q77 || data.custom_q77 || (data.avg_sys_bp && data.avg_dia_bp ? `${data.avg_sys_bp} / ${data.avg_dia_bp}` : '')}
+                                  className="w-44 px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl font-mono font-black text-2xl text-slate-900 text-center outline-none cursor-not-allowed select-none shadow-2xs"
+                                />
+                                <span className="text-base font-bold text-slate-400">mmHg</span>
+                              </div>
+
+                              {(() => {
+                                const sbp = parseFloat(data.avg_sys_bp || data.sys_bp || 0);
+                                const dbp = parseFloat(data.avg_dia_bp || data.dia_bp || 0);
+
+                                let category = "Pending BP Reading 1 & 2";
+                                let badgeColor = "bg-slate-100 text-slate-700 border-slate-300";
+
+                                if (sbp > 0 && dbp > 0) {
+                                  if (sbp < 120 && dbp < 80) {
+                                    category = "Normal BP (< 120/80)";
+                                    badgeColor = "bg-emerald-50 text-emerald-900 border-emerald-300 font-bold";
+                                  } else if (sbp <= 129 && dbp < 80) {
+                                    category = "Elevated BP (120-129 / <80)";
+                                    badgeColor = "bg-amber-50 text-amber-900 border-amber-300 font-bold";
+                                  } else if ((sbp >= 130 && sbp <= 139) || (dbp >= 80 && dbp <= 89)) {
+                                    category = "Stage 1 HTN (130-139 / 80-89)";
+                                    badgeColor = "bg-orange-50 text-orange-950 border-orange-300 font-bold";
+                                  } else if ((sbp >= 140 && sbp <= 179) || (dbp >= 90 && dbp <= 119)) {
+                                    category = "Stage 2 HTN (≥ 140 / ≥ 90)";
+                                    badgeColor = "bg-red-50 text-red-900 border-red-300 font-bold";
+                                  } else if (sbp >= 180 || dbp >= 120) {
+                                    category = "Hypertensive Crisis (≥ 180 / ≥ 120)";
+                                    badgeColor = "bg-red-600 text-white border-red-700 font-extrabold animate-pulse";
+                                  }
+                                }
+
+                                return (
+                                  <div className="flex flex-col items-end gap-1 font-mono">
+                                    <span className={`text-xs font-bold px-3 py-1.5 rounded-xl border shadow-2xs ${badgeColor}`}>
+                                      {category}
+                                    </span>
+                                    <span className="text-[10px] text-slate-500 font-semibold">
+                                      R1: {data.sys_bp_1 || '—'}/{data.dia_bp_1 || '—'} | R2: {data.sys_bp_2 || '—'}/{data.dia_bp_2 || '—'}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                            <div className="px-5 py-3 bg-slate-50/80 text-slate-600 text-xs font-medium border-t border-slate-200/90 leading-relaxed flex items-center justify-between font-sans">
+                              <span>Auto-calculated average BP drives clinical risk categorization at Q90.</span>
+                              <span className="font-bold text-amber-900 font-mono text-[10px] bg-amber-100 px-2 py-0.5 rounded border border-amber-300">Auto-Locked</span>
+                            </div>
+                          </div>
                         ) : (isQ88HandGripQuestion(q)) ? (
                           <div className="space-y-4 my-2 animate-in fade-in duration-200">
                             <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs font-sans">
@@ -2605,6 +2911,89 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                               </div>
                             </div>
                           </div>
+                        ) : (isQ93FollowupDateQuestion(q) || qType === 'date') ? (
+                          <div className="space-y-4 my-2 animate-in fade-in duration-200 font-sans">
+                            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3">
+                              <div className="flex items-center justify-between pb-2 border-b border-slate-100 font-mono">
+                                <span className="text-xs font-black uppercase text-slate-800 tracking-wider flex items-center gap-1.5">
+                                  <Calendar size={15} className="text-amber-600" />
+                                  Q93. Follow-Up / Review Appointment Date
+                                </span>
+                                <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-xl bg-amber-50 text-amber-950 border border-amber-300 shadow-2xs">
+                                  No Past / Back Dates Allowed
+                                </span>
+                              </div>
+
+                              {/* Datepicker Control Bar */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center pt-2">
+                                <div className="relative">
+                                  <label className="block text-[11px] font-bold uppercase text-slate-500 font-mono mb-1">
+                                    Select Appointment Date *
+                                  </label>
+                                  <div className="flex items-center gap-3 rounded-xl px-4 py-2.5 bg-slate-50 border border-slate-300 focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-100 transition-all shadow-inner">
+                                    <Calendar size={18} className="text-amber-600 shrink-0" />
+                                    <input
+                                      type="date"
+                                      min={new Date().toISOString().split('T')[0]}
+                                      value={(() => {
+                                        const curVal = data[`custom_${q.id}`] || data[q.id] || data.q93 || data.custom_q93 || data.followup_appointment_date;
+                                        if (!curVal) return new Date().toISOString().split('T')[0];
+                                        if (typeof curVal === 'string' && curVal.match(/^\d{4}-\d{2}-\d{2}$/)) return curVal;
+                                        try {
+                                          const dObj = new Date(curVal);
+                                          if (!isNaN(dObj.getTime())) return dObj.toISOString().split('T')[0];
+                                        } catch(e) {}
+                                        return new Date().toISOString().split('T')[0];
+                                      })()}
+                                      onChange={(e) => {
+                                        const selectedVal = e.target.value;
+                                        const todayStr = new Date().toISOString().split('T')[0];
+                                        
+                                        if (selectedVal && selectedVal < todayStr) {
+                                          setFieldErrors(prev => ({ 
+                                            ...prev, 
+                                            [q.id]: "Invalid Date: Back dates / past dates are not allowed for Q93 appointment date. Please select today or a future date." 
+                                          }));
+                                          if (notify) notify("error", "Invalid Appointment Date", "Back dates are not allowed. Please select today or a future date.");
+                                          return;
+                                        } else {
+                                          setFieldErrors(prev => ({ ...prev, [q.id]: null }));
+                                        }
+
+                                        updateCustomField(q, selectedVal);
+                                        setData(prev => ({
+                                          ...prev,
+                                          q93: selectedVal,
+                                          custom_q93: selectedVal,
+                                          followup_appointment_date: selectedVal,
+                                          formatted_q93_date: selectedVal ? formatDateDDMMMYYYY(selectedVal) : formatDateDDMMMYYYY(todayStr)
+                                        }));
+                                      }}
+                                      className="w-full bg-transparent text-sm font-extrabold text-slate-900 outline-none cursor-pointer font-mono"
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Selected Date Preview Badge */}
+                                <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/90 font-mono space-y-1">
+                                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 block">
+                                    Formatted Appointment Preview
+                                  </span>
+                                  <span className="text-sm font-extrabold text-amber-950 block">
+                                    {formatDateDDMMMYYYY(data[`custom_${q.id}`] || data[q.id] || data.q93 || new Date().toISOString().split('T')[0])}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Validation Error Banner */}
+                              {fieldErrors[q.id] && (
+                                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold font-mono flex items-center gap-2 animate-in fade-in">
+                                  <AlertTriangle size={15} className="shrink-0 text-red-600" />
+                                  <span>{fieldErrors[q.id]}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         ) : qType === 'short_text' ? (
                           <input 
                             type="text" 
@@ -2620,7 +3009,11 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                             value={data[`custom_${q.id}`] || data[q.id] || ''} 
                             onChange={(e) => {
                               const val = e.target.value;
-                              const isAgeQ = q.id === 'q1' || String(q.title || '').toLowerCase().includes('q1. age') || String(q.title || '').toLowerCase().includes('age');
+                              const qIdLower = String(q.id || '').toLowerCase();
+                              const titleLower = String(q.title || '').toLowerCase();
+
+                              // 1. Age (Q1)
+                              const isAgeQ = q.id === 'q1' || titleLower.includes('q1. age') || titleLower.includes('age');
                               if (isAgeQ && val) {
                                 const numVal = parseInt(val, 10);
                                 if (numVal > 120 || val.length > 3) {
@@ -2631,6 +3024,95 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                   setFieldErrors(prev => ({ ...prev, [q.id]: null }));
                                 }
                               }
+
+                              // 2. Q67. Height (cm) [Medical range: 50.0 to 250.0 cm]
+                              const isHeightQ = qIdLower.includes('q67') || titleLower.includes('q67') || titleLower.includes('height');
+                              if (isHeightQ && val !== "") {
+                                const numVal = parseFloat(val);
+                                if (isNaN(numVal) || numVal < 50 || numVal > 250) {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Height: Height must be a medically valid value between 50.0 cm and 250.0 cm." }));
+                                } else {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: null }));
+                                }
+                              }
+
+                              // 3. Q68. Weight (kg) [Medical range: 10.0 to 300.0 kg]
+                              const isWeightQ = qIdLower.includes('q68') || titleLower.includes('q68') || titleLower.includes('weight');
+                              if (isWeightQ && val !== "") {
+                                const numVal = parseFloat(val);
+                                if (isNaN(numVal) || numVal < 10 || numVal > 300) {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Weight: Weight must be a medically valid value between 10.0 kg and 300.0 kg." }));
+                                } else {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: null }));
+                                }
+                              }
+
+                              // 4. Q70. Waist Circumference (cm) [Medical range: 30.0 to 200.0 cm]
+                              const isWaistQ = qIdLower.includes('q70') || titleLower.includes('q70') || titleLower.includes('waist');
+                              if (isWaistQ && val !== "") {
+                                const numVal = parseFloat(val);
+                                if (isNaN(numVal) || numVal < 30 || numVal > 200) {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Waist Circumference: Waist circumference must be between 30.0 cm and 200.0 cm." }));
+                                } else {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: null }));
+                                }
+                              }
+
+                              // 5. Q71. Hip Circumference (cm) [Medical range: 30.0 to 200.0 cm]
+                              const isHipQ = qIdLower.includes('q71') || titleLower.includes('q71') || titleLower.includes('hip');
+                              if (isHipQ && val !== "") {
+                                const numVal = parseFloat(val);
+                                if (isNaN(numVal) || numVal < 30 || numVal > 200) {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Hip Circumference: Hip circumference must be between 30.0 cm and 200.0 cm." }));
+                                } else {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: null }));
+                                }
+                              }
+
+                              // 6. Q74. Pulse (bpm) [Medical range: 30 to 220 bpm]
+                              const isPulseQ = qIdLower.includes('q74') || titleLower.includes('q74') || titleLower.includes('pulse');
+                              if (isPulseQ && val !== "") {
+                                const numVal = parseFloat(val);
+                                if (isNaN(numVal) || numVal < 30 || numVal > 220) {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Pulse Rate: Pulse rate must be between 30 bpm and 220 bpm." }));
+                                } else {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: null }));
+                                }
+                              }
+
+                              // 7. Q78. SpO₂ (%) [Medical range: 50 to 100 %]
+                              const isSpO2Q = qIdLower.includes('q78') || titleLower.includes('q78') || titleLower.includes('spo2');
+                              if (isSpO2Q && val !== "") {
+                                const numVal = parseFloat(val);
+                                if (isNaN(numVal) || numVal < 50 || numVal > 100) {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid SpO₂: Oxygen saturation (SpO₂) must be between 50% and 100%." }));
+                                } else {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: null }));
+                                }
+                              }
+
+                              // 8. Q79. Random Blood Sugar (RBS mg/dL) [Medical range: 30 to 600 mg/dL]
+                              const isRbsQ = qIdLower.includes('q79') || titleLower.includes('q79') || titleLower.includes('random blood sugar') || titleLower.includes('rbs');
+                              if (isRbsQ && val !== "") {
+                                const numVal = parseFloat(val);
+                                if (isNaN(numVal) || numVal < 30 || numVal > 600) {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid RBS: Random Blood Sugar must be between 30 mg/dL and 600 mg/dL." }));
+                                } else {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: null }));
+                                }
+                              }
+
+                              // 9. Q80. Haemoglobin (Hb g/dL) [Medical range: 3.0 to 20.0 g/dL]
+                              const isHbQ = qIdLower.includes('q80') || titleLower.includes('q80') || titleLower.includes('haemoglobin') || titleLower.includes('hemoglobin');
+                              if (isHbQ && val !== "") {
+                                const numVal = parseFloat(val);
+                                if (isNaN(numVal) || numVal < 3.0 || numVal > 20.0) {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Haemoglobin: Haemoglobin must be between 3.0 g/dL and 20.0 g/dL." }));
+                                } else {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: null }));
+                                }
+                              }
+
                               updateCustomField(q, val);
                             }} 
                             className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-amber-400 font-mono shadow-2xs" 
