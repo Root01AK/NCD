@@ -488,9 +488,9 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     if (notify) notify("info", "Draft survey session discarded.");
   };
 
-  // Real-Time Continuous Auto-Save: Saves draft instantly on every answer modification
+  // Real-Time Continuous Auto-Save: Saves draft instantly on every answer modification & syncs initiated participant into queue
   useEffect(() => {
-    if (step === 1 && data && data.participant_id && !submitting) {
+    if (data && data.participant_id && !submitting) {
       try {
         const draft = {
           participant_id: data.participant_id,
@@ -500,6 +500,47 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         };
         localStorage.setItem('ncd_active_survey_draft', JSON.stringify(draft));
         localStorage.setItem(`ncd_draft_${data.participant_id}`, JSON.stringify(draft));
+
+        // Sync initiated participant details into ncd_local_initiated_participants
+        const pId = data.participant_id;
+        const nameVal = data.fullName || data.mem_scrn_q16 || pId;
+        const locVal = data.location || "Dharavi";
+        const ageVal = data.age || data.mem_scrn_q1 || "45";
+        const genderVal = data.gender || (data.mem_scrn_q2 == "1" ? "Male" : "Female");
+
+        const newRecord = {
+          id: pId,
+          participant_id: pId,
+          mem_scrn_part_id: pId,
+          name: nameVal,
+          fullName: nameVal,
+          age: ageVal,
+          gender: genderVal,
+          location: locVal,
+          status: "Demographics Recorded",
+          rawPayload: { ...data }
+        };
+
+        let currentLocals = [];
+        const existingStr = localStorage.getItem('ncd_local_initiated_participants');
+        if (existingStr) {
+          try {
+            const parsed = JSON.parse(existingStr);
+            if (Array.isArray(parsed)) currentLocals = parsed;
+          } catch (e) {}
+        }
+        const filteredLocals = currentLocals.filter(r => (r.participant_id || r.mem_scrn_part_id || r.id) !== pId);
+        filteredLocals.unshift(newRecord);
+        localStorage.setItem('ncd_local_initiated_participants', JSON.stringify(filteredLocals));
+
+        setAvailableParticipants(prev => {
+          const exists = prev.some(item => item.id === pId);
+          if (exists) {
+            return prev.map(item => item.id === pId ? { ...item, name: nameVal, age: ageVal, gender: genderVal, location: locVal, rawPayload: { ...data } } : item);
+          } else {
+            return [newRecord, ...prev];
+          }
+        });
       } catch (err) {}
     }
   }, [step, data, qPage, submitting]);
@@ -705,10 +746,11 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       if (auditRes.hasAnyAnswer) {
         const auditScore = auditRes.score;
         const q30Key = Object.keys(d).find(k => k.toLowerCase().includes("q30")) || "custom_q30";
-        if (d[q30Key] !== auditScore || d.q30 !== auditScore || d.custom_q30 !== auditScore) {
+        if (d[q30Key] !== auditScore || d.q30 !== auditScore || d.custom_q30 !== auditScore || d.audit_score !== auditScore) {
           updates.q30 = auditScore;
           updates.custom_q30 = auditScore;
           updates.audit_score = auditScore;
+          updates.AUDIT_C_score = auditScore;
           updates[q30Key] = auditScore;
         }
       }
@@ -760,12 +802,21 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         idbQueue = await getQueue();
       } catch (e) {}
 
-      let localQueue = [];
+      let localInitiated = [];
       try {
-        const localStr = localStorage.getItem('ncd_offline_queue');
-        if (localStr) {
-          const parsed = JSON.parse(localStr);
-          if (Array.isArray(parsed)) localQueue = parsed;
+        const initStr = localStorage.getItem('ncd_local_initiated_participants');
+        if (initStr) {
+          const parsed = JSON.parse(initStr);
+          if (Array.isArray(parsed)) localInitiated = parsed;
+        }
+      } catch (e) {}
+
+      let offlineQueue = [];
+      try {
+        const offStr = localStorage.getItem('ncd_offline_queue');
+        if (offStr) {
+          const parsed = JSON.parse(offStr);
+          if (Array.isArray(parsed)) offlineQueue = parsed;
         }
       } catch (e) {}
 
@@ -777,7 +828,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         }
       } catch (e) {}
 
-      const allRecords = [...localQueue, ...(Array.isArray(idbQueue) ? idbQueue : []), ...rawList];
+      const allRecords = [...localInitiated, ...offlineQueue, ...(Array.isArray(idbQueue) ? idbQueue : []), ...rawList];
       const seenIds = new Set();
       const uniqueParticipants = [];
 
@@ -1102,20 +1153,11 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   const handleParticipantSelect = (partId) => {
     const found = availableParticipants.find(p => p.id === partId);
     if (found) {
-      const statusStr = String(found.status || "").toLowerCase();
       const rawP = found.rawPayload || {};
       let surData = {};
       try {
         surData = typeof rawP.survey_data === 'string' ? JSON.parse(rawP.survey_data) : (rawP.survey_data || {});
       } catch (e) {}
-
-      const isSec8Pending = (statusStr.includes("counselor queue") || surData.counselor_section_required) && !surData.counselor_section_completed;
-      const isSec15Pending = (statusStr.includes("sec 15") || statusStr.includes("section 14 completed") || surData.counselor_sec15_required) && !surData.counselor_sec15_completed;
-
-      if (isStaffNurseRole && isSec8Pending) {
-        notify("warning", "Participant in Counselor Queue", `Participant ${found.id} is currently with the Counselor for Section 8. Staff Nurse can resume Section 9 after the Counselor completes Section 8.`);
-        return;
-      }
 
       setData(d => ({
         ...d,
@@ -1824,8 +1866,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                 </div>
               </div>
 
-              {/* PARTICIPANT DROPDOWN SELECTOR FOR NON-SUPERVISOR ROLES ONLY */}
-              {!isFieldSupervisor && (() => {
+              {/* PARTICIPANT DROPDOWN SELECTOR FOR ALL ROLES */}
+              {(() => {
                 const isCounselorLogin = (data.user_role || activeUser?.role_name || "").toLowerCase().includes("counselor");
 
                 const filteredParticipantsByLocation = availableParticipants.filter(p => {
@@ -1850,17 +1892,6 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
                     if (!locMatch) return false;
                   }
-
-                  // Counselor-specific queue filter: ONLY show pending Counselor Queue Section 8 records
-                  if (isCounselorLogin) {
-                    const rawP = p.rawPayload || {};
-                    const statusStr = String(p.status || rawP.status || "").toLowerCase();
-                    const isReq = p.counselor_section_required || rawP.counselor_section_required || statusStr.includes("counselor queue") || statusStr.includes("counselor") || statusStr.includes("counselling");
-                    const isDone = p.counselor_section_completed || rawP.counselor_section_completed || statusStr.includes("counseling completed") || statusStr.includes("counselor completed");
-
-                    return isReq && !isDone;
-                  }
-
                   return true;
                 });
 
@@ -1869,12 +1900,10 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-bold uppercase tracking-wider font-mono text-amber-950 flex items-center gap-1.5">
                         <UserCheck size={14} className="text-amber-700" /> 
-                        {isCounselorLogin 
-                          ? `Select Participant from Counselor Queue (${data.location}) *` 
-                          : `Select Participant from Queue / Database (${data.location}) *`}
+                        Select Initiated Participant from Center ({data.location}) *
                       </label>
                       <span className="text-[11px] font-bold text-amber-800 font-mono">
-                        {filteredParticipantsByLocation.length} {isCounselorLogin ? "Counselor Pending Records" : "Records Available"}
+                        {filteredParticipantsByLocation.length} Initiated Records Available
                       </span>
                     </div>
                     <select 
@@ -1883,15 +1912,13 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                       className="w-full px-4 py-3 rounded-xl bg-white border border-amber-300 text-sm font-bold text-slate-900 font-mono outline-none shadow-2xs cursor-pointer focus:ring-2 focus:ring-amber-400"
                     >
                       <option value="">
-                        {isCounselorLogin 
-                          ? filteredParticipantsByLocation.length > 0 
-                            ? `-- Choose Participant from Counselor Queue (${data.location}) --` 
-                            : `-- No Pending Participants in Counselor Queue (${data.location}) --`
-                          : `-- Choose Participant ID for ${data.location} Center --`}
+                        {filteredParticipantsByLocation.length > 0 
+                          ? `-- Choose Participant ID for ${data.location} Center --` 
+                          : `-- No Initiated Participants for ${data.location} Center --`}
                       </option>
                       {filteredParticipantsByLocation.map(p => (
                         <option key={p.id} value={p.id}>
-                          {p.id} ({p.age ? `${p.age} yrs` : 'Demographics Recorded'}, {p.gender || 'Completed'}) [{p.location || data.location}]
+                          {p.id} ({p.name || p.fullName || 'Initiated'}, {p.age ? `${p.age} yrs` : ''}) [{p.location || data.location}]
                         </option>
                       ))}
                     </select>
@@ -2357,7 +2384,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                   min={0}
                                   max={12}
                                   placeholder="___"
-                                  value={data[`custom_${q.id}`] !== undefined ? data[`custom_${q.id}`] : (data[q.id] !== undefined ? data[q.id] : '')}
+                                  value={getFieldValue(q) !== undefined && getFieldValue(q) !== null ? getFieldValue(q) : (data.q30 ?? data.custom_q30 ?? data.audit_score ?? '')}
                                   onChange={(e) => {
                                     const val = e.target.value;
                                     if (val !== '') {

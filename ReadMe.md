@@ -187,3 +187,6 @@ Bands: 0 to 4 minimal, 5 to 9 mild, 10 to 14 moderate, 15 to 21 severe. 10 or mo
 Q88. Hand-grip strength (kg):
 Reading 1        Reading 2        Reading 3        Average       
 ➔ Only if BMI at Q69 is below 20. If BMI is 20 or above, skip to Q89.
+
+
+Q30. AUDIT-C total (Q27 + Q28 + Q29)

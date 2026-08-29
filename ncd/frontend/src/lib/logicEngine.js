@@ -81,15 +81,27 @@ export function calculateAuditCScore(formData) {
     return 0;
   };
 
-  ["q27", "q28", "q29"].forEach(qId => {
-    const keys = [`custom_${qId}`, qId, `mem_scrn_${qId}`, `custom_${qId.toUpperCase()}`, qId.toUpperCase()];
+  ["27", "28", "29"].forEach(qNum => {
     let val = null;
-    for (const k of keys) {
+    const searchKeys = Object.keys(formData).filter(k => {
+      const kl = k.toLowerCase().trim();
+      return (
+        kl === `q${qNum}` ||
+        kl === `custom_q${qNum}` ||
+        kl === `q_${qNum}` ||
+        kl === `custom_q_${qNum}` ||
+        kl === `mem_scrn_q${qNum}` ||
+        new RegExp(`(?:^|[^a-z0-9])q_?${qNum}(?:[^0-9]|$)`, 'i').test(kl)
+      );
+    });
+
+    for (const k of searchKeys) {
       if (formData[k] !== undefined && formData[k] !== null && formData[k] !== "") {
         val = formData[k];
         break;
       }
     }
+
     if (val !== null && val !== undefined && val !== "") {
       hasAnyAnswer = true;
       score += parseAuditPoints(val);
