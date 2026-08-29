@@ -6,6 +6,18 @@ import { api } from "../../lib/api";
 import { Mark } from "../../components/ui/Mark";
 
 import { isQuestionSkipped, getOptionCode, getOptionLabel, calculateAuditCScore } from "../../lib/logicEngine";
+import { 
+  getLocationPrefix, 
+  generateNextParticipantID, 
+  fetchNextParticipantIDFromDB, 
+  getOrLockParticipantID 
+} from "../../lib/participantIdGenerator";
+
+export { 
+  getLocationPrefix as getlocationPrefix, 
+  generateNextParticipantID as generateParticipantID, 
+  fetchNextParticipantIDFromDB 
+};
 
 // Helper to format Date to DD-MMM-YYYY
 function formatDateDDMMMYYYY(dateObj) {
@@ -59,144 +71,6 @@ export function registerContactNumber(contactDigits, participantId) {
   } catch (e) {}
 }
 
-export function getlocationPrefix(loc = "Dharavi") {
-  const locLower = String(loc || "").toLowerCase().trim();
-  let prefixMap = {
-    dharavi: "DH",
-    malvani: "ML",
-    vashi: "VA",
-    other: "OT"
-  };
-
-  try {
-    const customPrefixes = localStorage.getItem('ncd_location_prefixes');
-    if (customPrefixes) {
-      const parsed = JSON.parse(customPrefixes);
-      if (parsed && typeof parsed === 'object') {
-        Object.keys(parsed).forEach(k => {
-          if (k && parsed[k]) prefixMap[k.toLowerCase()] = String(parsed[k]).toUpperCase();
-        });
-      }
-    }
-  } catch (e) {}
-
-  for (const [key, code] of Object.entries(prefixMap)) {
-    if (locLower.includes(key)) return code;
-  }
-
-  const clean = locLower.replace(/[^a-z0-9]/gi, '');
-  return clean.length >= 2 ? clean.substring(0, 2).toUpperCase() : "DH";
-}
-
-export function generateParticipantID(loc = "Dharavi") {
-  const prefix = getlocationPrefix(loc);
-  const counterKey = `ncd_participant_seq_${prefix}`;
-  let currentSeq = parseInt(localStorage.getItem(counterKey) || "1", 10);
-  if (isNaN(currentSeq) || currentSeq > 99999 || currentSeq < 1) currentSeq = 1;
-
-  const usedSet = new Set();
-
-  try {
-    const initStr = localStorage.getItem('ncd_local_initiated_participants');
-    if (initStr) {
-      const parsed = JSON.parse(initStr);
-      if (Array.isArray(parsed)) {
-        parsed.forEach(item => {
-          const id = item.participant_id || item.mem_scrn_part_id;
-          if (id) usedSet.add(String(id).toUpperCase().trim());
-        });
-      }
-    }
-  } catch (e) {}
-
-  try {
-    const queueStr = localStorage.getItem('ncd_offline_queue');
-    if (queueStr) {
-      const parsed = JSON.parse(queueStr);
-      if (Array.isArray(parsed)) {
-        parsed.forEach(item => {
-          const id = item.participant_id || item.mem_scrn_part_id;
-          if (id) usedSet.add(String(id).toUpperCase().trim());
-        });
-      }
-    }
-  } catch (e) {}
-
-  let candidateSeq = currentSeq;
-  let candidateId = `NCD${prefix}${String(candidateSeq).padStart(4, '0')}`;
-
-  while (usedSet.has(candidateId)) {
-    candidateSeq++;
-    candidateId = `NCD${prefix}${String(candidateSeq).padStart(4, '0')}`;
-  }
-
-  return candidateId;
-}
-
-export function incrementParticipantIDCounter(loc = "Dharavi") {
-  const prefix = getlocationPrefix(loc);
-  const counterKey = `ncd_participant_seq_${prefix}`;
-  const currentId = generateParticipantID(loc);
-  
-  const seqNum = parseInt(currentId.replace(new RegExp(`^NCD${prefix}`, 'i'), ''), 10);
-  const nextSeq = isNaN(seqNum) ? 2 : seqNum + 1;
-  localStorage.setItem(counterKey, String(nextSeq));
-  
-  try {
-    const usedIdsRaw = localStorage.getItem('ncd_used_participant_ids');
-    const usedIds = usedIdsRaw ? JSON.parse(usedIdsRaw) : [];
-    if (!usedIds.includes(currentId)) {
-      usedIds.push(currentId);
-      localStorage.setItem('ncd_used_participant_ids', JSON.stringify(usedIds));
-    }
-  } catch (e) {}
-
-  return `NCD${prefix}${String(nextSeq).padStart(4, '0')}`;
-}
-
-export async function fetchNextParticipantIDFromDB(loc = "Dharavi") {
-  const prefix = getlocationPrefix(loc);
-  let maxSeq = 0;
-
-  // 1. Check local queue & initiated participants
-  try {
-    const queueStr = localStorage.getItem('ncd_offline_queue') || localStorage.getItem('ncd_local_initiated_participants');
-    if (queueStr) {
-      const list = JSON.parse(queueStr);
-      if (Array.isArray(list)) {
-        list.forEach(item => {
-          let raw = {};
-          if (item.mem_scrn_q30) { try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {} }
-          const pId = item.participant_id || item.mem_scrn_part_id || raw.participant_id;
-          if (pId) {
-            const m = String(pId).toUpperCase().match(new RegExp(`^NCD${prefix}(\\d+)$`, 'i'));
-            if (m) {
-              const num = parseInt(m[1], 10);
-              if (!isNaN(num) && num > maxSeq) maxSeq = num;
-            }
-          }
-        });
-      }
-    }
-  } catch (e) {}
-
-  // 2. Fetch max from DB API
-  try {
-    const res = await api.get(`/api/v1/screening/next-participant-id?location=${encodeURIComponent(loc)}`);
-    if (res && res.status === 'success' && res.max_seq !== undefined) {
-      const dbMaxSeq = parseInt(res.max_seq, 10);
-      if (!isNaN(dbMaxSeq) && dbMaxSeq > maxSeq) {
-        maxSeq = dbMaxSeq;
-      }
-    }
-  } catch (e) {
-    console.warn("Could not fetch next participant ID from DB, using fallback maxSeq", e);
-  }
-
-  const nextSeq = maxSeq + 1;
-  const nextId = `NCD${prefix}${String(nextSeq).padStart(4, '0')}`;
-  return nextId;
-}
 
 const DEFAULT_SURVEY_QUESTIONS = [
   // Section 1: Demographics
@@ -488,7 +362,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     if (notify) notify("info", "Draft survey session discarded.");
   };
 
-  // Real-Time Continuous Auto-Save: Saves draft instantly on every answer modification & syncs initiated participant into queue
+  // Real-Time Continuous Auto-Save: Saves active survey draft session
   useEffect(() => {
     if (data && data.participant_id && !submitting) {
       try {
@@ -500,47 +374,6 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         };
         localStorage.setItem('ncd_active_survey_draft', JSON.stringify(draft));
         localStorage.setItem(`ncd_draft_${data.participant_id}`, JSON.stringify(draft));
-
-        // Sync initiated participant details into ncd_local_initiated_participants
-        const pId = data.participant_id;
-        const nameVal = data.fullName || data.mem_scrn_q16 || pId;
-        const locVal = data.location || "Dharavi";
-        const ageVal = data.age || data.mem_scrn_q1 || "45";
-        const genderVal = data.gender || (data.mem_scrn_q2 == "1" ? "Male" : "Female");
-
-        const newRecord = {
-          id: pId,
-          participant_id: pId,
-          mem_scrn_part_id: pId,
-          name: nameVal,
-          fullName: nameVal,
-          age: ageVal,
-          gender: genderVal,
-          location: locVal,
-          status: "Demographics Recorded",
-          rawPayload: { ...data }
-        };
-
-        let currentLocals = [];
-        const existingStr = localStorage.getItem('ncd_local_initiated_participants');
-        if (existingStr) {
-          try {
-            const parsed = JSON.parse(existingStr);
-            if (Array.isArray(parsed)) currentLocals = parsed;
-          } catch (e) {}
-        }
-        const filteredLocals = currentLocals.filter(r => (r.participant_id || r.mem_scrn_part_id || r.id) !== pId);
-        filteredLocals.unshift(newRecord);
-        localStorage.setItem('ncd_local_initiated_participants', JSON.stringify(filteredLocals));
-
-        setAvailableParticipants(prev => {
-          const exists = prev.some(item => item.id === pId);
-          if (exists) {
-            return prev.map(item => item.id === pId ? { ...item, name: nameVal, age: ageVal, gender: genderVal, location: locVal, rawPayload: { ...data } } : item);
-          } else {
-            return [newRecord, ...prev];
-          }
-        });
       } catch (err) {}
     }
   }, [step, data, qPage, submitting]);
@@ -785,13 +618,15 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         const u = JSON.parse(userString);
         const role = u.role_name || "Field Supervisor";
         const loc = u.assigned_location || "Dharavi";
-        setData(d => ({
-          ...d,
-          user_name: u.username || "DEO",
-          user_role: role,
-          location: loc,
-          participant_id: generateParticipantID(loc)
-        }));
+        fetchNextParticipantIDFromDB(loc).then(freshId => {
+          setData(d => ({
+            ...d,
+            user_name: u.username || "DEO",
+            user_role: role,
+            location: loc,
+            participant_id: freshId || `NCD${getlocationPrefix(loc)}0001`
+          }));
+        });
       } catch (e) {}
     }
 
@@ -1559,11 +1394,48 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       }
     }
 
-    if (Object.keys(newErrors).length > 0) {
-      setFieldErrors(prev => ({ ...prev, ...newErrors }));
-      const firstMsg = Object.values(newErrors)[0];
-      notify("error", "Validation Error", firstMsg);
-      return;
+    // Save initiated record once on Proceeding past Step 0
+    if (isFieldSupervisor && data.participant_id) {
+      const pId = data.participant_id;
+      const nameVal = data.fullName || data.mem_scrn_q16 || pId;
+      const locVal = data.location || "Dharavi";
+      const ageVal = data.age || data.mem_scrn_q1 || "45";
+      const genderVal = data.gender || (data.mem_scrn_q2 == "1" ? "Male" : "Female");
+
+      const newRecord = {
+        id: pId,
+        participant_id: pId,
+        mem_scrn_part_id: pId,
+        name: nameVal,
+        fullName: nameVal,
+        age: ageVal,
+        gender: genderVal,
+        location: locVal,
+        status: "Demographics Recorded",
+        rawPayload: { ...data }
+      };
+
+      let currentLocals = [];
+      try {
+        const existingStr = localStorage.getItem('ncd_local_initiated_participants');
+        if (existingStr) {
+          const parsed = JSON.parse(existingStr);
+          if (Array.isArray(parsed)) currentLocals = parsed;
+        }
+      } catch (e) {}
+
+      const filteredLocals = currentLocals.filter(r => (r.participant_id || r.mem_scrn_part_id || r.id) !== pId);
+      filteredLocals.unshift(newRecord);
+      localStorage.setItem('ncd_local_initiated_participants', JSON.stringify(filteredLocals));
+
+      setAvailableParticipants(prev => {
+        const exists = prev.some(item => item.id === pId);
+        if (exists) {
+          return prev.map(item => item.id === pId ? { ...item, name: nameVal, age: ageVal, gender: genderVal, location: locVal, rawPayload: { ...data } } : item);
+        } else {
+          return [newRecord, ...prev];
+        }
+      });
     }
 
     setStep(1);
@@ -1938,8 +1810,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                 </div>
               </div>
 
-              {/* PARTICIPANT DROPDOWN SELECTOR FOR ALL ROLES */}
-              {(() => {
+              {/* PARTICIPANT DROPDOWN SELECTOR FOR NON-SUPERVISOR ROLES ONLY */}
+              {!isFieldSupervisor && (() => {
                 const isCounselorLogin = (data.user_role || activeUser?.role_name || "").toLowerCase().includes("counselor");
 
                 const filteredParticipantsByLocation = availableParticipants.filter(p => {

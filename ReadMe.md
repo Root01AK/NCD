@@ -146,20 +146,13 @@ admin123
 
 
 If Input is 1222 - 4 digit for Q1. Age: * (Need to though the error)
-
-
 Q23. Heaviness of Smoking Index total (Q21 + Q22): 
        / 6
 Auto-calculated. A score of 4 or more indicates high dependence and routes to cessation counselling at Q111.
-
-
 Section 4 · Alcohol use (AUDIT-C, with full AUDIT on a positive screen)
-
-
 Q11 Logic is not working
 Q14 Logic not working
 Q17 two logic is workign fine but the if opted to code 3 skip Q18 & Q19 answer the Q20 and follow
-
 Q25 choice 1 logic work but other two not working
 Q33 logic issue
 Q40 
@@ -174,67 +167,3 @@ Q86
 
 
 When click the "Create User" btn it show the modal of user previlages to creating but it all select need to a fresh not selecting stuff. While login we have toggle switch concept for login to admin & DEO right, In DEO login UI section we need a dropdown menu to select the location and login. 
-
-
-
-Q61. GAD-7 total score:
-       / 21
-Bands: 0 to 4 minimal, 5 to 9 mild, 10 to 14 moderate, 15 to 21 severe. 10 or more is clinically significant.
-
-
-
-
-Q88. Hand-grip strength (kg):
-Reading 1        Reading 2        Reading 3        Average       
-➔ Only if BMI at Q69 is below 20. If BMI is 20 or above, skip to Q89.
-
-
-Q30. AUDIT-C total (Q27 + Q28 + Q29)
-
-
-Q95. Scheduled date:
- DD-MMM-YYYY  Date actually attempted:  DD-MMM-YYYY 
-
-Q67. Height (cm):
-         
-
-Q68. Weight (kg):
-         
-
-Q69. BMI (kg/m²):
-         
-Auto-calculated.
-
-Q70. Waist circumference (cm):
-         
-
-Q71. Hip circumference (cm):
-         
-
-Q72. Waist-hip ratio:
-         
-
-
-
-Q74. Pulse (bpm):
-         
-
-Q75. Blood pressure, reading 1:
-Systolic          Diastolic          
-
-Q76. Blood pressure, reading 2:
-Systolic          Diastolic          
-Reading 2 at least one minute after reading 1, same arm, participant seated.
-
-Q77. Average blood pressure:
-       /       
-Auto-calculated. This average drives the categorisation at Q90.
-
-Q78. SpO₂ (%):
-         
-
-Q79. Random blood sugar (mg/dL):
-         
-
-Q80. Haemoglobin (g/dL):
-         
