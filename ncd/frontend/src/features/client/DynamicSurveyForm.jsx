@@ -13,11 +13,9 @@ import {
   getOrLockParticipantID 
 } from "../../lib/participantIdGenerator";
 
-export { 
-  getLocationPrefix as getlocationPrefix, 
-  generateNextParticipantID as generateParticipantID, 
-  fetchNextParticipantIDFromDB 
-};
+export const getlocationPrefix = getLocationPrefix;
+export const generateParticipantID = generateNextParticipantID;
+export { fetchNextParticipantIDFromDB };
 
 // Helper to format Date to DD-MMM-YYYY
 function formatDateDDMMMYYYY(dateObj) {

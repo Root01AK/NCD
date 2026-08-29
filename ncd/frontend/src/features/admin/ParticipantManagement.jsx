@@ -4,17 +4,10 @@ import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { getQueue, deleteFromQueue } from "../../lib/db";
 
-function generateParticipantID(loc = "Dharavi") {
-  const locLower = String(loc || "").toLowerCase();
-  let prefix = "DH";
-  if (locLower.includes("dharavi")) prefix = "DH";
-  else if (locLower.includes("malvani")) prefix = "ML";
-  else if (locLower.includes("vashi")) prefix = "VS";
-  else if (locLower.includes("other")) prefix = "OT";
-  else if (String(loc).trim().length >= 2) prefix = String(loc).trim().substring(0, 2).toUpperCase();
+import { generateNextParticipantID } from "../../lib/participantIdGenerator";
 
-  const num = Math.floor(1000 + Math.random() * 9000);
-  return `${prefix}-MUM-${num}`;
+function generateParticipantID(loc = "Dharavi") {
+  return generateNextParticipantID(loc);
 }
 
 export function ParticipantManagement({ notify, phase = "phase2", initialLocation = "All" }) {
