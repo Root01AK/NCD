@@ -1158,6 +1158,28 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     return false;
   };
 
+  const isOptionExclusive = (opt, oIdx = 0) => {
+    if (!opt) return false;
+    const labelLower = getOptionLabel(opt).toLowerCase().trim();
+    const codeStr = String(getOptionCode(opt, oIdx) || "").trim();
+
+    if (codeStr === "16" || codeStr === "99") return true;
+    if (labelLower === "none of the above" ||
+        labelLower.includes("none of the above") ||
+        labelLower === "none of these" ||
+        labelLower.includes("none of these") ||
+        labelLower.includes("none of the options") ||
+        labelLower.includes("none of the listed") ||
+        labelLower === "none" ||
+        labelLower === "no" ||
+        labelLower.includes("no medical conditions") ||
+        labelLower.includes("not known which") ||
+        labelLower.includes("not applicable")) {
+      return true;
+    }
+    return false;
+  };
+
   const isMatrixQuestion = (q) => {
     if (!q) return false;
     const qIdLower = String(q.id || "").toLowerCase();
@@ -3217,33 +3239,18 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                             const labelText = getOptionLabel(opt);
                                             const codeText = getOptionCode(opt, oIdx);
                                             const isChecked = curArr.some(x => getOptionLabel(x) === labelText);
-
-                                            const titleLower = String(q.title || "").toLowerCase();
-                                            const isQ9 = titleLower.includes("q9") || titleLower.includes("tobacco") || titleLower.includes("substance");
+                                            const isExclusive = isOptionExclusive(opt, oIdx);
 
                                             const toggleOpt = () => {
-                                              if (isQ9) {
-                                                const isExclusiveCode16 = codeText === "16" || labelText.toLowerCase().includes("none");
-                                                if (isExclusiveCode16) {
-                                                  if (!isChecked) updateCustomField(q, [opt]);
-                                                  else updateCustomField(q, []);
-                                                } else {
-                                                  const filtered = curArr.filter(x => {
-                                                    const xCode = getOptionCode(x);
-                                                    const xLabel = getOptionLabel(x).toLowerCase();
-                                                    return xCode !== "16" && !xLabel.includes("none");
-                                                  });
-                                                  if (isChecked) {
-                                                    updateCustomField(q, filtered.filter(x => getOptionLabel(x) !== labelText));
-                                                  } else {
-                                                    updateCustomField(q, [...filtered, opt]);
-                                                  }
-                                                }
+                                              if (isExclusive) {
+                                                if (!isChecked) updateCustomField(q, [opt]);
+                                                else updateCustomField(q, []);
                                               } else {
+                                                const nonExclusive = curArr.filter((x, idx) => !isOptionExclusive(x, opts.indexOf(x)));
                                                 if (isChecked) {
-                                                  updateCustomField(q, curArr.filter(x => getOptionLabel(x) !== labelText));
+                                                  updateCustomField(q, nonExclusive.filter(x => getOptionLabel(x) !== labelText));
                                                 } else {
-                                                  updateCustomField(q, [...curArr, opt]);
+                                                  updateCustomField(q, [...nonExclusive, opt]);
                                                 }
                                               }
                                             };
@@ -3277,33 +3284,18 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                 const curVal = data[`custom_${q.id}`] || data[q.id];
                                 const curArr = Array.isArray(curVal) ? curVal : [];
                                 const isChecked = curArr.some(x => getOptionLabel(x) === labelText);
-
-                                const titleLower = String(q.title || "").toLowerCase();
-                                const isQ9 = titleLower.includes("q9") || titleLower.includes("tobacco") || titleLower.includes("substance");
+                                const isExclusive = isOptionExclusive(opt, oIdx);
 
                                 const toggleOpt = () => {
-                                  if (isQ9) {
-                                    const isExclusiveCode16 = codeText === "16" || labelText.toLowerCase().includes("none");
-                                    if (isExclusiveCode16) {
-                                      if (!isChecked) updateCustomField(q, [opt]);
-                                      else updateCustomField(q, []);
-                                    } else {
-                                      const filtered = curArr.filter(x => {
-                                        const xCode = getOptionCode(x);
-                                        const xLabel = getOptionLabel(x).toLowerCase();
-                                        return xCode !== "16" && !xLabel.includes("none");
-                                      });
-                                      if (isChecked) {
-                                        updateCustomField(q, filtered.filter(x => getOptionLabel(x) !== labelText));
-                                      } else {
-                                        updateCustomField(q, [...filtered, opt]);
-                                      }
-                                    }
+                                  if (isExclusive) {
+                                    if (!isChecked) updateCustomField(q, [opt]);
+                                    else updateCustomField(q, []);
                                   } else {
+                                    const nonExclusive = curArr.filter((x, idx) => !isOptionExclusive(x, opts.indexOf(x)));
                                     if (isChecked) {
-                                      updateCustomField(q, curArr.filter(x => getOptionLabel(x) !== labelText));
+                                      updateCustomField(q, nonExclusive.filter(x => getOptionLabel(x) !== labelText));
                                     } else {
-                                      updateCustomField(q, [...curArr, opt]);
+                                      updateCustomField(q, [...nonExclusive, opt]);
                                     }
                                   }
                                 };
