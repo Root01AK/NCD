@@ -521,25 +521,32 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       }
 
       // 3. Average Blood Pressure (SBP & DBP)
-      const sbp1 = parseFloat(d.sys_bp_1 || d.sbp1 || 0);
-      const sbp2 = parseFloat(d.sys_bp_2 || d.sbp2 || 0);
-      const dbp1 = parseFloat(d.dia_bp_1 || d.dbp1 || 0);
-      const dbp2 = parseFloat(d.dia_bp_2 || d.dbp2 || 0);
+      const sbp1 = parseFloat(d.sys_bp_1 || d.sbp1 || d.q75_sys || 0);
+      const sbp2 = parseFloat(d.sys_bp_2 || d.sbp2 || d.q76_sys || 0);
+      const dbp1 = parseFloat(d.dia_bp_1 || d.dbp1 || d.q75_dia || 0);
+      const dbp2 = parseFloat(d.dia_bp_2 || d.dbp2 || d.q76_dia || 0);
 
-      if (sbp1 > 0 && sbp2 > 0) {
-        const avgSbp = Math.round((sbp1 + sbp2) / 2);
-        if (d.avg_sys_bp !== avgSbp) {
+      const validSbps = [sbp1, sbp2].filter(v => v > 0);
+      const validDbps = [dbp1, dbp2].filter(v => v > 0);
+
+      if (validSbps.length > 0 && validDbps.length > 0) {
+        const avgSbp = Math.round(validSbps.reduce((a, b) => a + b, 0) / validSbps.length);
+        const avgDbp = Math.round(validDbps.reduce((a, b) => a + b, 0) / validDbps.length);
+        const formattedAvgBp = `${avgSbp} / ${avgDbp}`;
+
+        const q77Key = Object.keys(d).find(k => k.toLowerCase().includes("q77")) || "q77";
+
+        if (d.avg_sys_bp !== avgSbp || d.avg_dia_bp !== avgDbp || d.q77 !== formattedAvgBp || d.custom_q77 !== formattedAvgBp) {
           updates.avg_sys_bp = avgSbp;
-          updates.sys_bp = avgSbp;
-          updates.custom_sys_bp = avgSbp;
-        }
-      }
-      if (dbp1 > 0 && dbp2 > 0) {
-        const avgDbp = Math.round((dbp1 + dbp2) / 2);
-        if (d.avg_dia_bp !== avgDbp) {
           updates.avg_dia_bp = avgDbp;
+          updates.sys_bp = avgSbp;
           updates.dia_bp = avgDbp;
+          updates.custom_sys_bp = avgSbp;
           updates.custom_dia_bp = avgDbp;
+          updates.avg_bp = formattedAvgBp;
+          updates.q77 = formattedAvgBp;
+          updates.custom_q77 = formattedAvgBp;
+          updates[q77Key] = formattedAvgBp;
         }
       }
 
@@ -1142,8 +1149,12 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     if (titleL.includes("auto-calculated") || titleL.includes("autocalculated") || titleL.includes("index total") || titleL.includes("total score")) return true;
     if (idL.includes("q23") || titleL.includes("q23") || titleL.includes("heaviness of smoking")) return true;
     if (idL.includes("q30") || titleL.includes("q30") || titleL.includes("audit-c")) return true;
+    if (idL.includes("q61") || titleL.includes("gad-7")) return true;
+    if (idL.includes("q63") || titleL.includes("phq-9")) return true;
     if (idL.includes("q69") || idL.includes("bmi") || titleL.includes("q69") || titleL.includes("body mass index") || titleL.includes("bmi")) return true;
     if (idL.includes("q72") || idL.includes("whr") || titleL.includes("q72") || titleL.includes("waist-hip")) return true;
+    if (idL.includes("q77") || titleL.includes("q77") || titleL.includes("average blood pressure") || titleL.includes("avg bp") || titleL.includes("average bp")) return true;
+    if (idL.includes("q88") || titleL.includes("hand-grip")) return true;
     return false;
   };
 
