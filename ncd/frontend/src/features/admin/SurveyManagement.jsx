@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Search, Plus, FileText, Play, BarChart2, Copy, Loader2, Settings, Trash2, BookOpen, Edit, SlidersHorizontal, Layers, Eye, ClipboardList, ClipboardCheck, Stethoscope, Menu } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Search, Plus, FileText, Play, BarChart2, Copy, Loader2, Settings, Trash2, BookOpen, Edit, SlidersHorizontal, Layers, Eye, ClipboardList, ClipboardCheck, Stethoscope, Menu, Download, Upload, FileJson, Check, CopyCheck, Code, Share2, Sparkles, X } from "lucide-react";
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { getDefaultSkipRulesForQuestion } from "../../lib/logicEngine";
@@ -10,6 +10,11 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey, onOpenM
   const [searchTerm, setSearchTerm] = useState("");
   const [viewingCodebookSurvey, setViewingCodebookSurvey] = useState(null);
   const [previewingSurvey, setPreviewingSurvey] = useState(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [pastedJson, setPastedJson] = useState("");
+  const [importSurveyTitle, setImportSurveyTitle] = useState("");
+  const [copiedId, setCopiedId] = useState(null);
+  const jsonFileInputRef = useRef(null);
 
   const fetchSurveys = async () => {
     setLoading(true);
@@ -31,6 +36,144 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey, onOpenM
   useEffect(() => {
     fetchSurveys();
   }, []);
+
+  const getSurveySchemaObj = (s) => {
+    let schemaArr = [];
+    if (s.sur_url) {
+      try {
+        const parsed = JSON.parse(s.sur_url);
+        if (Array.isArray(parsed)) schemaArr = parsed;
+        else if (parsed.schema && Array.isArray(parsed.schema)) schemaArr = parsed.schema;
+        else if (parsed.questions && Array.isArray(parsed.questions)) schemaArr = parsed.questions;
+      } catch (e) {}
+    }
+    if (schemaArr.length === 0) {
+      try {
+        const activeStr = localStorage.getItem('ncd_active_survey_questions');
+        if (activeStr) {
+          const parsed = JSON.parse(activeStr);
+          if (Array.isArray(parsed)) schemaArr = parsed;
+        }
+      } catch (e) {}
+    }
+    return {
+      sur_title: s.sur_title || "Survey Schema",
+      sur_code: s.sur_code || "S-001",
+      exported_at: new Date().toISOString(),
+      version: "1.0",
+      questions: schemaArr
+    };
+  };
+
+  const copySurveyJson = (s) => {
+    try {
+      const schemaData = getSurveySchemaObj(s);
+      const jsonStr = JSON.stringify(schemaData, null, 2);
+      navigator.clipboard.writeText(jsonStr);
+      setCopiedId(s.sur_id);
+      setTimeout(() => setCopiedId(null), 2500);
+      if (notify) notify("success", "Copied to Clipboard!", `Survey JSON schema for "${s.sur_title}" copied! You can now paste this JSON directly in Production.`);
+    } catch (e) {
+      console.error(e);
+      if (notify) notify("error", "Copy Failed", "Could not copy survey JSON to clipboard.");
+    }
+  };
+
+  const downloadSurveyJson = (s) => {
+    try {
+      const schemaData = getSurveySchemaObj(s);
+      const jsonStr = JSON.stringify(schemaData, null, 2);
+      const blob = new Blob([jsonStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(s.sur_title || "survey").toLowerCase().replace(/[^a-z0-9]/g, "_")}_schema.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      if (notify) notify("success", "Downloaded!", `Exported "${s.sur_title}" JSON schema file.`);
+    } catch (e) {
+      console.error(e);
+      if (notify) notify("error", "Download Failed", "Could not export survey JSON file.");
+    }
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const text = evt.target.result;
+        const parsed = JSON.parse(text);
+        setPastedJson(JSON.stringify(parsed, null, 2));
+        if (parsed.sur_title && !importSurveyTitle) {
+          setImportSurveyTitle(parsed.sur_title);
+        }
+        if (notify) notify("success", "File Loaded", `Loaded JSON file "${file.name}" with ${Array.isArray(parsed) ? parsed.length : (parsed.questions ? parsed.questions.length : 0)} questions.`);
+      } catch (err) {
+        if (notify) notify("error", "Invalid File", "Uploaded file is not a valid JSON document.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImportJsonSubmit = async () => {
+    if (!pastedJson.trim()) {
+      if (notify) notify("error", "Invalid Input", "Please paste valid JSON survey schema content.");
+      return;
+    }
+    try {
+      const parsed = JSON.parse(pastedJson.trim());
+      let title = importSurveyTitle.trim() || parsed.sur_title || "Imported Survey";
+      let questionsArr = [];
+
+      if (Array.isArray(parsed)) {
+        questionsArr = parsed;
+      } else if (parsed.questions && Array.isArray(parsed.questions)) {
+        questionsArr = parsed.questions;
+      } else if (parsed.schema && Array.isArray(parsed.schema)) {
+        questionsArr = parsed.schema;
+      } else {
+        if (notify) notify("error", "Invalid Schema", "JSON must contain an array of question objects or a schema wrapper object.");
+        return;
+      }
+
+      if (questionsArr.length === 0) {
+        if (notify) notify("error", "Empty Questions", "The imported JSON contains no questions.");
+        return;
+      }
+
+      if (notify) notify("info", "Importing...", "Saving survey schema to database...");
+
+      const res = await api.post("/api/v1/surveymaster/create", {
+        sur_title: title,
+        sur_code: `S-${Date.now().toString().slice(-4)}`,
+        sur_url: JSON.stringify(questionsArr),
+        sur_onlne_id: "NCD-ONL",
+        sur_pri_db_name: "ncd_local",
+        sur_pri_db_server: "localhost",
+        sur_pri_db_usrnme: "root",
+        sur_pri_db_paswrd: "",
+        status: "1"
+      });
+
+      if (res && res.status === 'success') {
+        if (notify) notify("success", "Survey Imported!", `Successfully imported "${title}" with ${questionsArr.length} questions into Production.`);
+        setShowImportModal(false);
+        setPastedJson("");
+        setImportSurveyTitle("");
+        fetchSurveys();
+      } else {
+        const errMsg = res && res.message ? res.message : (res && res.errors ? Object.values(res.errors).flat().join(", ") : "Validation error");
+        if (notify) notify("error", "Import Failed", errMsg);
+      }
+    } catch (err) {
+      console.error(err);
+      if (notify) notify("error", "JSON Parse Error", "Syntax error in pasted JSON. Please verify valid JSON formatting.");
+    }
+  };
 
   const handleDuplicate = async (survey) => {
     try {
@@ -107,30 +250,50 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey, onOpenM
             </div>
           </div>
 
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setShowImportModal(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-100 text-amber-950 border border-amber-300 hover:bg-amber-200 transition-all cursor-pointer shadow-2xs font-mono"
+              title="Paste JSON from Localhost to deploy in Production"
+            >
+              <Upload size={14} className="text-amber-800" />
+              <span>Import / Paste JSON</span>
+            </button>
+            <button 
+              onClick={() => {
+                setSelectedSurvey(null);
+                setNavTab("survey-builder");
+              }}
+              className="sm:hidden flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-transform active:scale-95 shadow-sm cursor-pointer"
+              style={{ background: T.ink, color: T.gold }}
+            >
+              <Plus size={15} />
+              <span>New</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="hidden sm:flex items-center gap-2">
+          <button 
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-100 text-amber-950 border border-amber-300 hover:bg-amber-200 transition-all cursor-pointer shadow-2xs font-mono"
+            title="Paste JSON from Localhost to deploy in Production"
+          >
+            <FileJson size={15} className="text-amber-800" />
+            <span>Paste / Import Survey JSON</span>
+          </button>
           <button 
             onClick={() => {
               setSelectedSurvey(null);
               setNavTab("survey-builder");
             }}
-            className="sm:hidden flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-transform active:scale-95 shadow-sm"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-transform active:scale-95 shadow-sm hover:shadow-md cursor-pointer"
             style={{ background: T.ink, color: T.gold }}
           >
-            <Plus size={15} />
-            <span>New</span>
+            <Plus size={16} />
+            <span>New Survey</span>
           </button>
         </div>
-
-        <button 
-          onClick={() => {
-            setSelectedSurvey(null);
-            setNavTab("survey-builder");
-          }}
-          className="hidden sm:flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-transform active:scale-95 shadow-sm hover:shadow-md cursor-pointer"
-          style={{ background: T.ink, color: T.gold }}
-        >
-          <Plus size={16} />
-          <span>New Survey</span>
-        </button>
       </header>
 
       {/* Main Content */}
@@ -215,6 +378,21 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey, onOpenM
                     >
                       <BarChart2 size={13} className="text-slate-700" />
                       <span>Results</span>
+                    </button>
+                    <button 
+                      onClick={() => copySurveyJson(s)}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-900 text-white border border-slate-900 hover:bg-black transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs font-mono"
+                      title="Copy Survey JSON to paste in Production"
+                    >
+                      {copiedId === s.sur_id ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} className="text-amber-400" />}
+                      <span>{copiedId === s.sur_id ? "Copied!" : "Copy JSON"}</span>
+                    </button>
+                    <button 
+                      onClick={() => downloadSurveyJson(s)}
+                      className="p-2 rounded-xl hover:bg-slate-100 transition-colors border border-slate-200 text-slate-700 cursor-pointer"
+                      title="Download JSON File"
+                    >
+                      <Download size={14} />
                     </button>
                     <button 
                       onClick={() => handleDuplicate(s)}
@@ -455,6 +633,117 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey, onOpenM
                   className="px-6 py-2.5 rounded-2xl text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 transition-colors shadow-md cursor-pointer"
                 >
                   Close Preview
+                </button>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* Paste / Import Survey JSON Modal */}
+        {showImportModal && (
+          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 font-sans">
+              
+              {/* Modal Header */}
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-900 text-white">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold shadow-sm">
+                    <FileJson size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-black font-mono uppercase tracking-tight text-white">
+                      Paste &amp; Import Survey Schema JSON
+                    </h2>
+                    <p className="text-xs text-slate-300 font-medium">
+                      Copy survey JSON from Localhost and paste it here to deploy instantly to Production.
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowImportModal(false)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 overflow-y-auto space-y-4 flex-1 bg-slate-50">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-black uppercase tracking-wider text-slate-800 font-mono block">
+                    Survey Title (Optional override)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. NCD - Full Screening Survey Master"
+                    value={importSurveyTitle}
+                    onChange={(e) => setImportSurveyTitle(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-amber-400 shadow-2xs font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black uppercase tracking-wider text-slate-800 font-mono block">
+                      Paste Survey JSON Code
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="file" 
+                        accept=".json,.txt" 
+                        ref={jsonFileInputRef} 
+                        onChange={handleFileUpload} 
+                        className="hidden" 
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => jsonFileInputRef.current?.click()}
+                        className="text-xs font-bold text-amber-700 hover:text-amber-900 underline flex items-center gap-1 cursor-pointer font-mono"
+                      >
+                        <Upload size={12} /> Upload JSON File
+                      </button>
+                    </div>
+                  </div>
+
+                  <textarea
+                    rows={12}
+                    placeholder={`[\n  {\n    "id": "sec_1",\n    "title": "SECTION 1 · PARTICIPANT DEMOGRAPHICS",\n    "type": "section_header",\n    "section": 1\n  },\n  {\n    "id": "q1",\n    "title": "Q1. Age (years):",\n    "type": "number",\n    "required": true,\n    "section": 1\n  }\n]`}
+                    value={pastedJson}
+                    onChange={(e) => setPastedJson(e.target.value)}
+                    className="w-full p-4 rounded-2xl border border-slate-300 bg-slate-900 text-amber-300 font-mono text-xs outline-none focus:ring-2 focus:ring-amber-400 shadow-inner leading-relaxed"
+                  />
+                </div>
+
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/90 text-amber-950 text-xs font-medium space-y-1">
+                  <div className="font-bold flex items-center gap-1.5 font-mono text-amber-900">
+                    <Sparkles size={14} className="text-amber-600" />
+                    <span>How Localhost ➔ Production Copy/Paste Works:</span>
+                  </div>
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-900 font-sans pl-1">
+                    <li>In <strong>Localhost</strong>, click <strong>"Copy JSON"</strong> on your completed survey.</li>
+                    <li>Open <strong>Production (https://ncd.yrgmerf.in/)</strong>, click <strong>"Paste / Import Survey JSON"</strong>, and paste the JSON here.</li>
+                    <li>Click <strong>"Import &amp; Deploy Survey"</strong> below. Your survey structure and skip rules will be live instantly!</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-slate-200 bg-white flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowImportModal(false)}
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleImportJsonSubmit}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black bg-amber-400 text-slate-950 hover:bg-amber-500 transition-all shadow-md cursor-pointer font-mono"
+                >
+                  <Check size={16} />
+                  <span>Import &amp; Deploy Survey</span>
                 </button>
               </div>
 

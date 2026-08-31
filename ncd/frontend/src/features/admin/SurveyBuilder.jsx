@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Plus, Trash2, ArrowUp, ArrowDown, GripVertical, Settings2, FileText, CheckSquare, AlignLeft, Hash, UploadCloud, Loader2, ChevronDown, ChevronUp, CircleDot, Table, FolderClosed, Save, ChevronLeft, ArrowUpDown, Filter, SlidersHorizontal, Layers, X, MoveUp, MoveDown } from "lucide-react";
+import { Plus, Trash2, ArrowUp, ArrowDown, GripVertical, Settings2, FileText, CheckSquare, AlignLeft, Hash, UploadCloud, Loader2, ChevronDown, ChevronUp, CircleDot, Table, FolderClosed, Save, ChevronLeft, ArrowUpDown, Filter, SlidersHorizontal, Layers, X, MoveUp, MoveDown, Copy, FileJson, Upload, Check, Sparkles } from "lucide-react";
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 
@@ -238,7 +238,53 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
   const [importing, setImporting] = useState(false);
   const [selectedSectionFilter, setSelectedSectionFilter] = useState('all');
   const [showSortModal, setShowSortModal] = useState(false);
+  const [showPasteModal, setShowPasteModal] = useState(false);
+  const [pastedCode, setPastedCode] = useState("");
+  const [builderCopied, setBuilderCopied] = useState(false);
   const fileInputRef = React.useRef(null);
+  const builderJsonFileRef = React.useRef(null);
+
+  const copyCurrentBuilderJson = () => {
+    try {
+      const payload = {
+        sur_title: surveyTitle,
+        exported_at: new Date().toISOString(),
+        version: "1.0",
+        questions: questions
+      };
+      navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      setBuilderCopied(true);
+      setTimeout(() => setBuilderCopied(false), 2500);
+      if (notify) notify("success", "Copied to Clipboard!", `Copied current survey builder questions (${questions.length} questions) as JSON.`);
+    } catch (e) {
+      if (notify) notify("error", "Copy Failed", "Could not copy JSON.");
+    }
+  };
+
+  const handlePasteModalSubmit = () => {
+    if (!pastedCode.trim()) {
+      if (notify) notify("error", "Empty JSON", "Please paste valid JSON text.");
+      return;
+    }
+    try {
+      const parsed = JSON.parse(pastedCode.trim());
+      let questionsArr = [];
+      if (Array.isArray(parsed)) questionsArr = parsed;
+      else if (parsed.questions && Array.isArray(parsed.questions)) questionsArr = parsed.questions;
+      else if (parsed.schema && Array.isArray(parsed.schema)) questionsArr = parsed.schema;
+      else {
+        if (notify) notify("error", "Invalid Format", "JSON must contain an array of question objects.");
+        return;
+      }
+      if (parsed.sur_title) setSurveyTitle(parsed.sur_title);
+      setQuestions(questionsArr);
+      setShowPasteModal(false);
+      setPastedCode("");
+      if (notify) notify("success", "JSON Applied!", `Loaded ${questionsArr.length} questions into Survey Builder.`);
+    } catch (e) {
+      if (notify) notify("error", "JSON Parse Error", "Invalid JSON syntax. Please check syntax.");
+    }
+  };
 
   const moveSectionBlock = (targetSec, direction) => {
     const secNumbers = Array.from(new Set(questions.map((q) => {
@@ -562,20 +608,22 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
               Collapse All
             </button>
             
-            <input 
-              type="file" 
-              accept=".docx,.pdf,.md,.txt" 
-              ref={fileInputRef} 
-              onChange={simulateImport} 
-              className="hidden" 
-            />
             <button 
-              onClick={() => fileInputRef.current?.click()}
-              disabled={importing}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold shadow-2xs transition-transform bg-white border border-slate-200 disabled:opacity-50 text-slate-800 hover:bg-slate-50 cursor-pointer"
+              onClick={copyCurrentBuilderJson}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-bold bg-amber-100 text-amber-950 border border-amber-300 rounded-xl hover:bg-amber-200 transition-colors shadow-2xs cursor-pointer font-mono"
+              title="Copy current questions as JSON to paste in Production"
             >
-              {importing ? <Loader2 size={15} className="animate-spin text-amber-600" /> : <UploadCloud size={15} className="text-slate-600" />}
-              <span>Import</span>
+              {builderCopied ? <Check size={14} className="text-emerald-700" /> : <Copy size={14} className="text-amber-800" />}
+              <span>{builderCopied ? "Copied!" : "Copy JSON"}</span>
+            </button>
+
+            <button 
+              onClick={() => setShowPasteModal(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-bold bg-amber-100 text-amber-950 border border-amber-300 rounded-xl hover:bg-amber-200 transition-colors shadow-2xs cursor-pointer font-mono"
+              title="Paste JSON from Localhost into Survey Builder"
+            >
+              <FileJson size={14} className="text-amber-800" />
+              <span>Paste / Import JSON</span>
             </button>
 
             <button 
@@ -1054,6 +1102,78 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
           </div>
         </div>
       </div>
+
+      {/* Paste / Import JSON Modal */}
+      {showPasteModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 font-sans">
+            
+            {/* Modal Header */}
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-900 text-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold shadow-sm">
+                  <FileJson size={20} />
+                </div>
+                <div>
+                  <h2 className="text-base font-black font-mono uppercase tracking-tight text-white">
+                    Paste &amp; Import Survey Schema
+                  </h2>
+                  <p className="text-xs text-slate-300 font-medium">
+                    Paste JSON from Localhost to load questions directly into the Survey Builder.
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowPasteModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-4 flex-1 bg-slate-50">
+              <div className="space-y-1.5">
+                <label className="text-xs font-black uppercase tracking-wider text-slate-800 font-mono block">
+                  Paste Survey JSON Code
+                </label>
+                <textarea
+                  rows={14}
+                  placeholder={`[\n  {\n    "id": "sec_1",\n    "title": "SECTION 1 · DEMOGRAPHICS",\n    "type": "section_header",\n    "section": 1\n  },\n  {\n    "id": "q1",\n    "title": "Q1. Age (years):",\n    "type": "number",\n    "required": true,\n    "section": 1\n  }\n]`}
+                  value={pastedCode}
+                  onChange={(e) => setPastedCode(e.target.value)}
+                  className="w-full p-4 rounded-2xl border border-slate-300 bg-slate-900 text-amber-300 font-mono text-xs outline-none focus:ring-2 focus:ring-amber-400 shadow-inner leading-relaxed"
+                />
+              </div>
+
+              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/90 text-amber-950 text-xs font-medium flex items-center gap-2">
+                <Sparkles size={16} className="text-amber-600 shrink-0" />
+                <span>Pasting valid JSON will instantly load and parse all questions, sections, and skip rules in the editor.</span>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-200 bg-white flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowPasteModal(false)}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handlePasteModalSubmit}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black bg-amber-400 text-slate-950 hover:bg-amber-500 transition-all shadow-md cursor-pointer font-mono"
+              >
+                <Check size={16} />
+                <span>Apply to Builder</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }
