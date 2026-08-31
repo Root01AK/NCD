@@ -250,51 +250,53 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey, onOpenM
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setShowImportModal(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-100 text-amber-950 border border-amber-300 hover:bg-amber-200 transition-all cursor-pointer shadow-2xs font-mono"
-              title="Paste JSON from Localhost to deploy in Production"
-            >
-              <Upload size={14} className="text-amber-800" />
-              <span>Import / Paste JSON</span>
-            </button>
-            <button 
-              onClick={() => {
-                setSelectedSurvey(null);
-                setNavTab("survey-builder");
-              }}
-              className="sm:hidden flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-transform active:scale-95 shadow-sm cursor-pointer"
-              style={{ background: T.ink, color: T.gold }}
-            >
-              <Plus size={15} />
-              <span>New</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="hidden sm:flex items-center gap-2">
+        {/* Mobile Action Buttons (visible only on small screens) */}
+        <div className="flex sm:hidden items-center gap-2 w-full pt-2 border-t border-slate-100">
           <button 
             onClick={() => setShowImportModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-100 text-amber-950 border border-amber-300 hover:bg-amber-200 transition-all cursor-pointer shadow-2xs font-mono"
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-amber-100 text-amber-950 border border-amber-300 hover:bg-amber-200 transition-all cursor-pointer shadow-2xs font-mono"
             title="Paste JSON from Localhost to deploy in Production"
           >
-            <FileJson size={15} className="text-amber-800" />
-            <span>Paste / Import Survey JSON</span>
+            <Upload size={14} className="text-amber-800" />
+            <span>Import JSON</span>
           </button>
           <button 
             onClick={() => {
               setSelectedSurvey(null);
               setNavTab("survey-builder");
             }}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-transform active:scale-95 shadow-sm hover:shadow-md cursor-pointer"
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-transform active:scale-95 shadow-sm cursor-pointer"
             style={{ background: T.ink, color: T.gold }}
           >
-            <Plus size={16} />
+            <Plus size={15} />
             <span>New Survey</span>
           </button>
         </div>
-      </header>
+      </div>
+
+      {/* Desktop Action Buttons (visible on sm and larger screens) */}
+      <div className="hidden sm:flex items-center gap-2.5 shrink-0">
+        <button 
+          onClick={() => setShowImportModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-100 text-amber-950 border border-amber-300 hover:bg-amber-200 transition-all cursor-pointer shadow-2xs font-mono"
+          title="Paste JSON from Localhost to deploy in Production"
+        >
+          <FileJson size={15} className="text-amber-800" />
+          <span>Paste / Import Survey JSON</span>
+        </button>
+        <button 
+          onClick={() => {
+            setSelectedSurvey(null);
+            setNavTab("survey-builder");
+          }}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-transform active:scale-95 shadow-sm hover:shadow-md cursor-pointer"
+          style={{ background: T.ink, color: T.gold }}
+        >
+          <Plus size={16} />
+          <span>New Survey</span>
+        </button>
+      </div>
+    </header>
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto p-8 space-y-6">

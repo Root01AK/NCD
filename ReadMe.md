@@ -166,4 +166,9 @@ Q81
 Q86
 
 
-When click the "Create User" btn it show the modal of user previlages to creating but it all select need to a fresh not selecting stuff. While login we have toggle switch concept for login to admin & DEO right, In DEO login UI section we need a dropdown menu to select the location and login. 
+When click the "Create User" btn it show the modal of user previlages to creating but it all select need to a fresh not selecting stuff. While login we have toggle switch concept for login to admin & DEO right, In DEO login UI section we need a dropdown menu to select the location and login.
+
+
+
+
+
