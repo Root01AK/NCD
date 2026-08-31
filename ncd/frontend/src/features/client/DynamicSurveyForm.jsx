@@ -17,12 +17,33 @@ export const getlocationPrefix = getLocationPrefix;
 export const generateParticipantID = generateNextParticipantID;
 export { fetchNextParticipantIDFromDB };
 
-// Helper to format Date to DD-MMM-YYYY
-function formatDateDDMMMYYYY(dateObj) {
+// Helper to format Date to DD-MMM-YYYY safely (handles Date objects, strings, numbers, null/undefined)
+function formatDateDDMMMYYYY(val) {
+  if (!val) val = new Date();
+
+  let dObj;
+  if (val instanceof Date) {
+    dObj = val;
+  } else if (typeof val === 'number') {
+    dObj = new Date(val);
+  } else if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (/^\d{2}-[A-Z]{3}-\d{4}$/i.test(trimmed)) {
+      return trimmed.toUpperCase();
+    }
+    dObj = new Date(trimmed);
+  } else {
+    dObj = new Date(val);
+  }
+
+  if (isNaN(dObj.getTime())) {
+    dObj = new Date();
+  }
+
   const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-  const d = dateObj.getDate();
-  const m = months[dateObj.getMonth()];
-  const y = dateObj.getFullYear();
+  const d = dObj.getDate();
+  const m = months[dObj.getMonth()];
+  const y = dObj.getFullYear();
   return `${d < 10 ? '0' + d : d}-${m}-${y}`;
 }
 
