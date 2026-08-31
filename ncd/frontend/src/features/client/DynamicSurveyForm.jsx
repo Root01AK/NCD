@@ -820,8 +820,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       else if (qNum >= 33 && qNum <= 39) qSec = 5;
       else if (qNum >= 40 && qNum <= 47) qSec = 6;
       else if (qNum >= 48 && qNum <= 57) qSec = 7;
-      else if (qNum >= 58 && qNum <= 65) qSec = 8;
-      else if (qNum >= 66 && qNum <= 72) qSec = 9;
+      else if (qNum >= 58 && qNum <= 66) qSec = 8;
+      else if (qNum >= 67 && qNum <= 72) qSec = 9;
       else if (qNum >= 73 && qNum <= 80) qSec = 10;
       else if (qNum >= 81 && qNum <= 88) qSec = 11;
       else if (qNum >= 89 && qNum <= 93) qSec = 12;
