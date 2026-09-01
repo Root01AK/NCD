@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { FileText, ChevronLeft, ChevronDown, Check, Calendar, Phone, User, ShieldCheck, Shield, Clock, PlusCircle, ArrowRight, Save, MapPin, Activity, Stethoscope, HeartPulse, Brain, Link2, CheckCircle2, UserCheck, AlertCircle, AlertTriangle, LayoutGrid, CheckSquare, ListFilter, X, PauseCircle, Play, Trash2, Bookmark } from "lucide-react";
+import { FileText, ChevronLeft, ChevronDown, Check, Calendar, Phone, User, ShieldCheck, Shield, Clock, PlusCircle, ArrowRight, Save, MapPin, Activity, Stethoscope, HeartPulse, Brain, Link2, CheckCircle2, UserCheck, AlertCircle, AlertTriangle, LayoutGrid, CheckSquare, ListFilter, X, PauseCircle, Play, Trash2, Bookmark, Layers, LayoutList } from "lucide-react";
 import { T } from "../../lib/theme";
 import { saveToQueue, getQueue } from "../../lib/db";
 import { api } from "../../lib/api";
@@ -155,6 +155,56 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   const [viewModes, setViewModes] = useState({});
   const [openSingleDropdowns, setOpenSingleDropdowns] = useState({});
   const [openMultiDropdowns, setOpenMultiDropdowns] = useState({});
+
+  const [formPageMode, setFormPageMode] = useState(() => {
+    return localStorage.getItem('ncd_form_page_mode') || 'one_question';
+  });
+
+  const buildPagesList = (activeQs, pageMode = formPageMode) => {
+    if (!activeQs || activeQs.length === 0) return [];
+    const pagesList = [];
+    let curP = [];
+
+    if (pageMode === 'one_section') {
+      activeQs.forEach(q => {
+        const isH = q.type === 'section_header' || String(q.id || '').startsWith('sec_');
+        if (isH) {
+          if (curP.length > 0) {
+            pagesList.push(curP);
+            curP = [];
+          }
+          curP.push(q);
+        } else {
+          curP.push(q);
+        }
+      });
+      if (curP.length > 0) pagesList.push(curP);
+    } else {
+      let qCount = 0;
+      activeQs.forEach(q => {
+        const isH = q.type === 'section_header' || String(q.id || '').startsWith('sec_');
+        if (isH) {
+          if (qCount > 0) {
+            if (curP.length > 0) pagesList.push(curP);
+            curP = [q];
+            qCount = 0;
+          } else {
+            curP.push(q);
+          }
+        } else {
+          curP.push(q);
+          qCount++;
+          if (qCount >= 1) {
+            pagesList.push(curP);
+            curP = [];
+            qCount = 0;
+          }
+        }
+      });
+      if (curP.length > 0) pagesList.push(curP);
+    }
+    return pagesList;
+  };
 
   const [resumeFeatureEnabled, setResumeFeatureEnabled] = useState(
     () => localStorage.getItem('ncd_setting_enable_resume_button') === 'true'
@@ -876,30 +926,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     const activeQs = activeCustomQuestions;
     if (!activeQs || activeQs.length === 0) return;
 
-    const pagesList = [];
-    let curP = [];
-    let qCount = 0;
-    activeQs.forEach(q => {
-      const isH = q.type === 'section_header' || String(q.id || '').startsWith('sec_');
-      if (isH) {
-        if (curP.length > 0) {
-          pagesList.push(curP);
-          curP = [];
-          qCount = 0;
-        }
-        curP.push(q);
-      } else {
-        curP.push(q);
-        qCount++;
-        if (qCount >= 1) {
-          pagesList.push(curP);
-          curP = [];
-          qCount = 0;
-        }
-      }
-    });
-    if (curP.length > 0) pagesList.push(curP);
-
+    const pagesList = buildPagesList(activeQs, formPageMode);
     if (pagesList.length <= 1) return;
 
     const safeQPage = Math.min(qPage, Math.max(0, pagesList.length - 1));
@@ -1349,30 +1376,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     const activeQs = activeCustomQuestions;
     if (!activeQs || activeQs.length === 0) return true;
 
-    const pagesList = [];
-    let curP = [];
-    let qCount = 0;
-    activeQs.forEach(q => {
-      const isH = q.type === 'section_header' || String(q.id || '').startsWith('sec_');
-      if (isH) {
-        if (qCount > 0) {
-          if (curP.length > 0) pagesList.push(curP);
-          curP = [q];
-          qCount = 0;
-        } else {
-          curP.push(q);
-        }
-      } else {
-        curP.push(q);
-        qCount++;
-        if (qCount >= 1) {
-          pagesList.push(curP);
-          curP = [];
-          qCount = 0;
-        }
-      }
-    });
-    if (curP.length > 0) pagesList.push(curP);
+    const pagesList = buildPagesList(activeQs, formPageMode);
 
     const totalQPages = pagesList.length > 0 ? pagesList.length : 1;
     const safeQPage = Math.min(qPage, Math.max(0, totalQPages - 1));
@@ -2054,7 +2058,45 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                     Participant ID: <strong className="text-slate-900 font-bold">{data.participant_id}</strong> {data.age ? `• Age: ${data.age}` : ''} {data.gender ? `• ${data.gender}` : ''}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Segmented Display Mode Switcher */}
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs font-mono text-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormPageMode('one_question');
+                        localStorage.setItem('ncd_form_page_mode', 'one_question');
+                        setQPage(0);
+                      }}
+                      className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        formPageMode === 'one_question'
+                          ? 'bg-amber-400 text-slate-950 font-black shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      }`}
+                      title="Display 1 Question per Screen"
+                    >
+                      <Layers size={13} />
+                      <span>1 Q / Screen</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormPageMode('one_section');
+                        localStorage.setItem('ncd_form_page_mode', 'one_section');
+                        setQPage(0);
+                      }}
+                      className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        formPageMode === 'one_section'
+                          ? 'bg-amber-400 text-slate-950 font-black shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      }`}
+                      title="Display 1 Full Section per Screen"
+                    >
+                      <LayoutList size={13} />
+                      <span>1 Section / Screen</span>
+                    </button>
+                  </div>
+
                   {resumeFeatureEnabled && (
                     <button
                       type="button"
@@ -2106,37 +2148,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                 const filteredCustomQuestions = activeCustomQuestions;
                 if (filteredCustomQuestions.length === 0) return null;
 
-                // Build section-aware page batches (1 Question per page for precise skip logic)
-                const qPagesList = [];
-                let currentPage = [];
-                let qCountOnPage = 0;
-
-                filteredCustomQuestions.forEach((q) => {
-                  const isHeader = q.type === 'section_header' || String(q.id || '').startsWith('sec_');
-                  
-                  if (isHeader) {
-                    if (qCountOnPage > 0) {
-                      if (currentPage.length > 0) qPagesList.push(currentPage);
-                      currentPage = [q];
-                      qCountOnPage = 0;
-                    } else {
-                      currentPage.push(q);
-                    }
-                  } else {
-                    currentPage.push(q);
-                    qCountOnPage++;
-                    if (qCountOnPage >= 1) {
-                      qPagesList.push(currentPage);
-                      currentPage = [];
-                      qCountOnPage = 0;
-                    }
-                  }
-                });
-
-                if (currentPage.length > 0) {
-                  qPagesList.push(currentPage);
-                }
-
+                const qPagesList = buildPagesList(filteredCustomQuestions, formPageMode);
                 const totalQPages = qPagesList.length > 0 ? qPagesList.length : 1;
                 const safeQPage = Math.min(qPage, Math.max(0, totalQPages - 1));
                 const startIdx = qPagesList.slice(0, safeQPage).reduce((acc, p) => acc + p.length, 0);
@@ -3565,31 +3577,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
               {/* Question Pagination & Submit Controls */}
               {(() => {
-                const pagesList = [];
-                let curP = [];
-                let qCount = 0;
-                (activeCustomQuestions || []).forEach(q => {
-                  const isH = q.type === 'section_header' || String(q.id || '').startsWith('sec_');
-                  if (isH) {
-                    if (qCount > 0) {
-                      if (curP.length > 0) pagesList.push(curP);
-                      curP = [q];
-                      qCount = 0;
-                    } else {
-                      curP.push(q);
-                    }
-                  } else {
-                    curP.push(q);
-                    qCount++;
-                    if (qCount >= 1) {
-                      pagesList.push(curP);
-                      curP = [];
-                      qCount = 0;
-                    }
-                  }
-                });
-                if (curP.length > 0) pagesList.push(curP);
-
+                const pagesList = buildPagesList(activeCustomQuestions, formPageMode);
                 const totalQPages = pagesList.length > 0 ? pagesList.length : 1;
                 const safeQPage = Math.min(qPage, Math.max(0, totalQPages - 1));
 
@@ -3606,7 +3594,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                           className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 border border-slate-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
                         >
                           <ChevronLeft size={15} />
-                          <span>Previous Questions</span>
+                          <span>{formPageMode === 'one_section' ? 'Previous Section' : 'Previous Questions'}</span>
                         </button>
                       ) : (
                         <button 
@@ -3628,7 +3616,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                           className="px-4 py-2.5 rounded-xl text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs font-mono"
                         >
                           <PauseCircle size={15} className="text-amber-700" />
-                          <span>Pause & Resume Later</span>
+                          <span>Pause &amp; Resume Later</span>
                         </button>
                       )}
                     </div>
@@ -3643,7 +3631,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                         }} 
                         className="px-6 py-2.5 rounded-xl text-xs font-black bg-[#f5d40b] text-[#4a4a4c] hover:bg-[#e0c20a] transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer border border-[#e5c40a]"
                       >
-                        <span>Next Questions</span>
+                        <span>{formPageMode === 'one_section' ? 'Next Section' : 'Next Questions'}</span>
                         <ArrowRight size={15} className="text-[#4a4a4c]" />
                       </button>
                     ) : (
