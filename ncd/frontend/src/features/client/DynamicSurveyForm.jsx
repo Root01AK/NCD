@@ -157,7 +157,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   const [openMultiDropdowns, setOpenMultiDropdowns] = useState({});
 
   const [formPageMode, setFormPageMode] = useState(() => {
-    return localStorage.getItem('ncd_form_page_mode') || 'one_question';
+    return localStorage.getItem('ncd_form_page_mode') || 'one_section';
   });
 
   const buildPagesList = (activeQs, pageMode = formPageMode) => {
@@ -2064,23 +2064,6 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                     <button
                       type="button"
                       onClick={() => {
-                        setFormPageMode('one_question');
-                        localStorage.setItem('ncd_form_page_mode', 'one_question');
-                        setQPage(0);
-                      }}
-                      className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                        formPageMode === 'one_question'
-                          ? 'bg-amber-400 text-slate-950 font-black shadow-2xs'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                      }`}
-                      title="Display 1 Question per Screen"
-                    >
-                      <Layers size={13} />
-                      <span>1 Q / Screen</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
                         setFormPageMode('one_section');
                         localStorage.setItem('ncd_form_page_mode', 'one_section');
                         setQPage(0);
@@ -2094,6 +2077,23 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                     >
                       <LayoutList size={13} />
                       <span>1 Section / Screen</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormPageMode('one_question');
+                        localStorage.setItem('ncd_form_page_mode', 'one_question');
+                        setQPage(0);
+                      }}
+                      className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        formPageMode === 'one_question'
+                          ? 'bg-amber-400 text-slate-950 font-black shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      }`}
+                      title="Display 1 Question per Screen"
+                    >
+                      <Layers size={13} />
+                      <span>1 Q / Screen</span>
                     </button>
                   </div>
 
