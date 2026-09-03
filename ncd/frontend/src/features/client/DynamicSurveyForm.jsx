@@ -2279,9 +2279,9 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                 const currentBatch = qPagesList[safeQPage] || [];
 
                 return (
-                  <div className="space-y-4 p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+                  <div className="space-y-2.5 sm:space-y-3 p-3 sm:p-4 rounded-2xl bg-slate-50/40 border border-slate-200/80 shadow-2xs">
                     {/* Clean Page Indicator */}
-                    <div className="text-xs font-bold text-slate-700 font-mono border-b border-slate-100 pb-2.5 flex items-center justify-between">
+                    <div className="text-xs font-bold text-slate-700 font-mono border-b border-slate-100 pb-2 flex items-center justify-between">
                       <span className="flex items-center gap-1.5 text-slate-900 font-extrabold uppercase">
                         <FileText size={14} className="text-amber-600" /> Question Page {safeQPage + 1} of {totalQPages}
                       </span>
@@ -2297,9 +2297,9 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                       
                       if (qType === 'section_header' || String(q.id || '').startsWith('sec_')) {
                         return (
-                          <div key={q.id || absoluteIdx} className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-400/10 to-amber-500/5 border border-amber-300/80 shadow-2xs font-mono my-2">
+                          <div key={q.id || absoluteIdx} className="p-3 px-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-amber-400/10 to-amber-500/5 border border-amber-300/80 shadow-2xs font-mono my-1">
                             <h3 className="text-xs font-black text-amber-950 tracking-wider uppercase flex items-center gap-2">
-                              <Bookmark size={15} className="text-amber-600 shrink-0" />
+                              <Bookmark size={14} className="text-amber-600 shrink-0" />
                               <span>{q.title}</span>
                             </h3>
                           </div>
@@ -2312,11 +2312,11 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                       const qTitleDisplay = String(q.title || "").match(/^Q\d+/i) ? q.title : `${absoluteIdx + 1}. ${q.title}`;
 
                     return (
-                      <div key={q.id || absoluteIdx} className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-2xs space-y-4 hover:border-slate-300 transition-all">
+                      <div key={q.id || absoluteIdx} className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-2.5 hover:border-slate-300 transition-all">
                         
                         {/* Question Header & Layout View Switcher (First Dropdown, Second Grid) */}
-                        <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                          <label className="block text-xs sm:text-sm font-extrabold text-slate-900 leading-relaxed flex-1">
+                        <div className="flex items-center justify-between gap-2.5 border-b border-slate-100 pb-2">
+                          <label className="block text-xs sm:text-[13px] font-extrabold text-slate-900 leading-snug flex-1">
                             {qTitleDisplay} {q.required && <span className="text-red-500">*</span>}
                           </label>
 
@@ -2325,12 +2325,12 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                               Auto-Fetched (Read-Only)
                             </span>
                           ) : opts.length > 0 ? (
-                            <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200/80 shadow-2xs shrink-0 font-mono">
+                            <div className="flex items-center gap-0.5 bg-slate-100/80 p-0.5 rounded-lg border border-slate-200/80 shadow-2xs shrink-0 font-mono">
                               <button
                                 type="button"
                                 title="Dropdown View"
                                 onClick={() => setViewModes(prev => ({ ...prev, [q.id]: "dropdown" }))}
-                                className={`px-2.5 py-1 rounded-lg text-[10px] flex items-center gap-1 transition-all cursor-pointer ${effectiveMode === "dropdown" ? 'bg-[#f5d40b] text-[#4a4a4c] font-black shadow-2xs' : 'text-slate-500 font-bold hover:bg-slate-200/60'}`}
+                                className={`px-2 py-0.5 rounded text-[10px] flex items-center gap-1 transition-all cursor-pointer ${effectiveMode === "dropdown" ? 'bg-[#f5d40b] text-[#4a4a4c] font-black shadow-2xs' : 'text-slate-500 font-bold hover:bg-slate-200/60'}`}
                               >
                                 <ChevronDown size={12} />
                                 <span>Dropdown</span>
@@ -2339,7 +2339,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                 type="button"
                                 title="Grid / Pills View"
                                 onClick={() => setViewModes(prev => ({ ...prev, [q.id]: "grid" }))}
-                                className={`px-2.5 py-1 rounded-lg text-[10px] flex items-center gap-1 transition-all cursor-pointer ${effectiveMode === "grid" ? 'bg-[#f5d40b] text-[#4a4a4c] font-black shadow-2xs' : 'text-slate-500 font-bold hover:bg-slate-200/60'}`}
+                                className={`px-2 py-0.5 rounded text-[10px] flex items-center gap-1 transition-all cursor-pointer ${effectiveMode === "grid" ? 'bg-[#f5d40b] text-[#4a4a4c] font-black shadow-2xs' : 'text-slate-500 font-bold hover:bg-slate-200/60'}`}
                               >
                                 <LayoutGrid size={12} />
                                 <span>Grid</span>
@@ -3277,7 +3277,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                     <button
                                       type="button"
                                       onClick={() => setOpenSingleDropdowns(prev => ({ ...prev, [q.id]: !prev[q.id] }))}
-                                      className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-900 flex items-center justify-between shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer"
+                                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-900 flex items-center justify-between shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer"
                                     >
                                       <div className="flex items-center gap-2 truncate font-mono">
                                         {curVal ? (
@@ -3335,7 +3335,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                   <label 
                                     key={oIdx} 
                                     onClick={() => updateCustomField(q, labelText)} 
-                                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${isSel ? 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs ring-1 ring-amber-400' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition-all ${isSel ? 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs ring-1 ring-amber-400' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}
                                   >
                                     <input type="radio" checked={isSel} onChange={() => {}} className="text-amber-600 focus:ring-0 cursor-pointer" />
                                     <span>{labelText}</span>
@@ -3361,7 +3361,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                     <button
                                       type="button"
                                       onClick={() => setOpenMultiDropdowns(prev => ({ ...prev, [q.id]: !prev[q.id] }))}
-                                      className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-900 flex items-center justify-between shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer"
+                                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-900 flex items-center justify-between shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer"
                                     >
                                       <div className="flex items-center gap-2 truncate font-mono">
                                         <CheckSquare size={15} className="text-amber-600 shrink-0" />
@@ -3467,7 +3467,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                   <label 
                                     key={oIdx} 
                                     onClick={toggleOpt} 
-                                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${isChecked ? 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs ring-1 ring-amber-400' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition-all ${isChecked ? 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs ring-1 ring-amber-400' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}
                                   >
                                     <input type="checkbox" checked={isChecked} onChange={() => {}} className="rounded text-amber-600 focus:ring-0 cursor-pointer" />
                                     <span>{labelText}</span>
