@@ -4,16 +4,14 @@ services:
       context: ./ncd
       dockerfile: Dockerfile
     image: ncd-app:latest
-    expose:
-      - "80"
-      - "8080"
-      - "3000"
+    ports:
+      - "80:80"
     environment:
       - DB_HOST=db
       - DB_PORT=3306
       - DB_NAME=${DB_NAME:-ncd}
-      - DB_USER=${DB_USER:-ncd_user}
-      - DB_PASSWORD=${DB_PASSWORD:-changeme}
+      - DB_USER=${DB_USER:-root}
+      - DB_PASSWORD=${DB_PASSWORD:-Kirub@2001}
       - YII_ENV=prod
       - YII_DEBUG=false
     depends_on:
@@ -26,25 +24,22 @@ services:
     image: mariadb:10.11
     restart: always
     environment:
-      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-rootchangeme}
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-Kirub@2001}
       - MYSQL_DATABASE=${DB_NAME:-ncd}
-      - MYSQL_USER=${DB_USER:-ncd_user}
-      - MYSQL_PASSWORD=${DB_PASSWORD:-changeme}
     volumes:
       - mariadb_data:/var/lib/mysql
-      - ./ncd/DB/ncd.sql:/docker-entrypoint-initdb.d/01-ncd.sql:ro
     networks:
       - ncd_net
 
   phpmyadmin:
-    image: phpmyadmin/phpmyadmin:latest
+    image: phpmyadmin:latest
     restart: always
     ports:
       - "8088:80"
     environment:
       PMA_HOST: db
       PMA_PORT: 3306
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootchangeme}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-Kirub@2001}
     depends_on:
       - db
     networks:
@@ -52,6 +47,7 @@ services:
 
 volumes:
   mariadb_data:
+    name: ncd_mariadb_persistent_data
 
 networks:
   ncd_net:
