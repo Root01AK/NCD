@@ -43,13 +43,13 @@ export const getDefaultModulesForRole = (roleKey) => {
 };
 
 export const ROLE_CONFIGS = {
-  admin: { label: "System Administrator", className: "bg-amber-100 text-amber-950 border-amber-300" },
-  field_supervisor: { label: "Field Supervisor", className: "bg-blue-100 text-blue-950 border-blue-300" },
-  staff_nurse: { label: "Staff Nurse", className: "bg-emerald-100 text-emerald-950 border-emerald-300" },
-  counselor: { label: "Counselor", className: "bg-pink-100 text-pink-950 border-pink-300" },
-  doctor: { label: "Doctor", className: "bg-purple-100 text-purple-950 border-purple-300" },
-  case_management_coordinator: { label: "Case Coordinator", className: "bg-indigo-100 text-indigo-950 border-indigo-300" },
-  deo: { label: "Data Entry Operator", className: "bg-slate-100 text-slate-950 border-slate-300" }
+  admin: { label: "System Administrator", className: "bg-amber-50 text-amber-900 border-amber-300 rounded-full" },
+  field_supervisor: { label: "Field Supervisor", className: "bg-blue-50 text-blue-700 border-blue-200 rounded-full" },
+  staff_nurse: { label: "Staff Nurse", className: "bg-emerald-50 text-emerald-700 border-emerald-200 rounded-full" },
+  counselor: { label: "Counselor", className: "bg-pink-50 text-pink-700 border-pink-200 rounded-full" },
+  doctor: { label: "Doctor", className: "bg-purple-50 text-purple-700 border-purple-200 rounded-full" },
+  case_management_coordinator: { label: "Case Coordinator", className: "bg-indigo-50 text-indigo-700 border-indigo-200 rounded-full" },
+  deo: { label: "Data Entry Operator", className: "bg-slate-100 text-slate-700 border-slate-200 rounded-full" }
 };
 
 export const ROLE_NUMERIC_MAP = {
@@ -429,31 +429,31 @@ export function UserManagement({ notify, onOpenMobileMenu }) {
             No user accounts found matching search query.
           </div>
         ) : (
-          /* Clean Professional Table Layout */
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-2xs overflow-hidden">
-            <div className="px-4 sm:px-6 py-4 border-b border-gray-200 bg-gray-50/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-gray-500">
-                System Accounts ({filteredUsers.length})
+          /* Clean Professional Table Layout Matching Design System */
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden font-sans">
+            <div className="px-4 sm:px-6 py-4 border-b border-slate-100 bg-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-500 font-mono">
+                SYSTEM ACCOUNTS ({filteredUsers.length})
               </span>
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-slate-400 font-medium font-sans">
                 Click any user row to view or modify privileges
               </span>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[700px]">
+              <table className="w-full text-left border-collapse min-w-[750px]">
               <thead>
-                <tr className="border-b border-gray-200 bg-gray-50 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                  <th className="py-3 px-6">User Account</th>
-                  <th className="py-3 px-4">Assigned Role</th>
-                  <th className="py-3 px-4">Assigned Location</th>
-                  <th className="py-3 px-4">Contact Info</th>
-                  <th className="py-3 px-4">Module Privileges Access</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-6 text-right">Actions</th>
+                <tr className="border-b border-slate-100 bg-slate-50/50 text-[11px] font-extrabold text-slate-400 uppercase tracking-wider font-mono">
+                  <th className="py-4 px-6">USER ACCOUNT</th>
+                  <th className="py-4 px-4">ASSIGNED ROLE</th>
+                  <th className="py-4 px-4">ASSIGNED LOCATION</th>
+                  <th className="py-4 px-4">CONTACT INFO</th>
+                  <th className="py-4 px-4">MODULE PRIVILEGES ACCESS</th>
+                  <th className="py-4 px-4">STATUS</th>
+                  <th className="py-4 px-6 text-right">ACTIONS</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 text-xs">
+              <tbody className="divide-y divide-slate-100 text-xs">
                 {filteredUsers.map((u) => {
                   const roleCfg = ROLE_CONFIGS[u.role] || ROLE_CONFIGS.deo;
                   const privs = Array.isArray(u.privileges) ? u.privileges : [];
@@ -461,28 +461,28 @@ export function UserManagement({ notify, onOpenMobileMenu }) {
 
                   return (
                     <React.Fragment key={u.usr_id}>
-                      <tr className="hover:bg-gray-50/80 transition-colors">
-                        <td className="py-3.5 px-6 font-semibold text-gray-900">
+                      <tr className="hover:bg-slate-50/70 transition-colors border-b border-slate-100">
+                        <td className="py-4 px-6 font-semibold text-slate-900">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-xs border border-gray-200 shrink-0 font-mono">
+                            <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-xs border border-slate-200 shrink-0 font-mono shadow-2xs">
                               {String(u.username || "US").substring(0, 2).toUpperCase()}
                             </div>
-                            <span className="truncate max-w-[140px] font-bold">{u.username}</span>
+                            <span className="truncate max-w-[140px] font-extrabold text-slate-900 text-sm font-sans">{u.username}</span>
                           </div>
                         </td>
 
-                        <td className="py-3.5 px-4 whitespace-nowrap">
+                        <td className="py-4 px-4 whitespace-nowrap">
                           <span 
-                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-black border shadow-2xs whitespace-nowrap ${roleCfg.className}`}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold border shadow-2xs whitespace-nowrap ${roleCfg.className}`}
                           >
                             <ShieldCheck size={13} className="shrink-0" />
                             <span>{roleCfg.label}</span>
                           </span>
                         </td>
 
-                        <td className="py-3.5 px-4">
-                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-black bg-amber-100 text-amber-950 border border-amber-300 font-mono shadow-2xs">
-                            <MapPin size={13} className="text-amber-700 shrink-0" />
+                        <td className="py-4 px-4 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-amber-100/90 text-amber-950 border border-amber-300 font-mono shadow-2xs">
+                            <MapPin size={12} className="text-amber-700 shrink-0" />
                             <span>
                               {(() => {
                                 const l = String(u.location || 'Dharavi').trim().toLowerCase();
@@ -497,20 +497,20 @@ export function UserManagement({ notify, onOpenMobileMenu }) {
                           </span>
                         </td>
 
-                        <td className="py-3.5 px-4 text-gray-600">
-                          <div>{u.email || <span className="text-gray-400 italic">No email</span>}</div>
-                          {u.mobile && <div className="text-[10px] text-gray-400">{u.mobile}</div>}
+                        <td className="py-4 px-4 text-slate-600 font-medium">
+                          <div>{u.email || <span className="text-slate-400 italic">No email</span>}</div>
+                          {u.mobile && <div className="text-[10px] text-slate-400 font-mono mt-0.5">{u.mobile}</div>}
                         </td>
 
-                        <td className="py-3.5 px-4">
+                        <td className="py-4 px-4">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-800">
+                            <span className="font-semibold text-slate-800 text-xs">
                               {getPrivilegeSummaryText(privs)}
                             </span>
                             {privs.length > 0 && privs.length < 16 && (
                               <button 
                                 onClick={() => toggleUserPrivilegeExpand(u.usr_id)}
-                                className="text-[11px] text-blue-600 hover:underline flex items-center gap-0.5 font-medium ml-1"
+                                className="text-xs text-blue-600 hover:underline flex items-center gap-0.5 font-bold shrink-0 ml-1 cursor-pointer"
                               >
                                 {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                                 {isExpanded ? "Hide" : "Details"}
@@ -519,46 +519,48 @@ export function UserManagement({ notify, onOpenMobileMenu }) {
                           </div>
                         </td>
 
-                        <td className="py-3.5 px-4">
+                        <td className="py-4 px-4 whitespace-nowrap">
                           {u.status == "1" ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
+                            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Active
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-400">
-                              <span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span> Disabled
+                            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-400">
+                              <span className="w-2 h-2 rounded-full bg-slate-300"></span> Disabled
                             </span>
                           )}
                         </td>
 
-                        <td className="py-3.5 px-6 text-right space-x-2">
-                          <button 
-                            onClick={() => handleEdit(u)}
-                            className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors inline-flex items-center gap-1 text-[11px] font-medium"
-                            title="Edit Privileges"
-                          >
-                            <Edit2 size={13} /> Edit
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(u.usr_id)}
-                            className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors inline-flex items-center gap-1 text-[11px] font-medium"
-                            title="Delete User"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                        <td className="py-4 px-6 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-2">
+                            <button 
+                              onClick={() => handleEdit(u)}
+                              className="px-3 py-1 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors inline-flex items-center gap-1 text-xs font-bold shadow-2xs cursor-pointer"
+                              title="Edit User & Privileges"
+                            >
+                              <Edit2 size={13} className="text-slate-500" /> Edit
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(u.usr_id)}
+                              className="p-1.5 rounded-xl border border-red-200/80 bg-white text-red-500 hover:bg-red-50 transition-colors inline-flex items-center justify-center shadow-2xs cursor-pointer"
+                              title="Delete User Account"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
 
                       {/* Expandable Module Breakdown */}
                       {isExpanded && (
-                        <tr className="bg-slate-50/70 border-b border-gray-200">
-                          <td colSpan={6} className="py-3 px-6">
-                            <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                        <tr className="bg-slate-50/70 border-b border-slate-100">
+                          <td colSpan={7} className="py-3.5 px-6">
+                            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 font-mono">
                               Active Granted Screening Modules ({privs.length}):
                             </div>
                             <div className="flex flex-wrap gap-1.5">
                               {SCREENING_MODULES.filter(m => privs.includes(m.id)).map(m => (
-                                <span key={m.id} className="px-2 py-0.5 rounded bg-white border border-gray-200 text-gray-700 text-[11px] font-medium">
+                                <span key={m.id} className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 text-[11px] font-semibold shadow-2xs font-mono">
                                   #{m.id} {m.title}
                                 </span>
                               ))}
