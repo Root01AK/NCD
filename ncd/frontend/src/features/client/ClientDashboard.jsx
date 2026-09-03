@@ -465,17 +465,17 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
         
         {/* Tab: Dashboard */}
         {currentTab === "dashboard" && (
-          <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-200">
+          <div className="max-w-6xl mx-auto space-y-3.5 animate-in fade-in duration-200">
             
             {/* Clean Clinical Workstation Header with Dynamic Greeting */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/80">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-slate-200/80">
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 font-mono">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 font-mono">
                     Phase II Active
                   </span>
                 </div>
-                <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                   Welcome, {user.full_name || user.username || "Field Supervisor"}
                 </h1>
                 <p className="text-xs text-slate-500 font-medium mt-0.5">
@@ -485,7 +485,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
             </div>
 
             {/* Perfectly Aligned 3-Card Metrics Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
               
               {(() => {
                 const matchesActiveCenter = (item) => {
@@ -535,42 +535,42 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                 return (
                   <>
                     {/* Card 1: Initiated Surveys */}
-                    <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-amber-300 transition-all duration-200 flex items-center gap-4 group">
-                      <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 shrink-0 group-hover:scale-105 transition-transform">
-                        <FileText size={26} />
+                    <div className="bg-white rounded-2xl p-3.5 px-4 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-amber-300 transition-all duration-200 flex items-center gap-3.5 group">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 shrink-0 group-hover:scale-105 transition-transform">
+                        <FileText size={20} />
                       </div>
-                      <div className="space-y-1">
-                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 font-mono">Total Initiated ({activeLocation})</p>
-                        <p className="text-3xl font-black text-slate-900 font-mono tracking-tight">{totalInitiatedCount}</p>
-                        <span className="text-[10px] font-bold text-amber-900 bg-amber-100/70 px-2 py-0.5 rounded-md font-mono inline-block">
+                      <div className="space-y-0.5">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 font-mono">Total Initiated ({activeLocation})</p>
+                        <p className="text-2xl font-black text-slate-900 font-mono tracking-tight">{totalInitiatedCount}</p>
+                        <span className="text-[9px] font-bold text-amber-900 bg-amber-100/70 px-1.5 py-0.5 rounded font-mono inline-block">
                           Demographics Active
                         </span>
                       </div>
                     </div>
 
                     {/* Card 2: Offline Pending Sync Queue */}
-                    <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-blue-300 transition-all duration-200 flex items-center gap-4 group">
-                      <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 shrink-0 group-hover:scale-105 transition-transform">
-                        <FolderSync size={26} />
+                    <div className="bg-white rounded-2xl p-3.5 px-4 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-blue-300 transition-all duration-200 flex items-center gap-3.5 group">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 shrink-0 group-hover:scale-105 transition-transform">
+                        <FolderSync size={20} />
                       </div>
-                      <div className="space-y-1">
-                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 font-mono">Pending Sync Queue ({activeLocation})</p>
-                        <p className="text-3xl font-black text-slate-900 font-mono tracking-tight">{centerSyncQueue.length}</p>
-                        <span className="text-[10px] font-bold text-blue-900 bg-blue-100/70 px-2 py-0.5 rounded-md font-mono inline-block">
+                      <div className="space-y-0.5">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 font-mono">Pending Sync Queue ({activeLocation})</p>
+                        <p className="text-2xl font-black text-slate-900 font-mono tracking-tight">{centerSyncQueue.length}</p>
+                        <span className="text-[9px] font-bold text-blue-900 bg-blue-100/70 px-1.5 py-0.5 rounded font-mono inline-block">
                           {centerSyncQueue.length > 0 ? 'Offline Queue Ready' : 'All Local Synced'}
                         </span>
                       </div>
                     </div>
 
                     {/* Card 3: Completed & Synced */}
-                    <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-emerald-300 transition-all duration-200 flex items-center gap-4 group">
-                      <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 shrink-0 group-hover:scale-105 transition-transform">
-                        <CheckCircle2 size={26} />
+                    <div className="bg-white rounded-2xl p-3.5 px-4 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-emerald-300 transition-all duration-200 flex items-center gap-3.5 group">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 shrink-0 group-hover:scale-105 transition-transform">
+                        <CheckCircle2 size={20} />
                       </div>
-                      <div className="space-y-1">
-                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 font-mono">Completed & Synced ({activeLocation})</p>
-                        <p className="text-3xl font-black text-slate-900 font-mono tracking-tight">{centerCompleted.length}</p>
-                        <span className="text-[10px] font-bold text-emerald-900 bg-emerald-100/70 px-2 py-0.5 rounded-md font-mono inline-block">
+                      <div className="space-y-0.5">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 font-mono">Completed & Synced ({activeLocation})</p>
+                        <p className="text-2xl font-black text-slate-900 font-mono tracking-tight">{centerCompleted.length}</p>
+                        <span className="text-[9px] font-bold text-emerald-900 bg-emerald-100/70 px-1.5 py-0.5 rounded font-mono inline-block">
                           Transmitted to Admin
                         </span>
                       </div>
@@ -1369,77 +1369,6 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
       }
     });
 
-    if (map.size === 0) {
-      return [
-        {
-          pid: "NCD-DH-1001",
-          name: "Ramesh Kumar",
-          age: "52",
-          gender: "Male",
-          loc: "Dharavi",
-          raw: {
-            participant_id: "NCD-DH-1001",
-            fullName: "Ramesh Kumar",
-            age: "52",
-            gender: "Male",
-            location: "Dharavi",
-            q67: "168",
-            q68: "74",
-            q69: "26.2",
-            q70: "94",
-            q71: "98",
-            q72: "0.96",
-            q74: "78",
-            sys_bp_1: "138",
-            dia_bp_1: "88",
-            sys_bp_2: "134",
-            dia_bp_2: "84",
-            avg_sys_bp: "136",
-            avg_dia_bp: "86",
-            q78: "97",
-            q79: "165",
-            q80: "13.2",
-            q64: "6",
-            q61: "4",
-            q23: "3"
-          }
-        },
-        {
-          pid: "NCD-ML-1002",
-          name: "Sunita Devi",
-          age: "48",
-          gender: "Female",
-          loc: "Malvani",
-          raw: {
-            participant_id: "NCD-ML-1002",
-            fullName: "Sunita Devi",
-            age: "48",
-            gender: "Female",
-            location: "Malvani",
-            q67: "155",
-            q68: "62",
-            q69: "25.8",
-            q70: "86",
-            q71: "95",
-            q72: "0.90",
-            q74: "72",
-            sys_bp_1: "144",
-            dia_bp_1: "92",
-            sys_bp_2: "140",
-            dia_bp_2: "88",
-            avg_sys_bp: "142",
-            avg_dia_bp: "90",
-            q78: "98",
-            q79: "210",
-            q80: "11.5",
-            q64: "12",
-            q61: "9",
-            q23: "1"
-          }
-        }
-      ];
-    }
-
     return Array.from(map.values());
   }, [syncQueue, completedRecords, serverRecords]);
 
@@ -1485,22 +1414,22 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
   const hsi = parseInt(dData.q23 || dData.hsi || dData.custom_q23 || 0, 10);
 
   return (
-    <div className="p-5 sm:p-6 rounded-3xl bg-white border border-purple-200/90 shadow-sm space-y-5">
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-4 border-b border-purple-100 bg-gradient-to-r from-purple-50/60 via-purple-50/20 to-white -mx-5 -mt-5 p-5 rounded-t-3xl">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-purple-600 text-white flex items-center justify-center font-bold shrink-0 shadow-2xs">
+    <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-purple-200/90 shadow-2xs space-y-3">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 pb-3 border-b border-purple-100 bg-gradient-to-r from-purple-50/60 via-purple-50/20 to-white -mx-3.5 -mt-3.5 p-3.5 px-4 rounded-t-2xl">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold shrink-0 shadow-2xs text-sm">
             🩺
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-base font-black text-purple-950 font-sans tracking-tight">
+              <h3 className="text-sm font-black text-purple-950 font-sans tracking-tight">
                 Doctor Participant Vitals &amp; Clinical Inspection Card Grid
               </h3>
-              <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-lg bg-purple-100 text-purple-900 border border-purple-300 font-mono whitespace-nowrap shrink-0">
+              <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-md bg-purple-100 text-purple-900 border border-purple-300 font-mono whitespace-nowrap shrink-0">
                 Doctor Module
               </span>
             </div>
-            <p className="text-xs text-slate-500 font-medium font-mono mt-0.5">
+            <p className="text-[11px] text-slate-500 font-medium font-mono mt-0.5">
               Select any participant below to inspect historical Section 1–11 vitals &amp; anthropometry before Section 12 exam.
             </p>
           </div>
@@ -1511,28 +1440,28 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
             type="button"
             onClick={fetchLiveRecords}
             disabled={loadingServer}
-            className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer font-mono whitespace-nowrap shrink-0"
+            className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer font-mono whitespace-nowrap shrink-0"
             title="Refresh Participant Screening List"
           >
-            <RefreshCw size={13} className={`text-purple-700 ${loadingServer ? 'animate-spin' : ''}`} />
+            <RefreshCw size={12} className={`text-purple-700 ${loadingServer ? 'animate-spin' : ''}`} />
             <span>{loadingServer ? 'Fetching...' : 'Refresh Queue'}</span>
           </button>
 
-          <div className="relative flex-1 sm:w-44 min-w-[140px]">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400" />
+          <div className="relative flex-1 sm:w-40 min-w-[130px]">
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-purple-400" />
             <input
               type="text"
               placeholder="Search ID/Name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-purple-200 bg-white text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-purple-400 font-mono"
+              className="w-full pl-7 pr-2.5 py-1 rounded-lg border border-purple-200 bg-white text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-purple-400 font-mono"
             />
           </div>
 
           <select
             value={selectedPid}
             onChange={(e) => setSelectedPid(e.target.value)}
-            className="w-full sm:w-auto px-3 py-1.5 rounded-xl border border-purple-300 bg-white text-xs font-bold text-purple-950 font-mono outline-none cursor-pointer focus:ring-2 focus:ring-purple-400 shadow-2xs max-w-xs"
+            className="w-full sm:w-auto px-2.5 py-1 rounded-lg border border-purple-300 bg-white text-xs font-bold text-purple-950 font-mono outline-none cursor-pointer focus:ring-2 focus:ring-purple-400 shadow-2xs max-w-xs"
           >
             {filteredParticipants.length === 0 ? (
               <option value="">-- No Participants Found --</option>
@@ -1548,10 +1477,10 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
       </div>
 
       {selectedParticipant ? (
-        <div className="space-y-4">
-          <div className="p-3.5 rounded-2xl bg-purple-50/70 border border-purple-200/90 flex flex-wrap items-center justify-between gap-3 font-mono text-xs shadow-2xs">
-            <div className="flex items-center gap-4 flex-wrap">
-              <span className="font-black text-purple-950 bg-white px-3 py-1 rounded-xl border border-purple-300 shadow-2xs">
+        <div className="space-y-3">
+          <div className="p-2.5 px-3 rounded-xl bg-purple-50/70 border border-purple-200/90 flex flex-wrap items-center justify-between gap-2 font-mono text-xs shadow-2xs">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="font-black text-purple-950 bg-white px-2.5 py-0.5 rounded-lg border border-purple-300 shadow-2xs">
                 ID: {selectedParticipant.pid}
               </span>
               <span className="font-extrabold text-slate-900">
@@ -1569,41 +1498,41 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
               <button
                 type="button"
                 onClick={() => onOpenSurvey({ sur_id: 1, participant_id: selectedParticipant.pid })}
-                className="px-4 py-2 rounded-xl bg-purple-900 hover:bg-black text-white font-extrabold transition-colors text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs font-sans"
+                className="px-3 py-1 rounded-lg bg-purple-900 hover:bg-black text-white font-extrabold transition-colors text-xs flex items-center gap-1 cursor-pointer shadow-2xs font-sans"
               >
-                <span>Proceed to Section 12 Clinical Exam →</span>
+                <span>Proceed to Section 12 Exam →</span>
               </button>
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             
             {/* Card 1: Anthropometry & BMI */}
-            <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200 space-y-2 font-mono">
+            <div className="p-3 rounded-xl bg-amber-50/50 border border-amber-200 space-y-1.5 font-mono">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-black uppercase text-amber-900 flex items-center gap-1.5">
+                <span className="text-xs font-black uppercase text-amber-900 flex items-center gap-1">
                   📏 Anthropometry &amp; BMI
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-100 text-amber-950 border border-amber-300">
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-950 border border-amber-300">
                   Sec 9
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+              <div className="grid grid-cols-2 gap-2 text-xs pt-0.5">
                 <div>
-                  <span className="text-[10px] text-slate-500 block">Q67 Height:</span>
+                  <span className="text-[9px] text-slate-500 block">Q67 Height:</span>
                   <span className="font-bold text-slate-900">{height > 0 ? `${height} cm` : '—'}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-500 block">Q68 Weight:</span>
+                  <span className="text-[9px] text-slate-500 block">Q68 Weight:</span>
                   <span className="font-bold text-slate-900">{weight > 0 ? `${weight} kg` : '—'}</span>
                 </div>
               </div>
-              <div className="pt-2 border-t border-amber-200/80 flex items-center justify-between">
+              <div className="pt-1.5 border-t border-amber-200/80 flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] text-amber-800 font-bold block">Q69 Calculated BMI:</span>
-                  <span className="text-xl font-black text-amber-950">{bmi > 0 ? bmi : '—'} <span className="text-xs font-bold text-slate-500">kg/m²</span></span>
+                  <span className="text-[9px] text-amber-800 font-bold block">Q69 Calculated BMI:</span>
+                  <span className="text-lg font-black text-amber-950">{bmi > 0 ? bmi : '—'} <span className="text-[10px] font-bold text-slate-500">kg/m²</span></span>
                 </div>
-                <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-xl border ${
+                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-lg border ${
                   bmi === 0 ? 'bg-slate-100 text-slate-600 border-slate-200' :
                   bmi < 18.5 ? 'bg-blue-100 text-blue-900 border-blue-300' :
                   bmi <= 22.9 ? 'bg-emerald-100 text-emerald-950 border-emerald-300' :
@@ -1616,31 +1545,31 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
             </div>
 
             {/* Card 2: Abdominal Obesity & WHR */}
-            <div className="p-4 rounded-2xl bg-orange-50/50 border border-orange-200 space-y-2 font-mono">
+            <div className="p-3 rounded-xl bg-orange-50/50 border border-orange-200 space-y-1.5 font-mono">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-black uppercase text-orange-950 flex items-center gap-1.5">
+                <span className="text-xs font-black uppercase text-orange-950 flex items-center gap-1">
                   📐 Abdominal Obesity &amp; WHR
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-orange-100 text-orange-950 border border-orange-300">
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-950 border border-orange-300">
                   Sec 9
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+              <div className="grid grid-cols-2 gap-2 text-xs pt-0.5">
                 <div>
-                  <span className="text-[10px] text-slate-500 block">Q70 Waist:</span>
+                  <span className="text-[9px] text-slate-500 block">Q70 Waist:</span>
                   <span className="font-bold text-slate-900">{waist > 0 ? `${waist} cm` : '—'}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-500 block">Q71 Hip:</span>
+                  <span className="text-[9px] text-slate-500 block">Q71 Hip:</span>
                   <span className="font-bold text-slate-900">{hip > 0 ? `${hip} cm` : '—'}</span>
                 </div>
               </div>
-              <div className="pt-2 border-t border-orange-200/80 flex items-center justify-between">
+              <div className="pt-1.5 border-t border-orange-200/80 flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] text-orange-800 font-bold block">Q72 Waist-Hip Ratio:</span>
-                  <span className="text-xl font-black text-orange-950">{whr > 0 ? whr : '—'}</span>
+                  <span className="text-[9px] text-orange-800 font-bold block">Q72 Waist-Hip Ratio:</span>
+                  <span className="text-lg font-black text-orange-950">{whr > 0 ? whr : '—'}</span>
                 </div>
-                <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-xl border ${
+                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-lg border ${
                   whr === 0 ? 'bg-slate-100 text-slate-600 border-slate-200' :
                   whr >= 0.90 ? 'bg-red-100 text-red-950 border-red-300 font-black' :
                   'bg-emerald-100 text-emerald-950 border-emerald-300'
@@ -1651,33 +1580,33 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
             </div>
 
             {/* Card 3: Hemodynamics & Vitals */}
-            <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200 space-y-2 font-mono">
+            <div className="p-3 rounded-xl bg-emerald-50/50 border border-emerald-200 space-y-1.5 font-mono">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-black uppercase text-emerald-950 flex items-center gap-1.5">
+                <span className="text-xs font-black uppercase text-emerald-950 flex items-center gap-1">
                   ❤️ Vitals, Pulse &amp; BP
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-950 border border-emerald-300">
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-950 border border-emerald-300">
                   Sec 10
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+              <div className="grid grid-cols-2 gap-2 text-xs pt-0.5">
                 <div>
-                  <span className="text-[10px] text-slate-500 block">Q74 Pulse Rate:</span>
+                  <span className="text-[9px] text-slate-500 block">Q74 Pulse Rate:</span>
                   <span className="font-bold text-slate-900">{pulse > 0 ? `${pulse} bpm` : '—'}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-500 block">Q78 SpO₂:</span>
+                  <span className="text-[9px] text-slate-500 block">Q78 SpO₂:</span>
                   <span className="font-bold text-slate-900">{spo2 > 0 ? `${spo2} %` : '—'}</span>
                 </div>
               </div>
-              <div className="pt-2 border-t border-emerald-200/80 flex items-center justify-between">
+              <div className="pt-1.5 border-t border-emerald-200/80 flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] text-emerald-800 font-bold block">Q77 Average Blood Pressure:</span>
+                  <span className="text-[9px] text-emerald-800 font-bold block">Q77 Average Blood Pressure:</span>
                   <span className="text-base font-black text-emerald-950">
-                    {avgSys > 0 && avgDia > 0 ? `${avgSys} / ${avgDia}` : (sys1 > 0 && dia1 > 0 ? `${sys1} / ${dia1}` : '—')} <span className="text-[10px] font-normal">mmHg</span>
+                    {avgSys > 0 && avgDia > 0 ? `${avgSys} / ${avgDia}` : (sys1 > 0 && dia1 > 0 ? `${sys1} / ${dia1}` : '—')} <span className="text-[9px] font-normal">mmHg</span>
                   </span>
                 </div>
-                <span className={`text-[10px] font-extrabold px-2 py-1 rounded-xl border ${
+                <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-lg border ${
                   avgSys >= 140 || avgDia >= 90 ? 'bg-red-100 text-red-950 border-red-300 font-black' :
                   avgSys >= 130 || avgDia >= 80 ? 'bg-amber-100 text-amber-950 border-amber-300' :
                   avgSys > 0 ? 'bg-emerald-100 text-emerald-950 border-emerald-300' : 'bg-slate-100 text-slate-600 border-slate-200'
