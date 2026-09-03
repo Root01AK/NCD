@@ -581,71 +581,144 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
 
             </div>
 
-            {/* Doctor Dashboard: Participant Vitals & Clinical Inspection Card Grid */}
-            {Boolean(user?.role_name?.toLowerCase().includes("doctor") || (user?.role_id === 4)) && (
-              <DoctorVitalsCardGrid 
-                syncQueue={syncQueue} 
-                completedRecords={completedRecords}
-                onOpenSurvey={openSurvey} 
-              />
-            )}
+            {/* Doctor Parallel Layout vs Non-Doctor Standard Layout */}
+            {Boolean(user?.role_name?.toLowerCase().includes("doctor") || (user?.role_id === 4)) ? (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 pt-1">
+                
+                {/* Left Column: Active Screening Suite & Role Privileges (4 of 12 cols) */}
+                <div className="lg:col-span-4 space-y-3.5">
+                  <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3">
+                    <div>
+                      <h2 className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+                        <FileText size={16} className="text-amber-600" />
+                        <span>Active Screening Suite</span>
+                      </h2>
+                      <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                        Select a program to start participant screening &amp; demographics entry for {localStorage.getItem('ncd_active_location') || user?.assigned_location || "Dharavi"} Center.
+                      </p>
+                    </div>
 
-            {/* Active Screening Survey Program Suite */}
-            <div className="space-y-4 pt-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                    Active Screening Program Suite
-                  </h2>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">
-                    Select a program to start participant screening & demographics entry for {localStorage.getItem('ncd_active_location') || user?.assigned_location || "Dharavi"} Center.
-                  </p>
+                    {loading ? (
+                      <div className="flex items-center justify-center py-8 bg-slate-50 rounded-xl border border-slate-200">
+                        <Loader2 className="animate-spin text-slate-400" size={20} />
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {surveys.map((survey) => (
+                          <div
+                            key={survey.sur_id || survey.sur_code}
+                            onClick={() => openSurvey(survey)}
+                            className="bg-slate-50 hover:bg-amber-50/40 rounded-xl p-3.5 border border-slate-200 hover:border-amber-300 transition-all cursor-pointer group flex flex-col justify-between space-y-2.5"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
+                                  <FileText size={16} className="text-amber-600" />
+                                </div>
+                                <div>
+                                  <h3 className="text-xs font-black text-slate-900 group-hover:text-amber-900 transition-colors leading-snug">
+                                    {survey.sur_title || "MUMBAI'S NCD SURVEY — PHASE II"}
+                                  </h3>
+                                  <p className="text-[10px] text-slate-500 font-mono">
+                                    {survey.sur_code || "NCD-MUM-2026"}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] font-bold text-slate-800">
+                              <span className="text-amber-900 font-extrabold font-mono text-[10px]">
+                                Start Screening Form
+                              </span>
+                              <div className="w-6 h-6 rounded-full bg-slate-200 group-hover:bg-[#f5d40b] flex items-center justify-center transition-colors">
+                                <ArrowRight size={12} className="text-slate-600 group-hover:text-[#4a4a4c] transition-colors" />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Doctor Role Privilege Summary Card */}
+                  <div className="bg-purple-50/60 rounded-2xl p-3.5 border border-purple-200/90 space-y-1.5 font-mono text-xs">
+                    <div className="flex items-center gap-2 text-purple-950 font-black text-xs">
+                      <span>🩺 Doctor Workstation Role</span>
+                    </div>
+                    <p className="text-[11px] text-purple-900 leading-normal">
+                      • Sections 1–11 (Vitals, Lab, Anthropometry) are <strong>Read-Only</strong>.<br />
+                      • Sections 12 &amp; 13 (Clinical Exam &amp; Referral) are <strong>Editable</strong>.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Right Column: Doctor Vitals Card Grid (8 of 12 cols) */}
+                <div className="lg:col-span-8">
+                  <DoctorVitalsCardGrid 
+                    syncQueue={syncQueue} 
+                    completedRecords={completedRecords}
+                    onOpenSurvey={openSurvey} 
+                  />
                 </div>
               </div>
-
-              {loading ? (
-                <div className="flex items-center justify-center py-16 bg-white rounded-3xl border border-slate-200">
-                  <Loader2 className="animate-spin text-slate-400" size={28} />
+            ) : (
+              /* Active Screening Survey Program Suite for Non-Doctor Roles */
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                      Active Screening Program Suite
+                    </h2>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                      Select a program to start participant screening &amp; demographics entry for {localStorage.getItem('ncd_active_location') || user?.assigned_location || "Dharavi"} Center.
+                    </p>
+                  </div>
                 </div>
-              ) : (
-                <div className="grid md:grid-cols-2 gap-6">
-                  {surveys.map((survey) => (
-                    <div
-                      key={survey.sur_id || survey.sur_code}
-                      onClick={() => openSurvey(survey)}
-                      className="bg-white hover:bg-amber-50/30 rounded-3xl p-6 shadow-2xs hover:shadow-md border border-slate-200 hover:border-amber-300 transition-all cursor-pointer group flex flex-col justify-between"
-                    >
-                      <div>
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-amber-500/10 border border-amber-500/20 group-hover:scale-105 transition-transform">
-                            <FileText size={22} className="text-amber-600" />
+
+                {loading ? (
+                  <div className="flex items-center justify-center py-16 bg-white rounded-3xl border border-slate-200">
+                    <Loader2 className="animate-spin text-slate-400" size={28} />
+                  </div>
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {surveys.map((survey) => (
+                      <div
+                        key={survey.sur_id || survey.sur_code}
+                        onClick={() => openSurvey(survey)}
+                        className="bg-white hover:bg-amber-50/30 rounded-3xl p-6 shadow-2xs hover:shadow-md border border-slate-200 hover:border-amber-300 transition-all cursor-pointer group flex flex-col justify-between"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-amber-500/10 border border-amber-500/20 group-hover:scale-105 transition-transform">
+                              <FileText size={22} className="text-amber-600" />
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-mono border border-slate-200">
+                              {survey.sur_code || "NCD-MUM-2026"}
+                            </span>
                           </div>
-                          <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-mono border border-slate-200">
-                            {survey.sur_code || "NCD-MUM-2026"}
+
+                          <h3 className="text-xl font-bold text-slate-900 group-hover:text-amber-800 transition-colors leading-snug">
+                            {survey.sur_title || "MUMBAI'S NCD SURVEY — PHASE II"}
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-1 font-medium">
+                            Non-Communicable Disease Screening for {localStorage.getItem('ncd_active_location') || user?.assigned_location || "Dharavi"} Center.
+                          </p>
+                        </div>
+
+                        <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-800">
+                          <span className="flex items-center gap-1.5 text-amber-800 font-extrabold font-mono">
+                            Start Assigned Screening Form
                           </span>
-                        </div>
-
-                        <h3 className="text-xl font-bold text-slate-900 group-hover:text-amber-800 transition-colors leading-snug">
-                          {survey.sur_title || "MUMBAI'S NCD SURVEY — PHASE II"}
-                        </h3>
-                        <p className="text-xs text-slate-500 mt-1 font-medium">
-                          Non-Communicable Disease Screening for {localStorage.getItem('ncd_active_location') || user?.assigned_location || "Dharavi"} Center.
-                        </p>
-                      </div>
-
-                      <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-800">
-                        <span className="flex items-center gap-1.5 text-amber-800 font-extrabold font-mono">
-                          Start Assigned Screening Form
-                        </span>
-                        <div className="w-8 h-8 rounded-full bg-slate-100 group-hover:bg-[#f5d40b] flex items-center justify-center transition-colors">
-                          <ArrowRight size={15} className="text-slate-600 group-hover:text-[#4a4a4c] transition-colors" />
+                          <div className="w-8 h-8 rounded-full bg-slate-100 group-hover:bg-[#f5d40b] flex items-center justify-center transition-colors">
+                            <ArrowRight size={15} className="text-slate-600 group-hover:text-[#4a4a4c] transition-colors" />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
           </div>
         )}
