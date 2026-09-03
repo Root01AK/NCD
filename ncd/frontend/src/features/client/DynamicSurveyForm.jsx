@@ -976,6 +976,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   };
 
   const updateCustomField = (q, val) => {
+    if (isQuestionReadOnlyForUser(q)) return;
     const titleLower = (q.title || "").toLowerCase();
     const isAgeField = isAgeQuestion(q);
 
@@ -1260,6 +1261,43 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       return `Invalid Value: Entered value (${num}) exceeds the maximum allowed limit of ${maxBound}.`;
     }
     return null;
+  };
+
+  const isQuestionReadOnlyForUser = (q) => {
+    if (!q) return false;
+    if (!isDoctor) return false;
+
+    const titleStr = String(q.title || "").trim();
+    const qMatch = titleStr.match(/^Q(\d+)/i);
+    let qSec = q.section ? parseInt(q.section, 10) : 1;
+
+    if (qMatch) {
+      const qNum = parseInt(qMatch[1], 10);
+      if (qNum >= 1 && qNum <= 8) qSec = 1;
+      else if (qNum >= 9 && qNum <= 16) qSec = 2;
+      else if (qNum >= 17 && qNum <= 24) qSec = 3;
+      else if (qNum >= 25 && qNum <= 32) qSec = 4;
+      else if (qNum >= 33 && qNum <= 39) qSec = 5;
+      else if (qNum >= 40 && qNum <= 47) qSec = 6;
+      else if (qNum >= 48 && qNum <= 57) qSec = 7;
+      else if (qNum >= 58 && qNum <= 66) qSec = 8;
+      else if (qNum >= 67 && qNum <= 72) qSec = 9;
+      else if (qNum >= 73 && qNum <= 80) qSec = 10;
+      else if (qNum >= 81 && qNum <= 88) qSec = 11;
+      else if (qNum >= 89 && qNum <= 93) qSec = 12;
+      else if (qNum >= 94 && qNum <= 96) qSec = 13;
+      else if (qNum >= 97 && qNum <= 106) qSec = 14;
+      else if (qNum >= 107 && qNum <= 112) qSec = 15;
+      else if (qNum >= 113) qSec = 16;
+    } else {
+      const idStr = String(q.id || "").toLowerCase();
+      if (idStr.startsWith("sec_")) {
+        const secMatch = idStr.match(/sec_(\d+)/);
+        if (secMatch) qSec = parseInt(secMatch[1], 10);
+      }
+    }
+
+    return qSec <= 11;
   };
 
   const isQ93FollowupDateQuestion = (q) => {
@@ -2320,7 +2358,11 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                             {qTitleDisplay} {q.required && <span className="text-red-500">*</span>}
                           </label>
 
-                          {isQ3LocationQuestion(q) ? (
+                          {isQuestionReadOnlyForUser(q) ? (
+                            <span className="text-[10px] font-mono font-extrabold px-2.5 py-1 rounded-xl bg-purple-50 text-purple-900 border border-purple-200 shadow-2xs shrink-0 flex items-center gap-1">
+                              <Lock size={10} className="text-purple-600" /> Read-Only (Doctor View)
+                            </span>
+                          ) : isQ3LocationQuestion(q) ? (
                             <span className="text-[10px] font-mono font-extrabold px-2.5 py-1 rounded-xl bg-amber-50 text-amber-950 border border-amber-300 shadow-2xs shrink-0">
                               Auto-Fetched (Read-Only)
                             </span>
@@ -3057,15 +3099,23 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                         ) : qType === 'short_text' ? (
                           <input 
                             type="text" 
-                            placeholder="Enter text response..." 
+                            disabled={isQuestionReadOnlyForUser(q)}
+                            readOnly={isQuestionReadOnlyForUser(q)}
+                            placeholder={isQuestionReadOnlyForUser(q) ? "Read-Only (Recorded Upstream)" : "Enter text response..."} 
                             value={data[`custom_${q.id}`] || data[q.id] || ''} 
                             onChange={(e) => updateCustomField(q, e.target.value)} 
-                            className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-amber-400 shadow-2xs" 
+                            className={`w-full px-3.5 py-2 rounded-xl border text-xs font-semibold shadow-2xs ${
+                              isQuestionReadOnlyForUser(q) 
+                                ? 'bg-slate-100/80 border-slate-200 text-slate-700 cursor-not-allowed select-none' 
+                                : 'border-slate-300 bg-white text-slate-900 outline-none focus:ring-2 focus:ring-amber-400'
+                            }`} 
                           />
                         ) : qType === 'number' ? (
                           <input 
                             type="number" 
-                            placeholder="Enter numerical value..." 
+                            disabled={isQuestionReadOnlyForUser(q)}
+                            readOnly={isQuestionReadOnlyForUser(q)}
+                            placeholder={isQuestionReadOnlyForUser(q) ? "Read-Only" : "Enter numerical value..."} 
                             value={data[`custom_${q.id}`] || data[q.id] || ''} 
                             onChange={(e) => {
                               const val = e.target.value;

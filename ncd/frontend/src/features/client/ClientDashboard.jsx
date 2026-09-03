@@ -581,6 +581,15 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
 
             </div>
 
+            {/* Doctor Dashboard: Participant Vitals & Clinical Inspection Card Grid */}
+            {Boolean(user?.role_name?.toLowerCase().includes("doctor") || (user?.role_id === 4)) && (
+              <DoctorVitalsCardGrid 
+                syncQueue={syncQueue} 
+                completedRecords={completedRecords}
+                onOpenSurvey={openSurvey} 
+              />
+            )}
+
             {/* Active Screening Survey Program Suite */}
             <div className="space-y-4 pt-2">
               <div className="flex items-center justify-between">
@@ -1302,6 +1311,312 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
         </span>
       </footer>
 
+    </div>
+  );
+}
+
+function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSurvey }) {
+  const [selectedPid, setSelectedPid] = useState("");
+
+  const participantsList = React.useMemo(() => {
+    const map = new Map();
+    [...syncQueue, ...completedRecords].forEach(item => {
+      let raw = {};
+      if (item.mem_scrn_q30) {
+        try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
+      }
+      const pid = item.participant_id || item.mem_scrn_part_id || raw.participant_id || raw.mem_scrn_part_id;
+      if (pid && !map.has(String(pid).toUpperCase().trim())) {
+        const name = item.fullName || raw.fullName || item.mem_scrn_q16 || raw.mem_scrn_q16 || "Participant";
+        const age = item.age || raw.age || item.mem_scrn_q1 || raw.mem_scrn_q1 || "—";
+        const gender = item.gender || raw.gender || (item.mem_scrn_q2 == '1' ? 'Male' : 'Female') || "—";
+        const loc = item.location || raw.location || item.mem_scrn_q17 || "Dharavi";
+        map.set(String(pid).toUpperCase().trim(), {
+          pid: String(pid).toUpperCase().trim(),
+          name,
+          age,
+          gender,
+          loc,
+          item,
+          raw
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [syncQueue, completedRecords]);
+
+  useEffect(() => {
+    if (!selectedPid && participantsList.length > 0) {
+      setSelectedPid(participantsList[0].pid);
+    }
+  }, [participantsList, selectedPid]);
+
+  const selectedParticipant = participantsList.find(p => p.pid === selectedPid) || participantsList[0];
+  const dData = selectedParticipant?.raw || selectedParticipant?.item || {};
+
+  const height = parseFloat(dData.q67 || dData.height || dData.custom_q67 || 0);
+  const weight = parseFloat(dData.q68 || dData.weight || dData.custom_q68 || 0);
+  const bmi = parseFloat(dData.q69 || dData.bmi || dData.custom_q69 || 0);
+
+  const waist = parseFloat(dData.q70 || dData.waist || dData.custom_q70 || 0);
+  const hip = parseFloat(dData.q71 || dData.hip || dData.custom_q71 || 0);
+  const whr = parseFloat(dData.q72 || dData.whr || dData.custom_q72 || 0);
+
+  const pulse = parseFloat(dData.q74 || dData.pulse || dData.custom_q74 || 0);
+  const sys1 = parseFloat(dData.sys_bp_1 || dData.q75_sys || 0);
+  const dia1 = parseFloat(dData.dia_bp_1 || dData.q75_dia || 0);
+  const avgSys = parseFloat(dData.avg_sys_bp || 0);
+  const avgDia = parseFloat(dData.avg_dia_bp || 0);
+  const spo2 = parseFloat(dData.q78 || dData.spo2 || dData.custom_q78 || 0);
+
+  const rbs = parseFloat(dData.q79 || dData.rbs || dData.custom_q79 || 0);
+  const hb = parseFloat(dData.q80 || dData.hb || dData.custom_q80 || 0);
+
+  const phq9 = parseInt(dData.q64 || dData.phq9 || dData.custom_q64 || 0, 10);
+  const gad7 = parseInt(dData.q61 || dData.gad7 || dData.custom_q61 || 0, 10);
+  const hsi = parseInt(dData.q23 || dData.hsi || dData.custom_q23 || 0, 10);
+
+  return (
+    <div className="p-5 rounded-3xl bg-white border border-purple-200 shadow-2xs space-y-5">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+        <div className="flex items-center gap-2.5">
+          <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold shrink-0">
+            🩺
+          </div>
+          <div>
+            <h3 className="text-base font-black text-slate-900 font-sans tracking-tight">
+              Doctor Participant Vitals &amp; Clinical Inspection Card Grid
+            </h3>
+            <p className="text-xs text-slate-500 font-medium font-mono">
+              Select any participant below to inspect historical Section 1–11 vitals &amp; anthropometry before Section 12 exam.
+            </p>
+          </div>
+        </div>
+
+        <div className="w-full sm:w-auto flex items-center gap-2">
+          <label className="text-xs font-bold text-slate-700 uppercase font-mono shrink-0">Select Participant:</label>
+          <select
+            value={selectedPid}
+            onChange={(e) => setSelectedPid(e.target.value)}
+            className="px-3.5 py-2 rounded-xl border border-purple-300 bg-purple-50/50 text-xs font-bold text-purple-950 font-mono outline-none cursor-pointer focus:ring-2 focus:ring-purple-400"
+          >
+            {participantsList.length === 0 ? (
+              <option value="">-- No Participants Available --</option>
+            ) : (
+              participantsList.map(p => (
+                <option key={p.pid} value={p.pid}>
+                  {p.pid} — {p.name} ({p.gender}, {p.age} yrs - {p.loc})
+                </option>
+              ))
+            )}
+          </select>
+        </div>
+      </div>
+
+      {selectedParticipant ? (
+        <div className="space-y-4">
+          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/90 flex flex-wrap items-center justify-between gap-3 font-mono text-xs">
+            <div className="flex items-center gap-4">
+              <span className="font-black text-purple-950 bg-purple-100 px-3 py-1 rounded-xl border border-purple-200">
+                ID: {selectedParticipant.pid}
+              </span>
+              <span className="font-bold text-slate-800">
+                Name: {selectedParticipant.name}
+              </span>
+              <span className="text-slate-600">
+                Demographics: {selectedParticipant.gender}, {selectedParticipant.age} yrs
+              </span>
+              <span className="text-slate-600">
+                Center: {selectedParticipant.loc}
+              </span>
+            </div>
+
+            {onOpenSurvey && (
+              <button
+                type="button"
+                onClick={() => onOpenSurvey({ sur_id: 1, participant_id: selectedParticipant.pid })}
+                className="px-4 py-1.5 rounded-xl bg-purple-900 text-white font-bold hover:bg-black transition-colors text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              >
+                <span>Proceed to Section 12 Exam →</span>
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            
+            {/* Card 1: Anthropometry & BMI */}
+            <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200 space-y-2 font-mono">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase text-amber-900 flex items-center gap-1.5">
+                  📏 Anthropometry &amp; BMI
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-100 text-amber-950 border border-amber-300">
+                  Sec 9
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                <div>
+                  <span className="text-[10px] text-slate-500 block">Q67 Height:</span>
+                  <span className="font-bold text-slate-900">{height > 0 ? `${height} cm` : '—'}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 block">Q68 Weight:</span>
+                  <span className="font-bold text-slate-900">{weight > 0 ? `${weight} kg` : '—'}</span>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-amber-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-amber-800 font-bold block">Q69 Calculated BMI:</span>
+                  <span className="text-xl font-black text-amber-950">{bmi > 0 ? bmi : '—'} <span className="text-xs font-bold text-slate-500">kg/m²</span></span>
+                </div>
+                <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-xl border ${
+                  bmi === 0 ? 'bg-slate-100 text-slate-600 border-slate-200' :
+                  bmi < 18.5 ? 'bg-blue-100 text-blue-900 border-blue-300' :
+                  bmi <= 22.9 ? 'bg-emerald-100 text-emerald-950 border-emerald-300' :
+                  bmi <= 24.9 ? 'bg-amber-100 text-amber-950 border-amber-300' :
+                  'bg-red-100 text-red-950 border-red-300 animate-pulse'
+                }`}>
+                  {bmi === 0 ? '—' : bmi < 18.5 ? 'Underweight' : bmi <= 22.9 ? 'Normal' : bmi <= 24.9 ? 'Overweight' : 'Obese'}
+                </span>
+              </div>
+            </div>
+
+            {/* Card 2: Abdominal Obesity & WHR */}
+            <div className="p-4 rounded-2xl bg-orange-50/50 border border-orange-200 space-y-2 font-mono">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase text-orange-950 flex items-center gap-1.5">
+                  📐 Abdominal Obesity &amp; WHR
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-orange-100 text-orange-950 border border-orange-300">
+                  Sec 9
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                <div>
+                  <span className="text-[10px] text-slate-500 block">Q70 Waist:</span>
+                  <span className="font-bold text-slate-900">{waist > 0 ? `${waist} cm` : '—'}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 block">Q71 Hip:</span>
+                  <span className="font-bold text-slate-900">{hip > 0 ? `${hip} cm` : '—'}</span>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-orange-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-orange-800 font-bold block">Q72 Waist-Hip Ratio:</span>
+                  <span className="text-xl font-black text-orange-950">{whr > 0 ? whr : '—'}</span>
+                </div>
+                <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-xl border ${
+                  whr === 0 ? 'bg-slate-100 text-slate-600 border-slate-200' :
+                  whr >= 0.90 ? 'bg-red-100 text-red-950 border-red-300 font-black' :
+                  'bg-emerald-100 text-emerald-950 border-emerald-300'
+                }`}>
+                  {whr === 0 ? '—' : whr >= 0.90 ? 'High WHR Risk' : 'Normal WHR'}
+                </span>
+              </div>
+            </div>
+
+            {/* Card 3: Hemodynamics & Vitals */}
+            <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200 space-y-2 font-mono">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase text-emerald-950 flex items-center gap-1.5">
+                  ❤️ Vitals, Pulse &amp; BP
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-950 border border-emerald-300">
+                  Sec 10
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                <div>
+                  <span className="text-[10px] text-slate-500 block">Q74 Pulse Rate:</span>
+                  <span className="font-bold text-slate-900">{pulse > 0 ? `${pulse} bpm` : '—'}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 block">Q78 SpO₂:</span>
+                  <span className="font-bold text-slate-900">{spo2 > 0 ? `${spo2} %` : '—'}</span>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-emerald-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-emerald-800 font-bold block">Q77 Average Blood Pressure:</span>
+                  <span className="text-base font-black text-emerald-950">
+                    {avgSys > 0 && avgDia > 0 ? `${avgSys} / ${avgDia}` : (sys1 > 0 && dia1 > 0 ? `${sys1} / ${dia1}` : '—')} <span className="text-[10px] font-normal">mmHg</span>
+                  </span>
+                </div>
+                <span className={`text-[10px] font-extrabold px-2 py-1 rounded-xl border ${
+                  avgSys >= 140 || avgDia >= 90 ? 'bg-red-100 text-red-950 border-red-300 font-black' :
+                  avgSys >= 130 || avgDia >= 80 ? 'bg-amber-100 text-amber-950 border-amber-300' :
+                  avgSys > 0 ? 'bg-emerald-100 text-emerald-950 border-emerald-300' : 'bg-slate-100 text-slate-600 border-slate-200'
+                }`}>
+                  {avgSys >= 140 || avgDia >= 90 ? 'Stage 2 HTN' : avgSys >= 130 || avgDia >= 80 ? 'Stage 1 HTN' : avgSys > 0 ? 'Normal BP' : '—'}
+                </span>
+              </div>
+            </div>
+
+            {/* Card 4: Point-of-Care Lab Tests */}
+            <div className="p-4 rounded-2xl bg-rose-50/50 border border-rose-200 space-y-2 font-mono">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase text-rose-950 flex items-center gap-1.5">
+                  🩸 POC Lab Investigations
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-rose-100 text-rose-950 border border-rose-300">
+                  Sec 11
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                <div>
+                  <span className="text-[10px] text-slate-500 block">Q79 Random Blood Sugar:</span>
+                  <span className="text-base font-black text-rose-950">{rbs > 0 ? rbs : '—'} <span className="text-[10px] font-normal">mg/dL</span></span>
+                  <span className={`text-[9px] font-bold block ${rbs >= 200 ? 'text-red-700' : rbs >= 140 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                    {rbs >= 200 ? 'Diabetic Range' : rbs >= 140 ? 'Pre-Diabetic Range' : rbs > 0 ? 'Normal RBS' : ''}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 block">Q80 Haemoglobin (Hb):</span>
+                  <span className="text-base font-black text-rose-950">{hb > 0 ? hb : '—'} <span className="text-[10px] font-normal">g/dL</span></span>
+                  <span className={`text-[9px] font-bold block ${hb < 11 ? 'text-red-700' : 'text-emerald-700'}`}>
+                    {hb < 11 && hb > 0 ? 'Anemic' : hb > 0 ? 'Normal Hb' : ''}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 5: Psychosocial & Addiction Risk */}
+            <div className="p-4 rounded-2xl bg-purple-50/50 border border-purple-200 space-y-2 font-mono md:col-span-2 lg:col-span-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase text-purple-950 flex items-center gap-1.5">
+                  🧠 Mental Health &amp; Nicotine Risk Scores
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-purple-100 text-purple-950 border border-purple-300">
+                  Sec 3 &amp; Sec 8
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-3 text-xs pt-1">
+                <div className="p-2.5 rounded-xl bg-white border border-purple-200">
+                  <span className="text-[10px] text-slate-500 block">Q64 PHQ-9 Depression:</span>
+                  <span className="text-lg font-black text-purple-950">{phq9} <span className="text-xs font-normal text-slate-400">/ 27</span></span>
+                  <span className="text-[10px] font-bold text-purple-800 block">{phq9 >= 10 ? 'Clinically Significant' : 'Low Depression Risk'}</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white border border-purple-200">
+                  <span className="text-[10px] text-slate-500 block">Q61 GAD-7 Anxiety:</span>
+                  <span className="text-lg font-black text-purple-950">{gad7} <span className="text-xs font-normal text-slate-400">/ 21</span></span>
+                  <span className="text-[10px] font-bold text-purple-800 block">{gad7 >= 10 ? 'Clinically Significant' : 'Low Anxiety Risk'}</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white border border-purple-200">
+                  <span className="text-[10px] text-slate-500 block">Q23 Nicotine HSI Index:</span>
+                  <span className="text-lg font-black text-purple-950">{hsi} <span className="text-xs font-normal text-slate-400">/ 6</span></span>
+                  <span className="text-[10px] font-bold text-purple-800 block">{hsi >= 4 ? 'High Dependence' : 'Low/Mod Dependence'}</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      ) : (
+        <div className="p-8 text-center text-xs font-mono text-slate-500 bg-slate-50 rounded-2xl border border-slate-200">
+          No participant records available to inspect yet.
+        </div>
+      )}
     </div>
   );
 }
