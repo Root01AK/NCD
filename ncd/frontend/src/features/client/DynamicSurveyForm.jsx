@@ -2306,15 +2306,15 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                         );
                       }
 
-                      // Determine view mode for question (Defaults to Grid layout first for all options)
+                      // Determine view mode for question (Defaults to Dropdown layout first for all options)
                       const userMode = viewModes[q.id];
-                      const effectiveMode = userMode || "grid";
+                      const effectiveMode = userMode || "dropdown";
                       const qTitleDisplay = String(q.title || "").match(/^Q\d+/i) ? q.title : `${absoluteIdx + 1}. ${q.title}`;
 
                     return (
                       <div key={q.id || absoluteIdx} className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-2xs space-y-4 hover:border-slate-300 transition-all">
                         
-                        {/* Question Header & Layout View Switcher (First Grid, Second Dropdown) */}
+                        {/* Question Header & Layout View Switcher (First Dropdown, Second Grid) */}
                         <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
                           <label className="block text-xs sm:text-sm font-extrabold text-slate-900 leading-relaxed flex-1">
                             {qTitleDisplay} {q.required && <span className="text-red-500">*</span>}
@@ -2328,21 +2328,21 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                             <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200/80 shadow-2xs shrink-0 font-mono">
                               <button
                                 type="button"
-                                title="Grid / Pills View"
-                                onClick={() => setViewModes(prev => ({ ...prev, [q.id]: "grid" }))}
-                                className={`px-2.5 py-1 rounded-lg text-[10px] flex items-center gap-1 transition-all cursor-pointer ${effectiveMode === "grid" ? 'bg-[#f5d40b] text-[#4a4a4c] font-black shadow-2xs' : 'text-slate-500 font-bold hover:bg-slate-200/60'}`}
-                              >
-                                <LayoutGrid size={12} />
-                                <span>Grid</span>
-                              </button>
-                              <button
-                                type="button"
                                 title="Dropdown View"
                                 onClick={() => setViewModes(prev => ({ ...prev, [q.id]: "dropdown" }))}
                                 className={`px-2.5 py-1 rounded-lg text-[10px] flex items-center gap-1 transition-all cursor-pointer ${effectiveMode === "dropdown" ? 'bg-[#f5d40b] text-[#4a4a4c] font-black shadow-2xs' : 'text-slate-500 font-bold hover:bg-slate-200/60'}`}
                               >
                                 <ChevronDown size={12} />
                                 <span>Dropdown</span>
+                              </button>
+                              <button
+                                type="button"
+                                title="Grid / Pills View"
+                                onClick={() => setViewModes(prev => ({ ...prev, [q.id]: "grid" }))}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] flex items-center gap-1 transition-all cursor-pointer ${effectiveMode === "grid" ? 'bg-[#f5d40b] text-[#4a4a4c] font-black shadow-2xs' : 'text-slate-500 font-bold hover:bg-slate-200/60'}`}
+                              >
+                                <LayoutGrid size={12} />
+                                <span>Grid</span>
                               </button>
                             </div>
                           ) : null}
