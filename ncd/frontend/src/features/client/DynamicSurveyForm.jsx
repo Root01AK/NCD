@@ -1245,6 +1245,23 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     return null;
   };
 
+  const checkQuestionSchemaMinMax = (q, rawVal) => {
+    if (!q || rawVal === undefined || rawVal === null || rawVal === "") return null;
+    const num = parseFloat(rawVal);
+    if (isNaN(num)) return null;
+
+    const minBound = q.min !== undefined && q.min !== null && q.min !== "" ? parseFloat(q.min) : (q.validation_min !== undefined ? parseFloat(q.validation_min) : null);
+    const maxBound = q.max !== undefined && q.max !== null && q.max !== "" ? parseFloat(q.max) : (q.validation_max !== undefined ? parseFloat(q.validation_max) : null);
+
+    if (minBound !== null && !isNaN(minBound) && num < minBound) {
+      return `Invalid Value: Entered value (${num}) is below the minimum allowed limit of ${minBound}.`;
+    }
+    if (maxBound !== null && !isNaN(maxBound) && num > maxBound) {
+      return `Invalid Value: Entered value (${num}) exceeds the maximum allowed limit of ${maxBound}.`;
+    }
+    return null;
+  };
+
   const isQ93FollowupDateQuestion = (q) => {
     if (!q) return false;
     const idL = String(q.id || "").toLowerCase().trim();
@@ -1483,8 +1500,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
           }
         }
 
-        // Validate physical and clinical measurement bounds (Q67, Q68, Q70, Q71, Q74, Q78, Q79, Q80)
-        const rangeErr = checkQuestionPlausibility(q, val);
+        // Validate physical and clinical measurement bounds (Q67, Q68, Q70, Q71, Q74, Q78, Q79, Q80 + schema min/max)
+        const rangeErr = checkQuestionPlausibility(q, val) || checkQuestionSchemaMinMax(q, val);
         if (rangeErr) {
           newErrors[q.id] = rangeErr;
           if (!firstErrorMsg) firstErrorMsg = rangeErr;
@@ -3154,6 +3171,12 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                 } else {
                                   setFieldErrors(prev => ({ ...prev, [q.id]: null }));
                                 }
+                              }
+
+                              // 10. Custom Question Schema Min/Max Check
+                              const schemaErr = checkQuestionSchemaMinMax(q, val);
+                              if (schemaErr) {
+                                setFieldErrors(prev => ({ ...prev, [q.id]: schemaErr }));
                               }
 
                               updateCustomField(q, val);
