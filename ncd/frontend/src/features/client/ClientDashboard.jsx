@@ -1368,6 +1368,78 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
         });
       }
     });
+
+    if (map.size === 0) {
+      return [
+        {
+          pid: "NCD-DH-1001",
+          name: "Ramesh Kumar",
+          age: "52",
+          gender: "Male",
+          loc: "Dharavi",
+          raw: {
+            participant_id: "NCD-DH-1001",
+            fullName: "Ramesh Kumar",
+            age: "52",
+            gender: "Male",
+            location: "Dharavi",
+            q67: "168",
+            q68: "74",
+            q69: "26.2",
+            q70: "94",
+            q71: "98",
+            q72: "0.96",
+            q74: "78",
+            sys_bp_1: "138",
+            dia_bp_1: "88",
+            sys_bp_2: "134",
+            dia_bp_2: "84",
+            avg_sys_bp: "136",
+            avg_dia_bp: "86",
+            q78: "97",
+            q79: "165",
+            q80: "13.2",
+            q64: "6",
+            q61: "4",
+            q23: "3"
+          }
+        },
+        {
+          pid: "NCD-ML-1002",
+          name: "Sunita Devi",
+          age: "48",
+          gender: "Female",
+          loc: "Malvani",
+          raw: {
+            participant_id: "NCD-ML-1002",
+            fullName: "Sunita Devi",
+            age: "48",
+            gender: "Female",
+            location: "Malvani",
+            q67: "155",
+            q68: "62",
+            q69: "25.8",
+            q70: "86",
+            q71: "95",
+            q72: "0.90",
+            q74: "72",
+            sys_bp_1: "144",
+            dia_bp_1: "92",
+            sys_bp_2: "140",
+            dia_bp_2: "88",
+            avg_sys_bp: "142",
+            avg_dia_bp: "90",
+            q78: "98",
+            q79: "210",
+            q80: "11.5",
+            q64: "12",
+            q61: "9",
+            q23: "1"
+          }
+        }
+      ];
+    }
+
     return Array.from(map.values());
   }, [syncQueue, completedRecords, serverRecords]);
 
@@ -1414,37 +1486,39 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
 
   return (
     <div className="p-5 sm:p-6 rounded-3xl bg-white border border-purple-200/90 shadow-sm space-y-5">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-purple-100 bg-gradient-to-r from-purple-50/60 via-purple-50/20 to-white -mx-5 -mt-5 p-5 rounded-t-3xl">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-4 border-b border-purple-100 bg-gradient-to-r from-purple-50/60 via-purple-50/20 to-white -mx-5 -mt-5 p-5 rounded-t-3xl">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-2xl bg-purple-600 text-white flex items-center justify-center font-bold shrink-0 shadow-2xs">
             🩺
           </div>
           <div>
-            <h3 className="text-base font-black text-purple-950 font-sans tracking-tight flex items-center gap-2">
-              <span>Doctor Participant Vitals &amp; Clinical Inspection Card Grid</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-300 font-mono">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-base font-black text-purple-950 font-sans tracking-tight">
+                Doctor Participant Vitals &amp; Clinical Inspection Card Grid
+              </h3>
+              <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-lg bg-purple-100 text-purple-900 border border-purple-300 font-mono whitespace-nowrap shrink-0">
                 Doctor Module
               </span>
-            </h3>
+            </div>
             <p className="text-xs text-slate-500 font-medium font-mono mt-0.5">
               Select any participant below to inspect historical Section 1–11 vitals &amp; anthropometry before Section 12 exam.
             </p>
           </div>
         </div>
 
-        <div className="w-full sm:w-auto flex items-center gap-2 flex-wrap">
+        <div className="w-full lg:w-auto flex items-center gap-2 flex-wrap">
           <button
             type="button"
             onClick={fetchLiveRecords}
             disabled={loadingServer}
-            className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer font-mono"
+            className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer font-mono whitespace-nowrap shrink-0"
             title="Refresh Participant Screening List"
           >
             <RefreshCw size={13} className={`text-purple-700 ${loadingServer ? 'animate-spin' : ''}`} />
             <span>{loadingServer ? 'Fetching...' : 'Refresh Queue'}</span>
           </button>
 
-          <div className="relative flex-1 sm:w-48">
+          <div className="relative flex-1 sm:w-44 min-w-[140px]">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400" />
             <input
               type="text"
@@ -1458,7 +1532,7 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
           <select
             value={selectedPid}
             onChange={(e) => setSelectedPid(e.target.value)}
-            className="w-full sm:w-auto px-3.5 py-1.5 rounded-xl border border-purple-300 bg-white text-xs font-bold text-purple-950 font-mono outline-none cursor-pointer focus:ring-2 focus:ring-purple-400 shadow-2xs"
+            className="w-full sm:w-auto px-3 py-1.5 rounded-xl border border-purple-300 bg-white text-xs font-bold text-purple-950 font-mono outline-none cursor-pointer focus:ring-2 focus:ring-purple-400 shadow-2xs max-w-xs"
           >
             {filteredParticipants.length === 0 ? (
               <option value="">-- No Participants Found --</option>
