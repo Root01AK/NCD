@@ -172,3 +172,14 @@ When click the "Create User" btn it show the modal of user previlages to creatin
 
 
 
+S.No.	Section	Question Number	Minimum	Maximum	Remarks
+1	9: Anthropometric Measurements	67	90	200	Height in cms
+3	9: Anthropometric Measurements	68	20	150	Weight in Kgs
+4	9: Anthropometric Measurements	70	50	200	Waist circumference in cms
+5	9: Anthropometric Measurements	71	50	200	Hip circumference in cms 
+6	10: Vitals	74	40	180	Pulse, beats per minute
+7	10: Vitals	75 & 76	70	260	Systolic BP, in mm of Hg
+8	10: Vitals	75 & 76	30	200	Diastolic BP, in mm of Hg
+9	10: Vitals	78	85	100	SpO2 in %
+10	11: Point-of-care tests	79	30	600	Random Blood Sugar in mg/dL
+11	11: Point-of-care tests	80	03	20	Haemoglobin in gm/dL

@@ -1178,6 +1178,73 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     return idL === "q80" || idL.includes("q80") || titleL.includes("q80") || titleL.includes("haemoglobin") || titleL.includes("hemoglobin");
   };
 
+  const checkQuestionPlausibility = (q, rawVal) => {
+    if (!q || rawVal === undefined || rawVal === null || rawVal === "") return null;
+    const num = parseFloat(rawVal);
+    if (isNaN(num)) return null;
+
+    const idL = String(q.id || "").toLowerCase();
+    const titleL = String(q.title || "").toLowerCase();
+
+    // 1. Q67 Height (90 - 200 cm)
+    if (idL.includes("q67") || titleL.includes("q67") || (titleL.includes("height") && !titleL.includes("weight"))) {
+      if (num < 90 || num > 200) {
+        return `Invalid Height: Q67 Height must be between 90 cm and 200 cm. Entered: ${num} cm`;
+      }
+    }
+
+    // 2. Q68 Weight (20 - 150 kg)
+    if (idL.includes("q68") || titleL.includes("q68") || titleL.includes("weight")) {
+      if (num < 20 || num > 150) {
+        return `Invalid Weight: Q68 Weight must be between 20 kg and 150 kg. Entered: ${num} kg`;
+      }
+    }
+
+    // 3. Q70 Waist Circumference (50 - 200 cm)
+    if (idL.includes("q70") || titleL.includes("q70") || (titleL.includes("waist") && !titleL.includes("ratio"))) {
+      if (num < 50 || num > 200) {
+        return `Invalid Waist Circumference: Q70 Waist Circumference must be between 50 cm and 200 cm. Entered: ${num} cm`;
+      }
+    }
+
+    // 4. Q71 Hip Circumference (50 - 200 cm)
+    if (idL.includes("q71") || titleL.includes("q71") || (titleL.includes("hip") && !titleL.includes("ratio"))) {
+      if (num < 50 || num > 200) {
+        return `Invalid Hip Circumference: Q71 Hip Circumference must be between 50 cm and 200 cm. Entered: ${num} cm`;
+      }
+    }
+
+    // 5. Q74 Pulse (40 - 180 bpm)
+    if (isQ74PulseQuestion(q) || idL.includes("q74") || titleL.includes("pulse")) {
+      if (num < 40 || num > 180) {
+        return `Invalid Pulse Rate: Q74 Pulse must be between 40 bpm and 180 bpm. Entered: ${num} bpm`;
+      }
+    }
+
+    // 8. Q78 SpO2 (85 - 100 %)
+    if (isQ78SpO2Question(q) || idL.includes("q78") || titleL.includes("spo2") || titleL.includes("oxygen saturation")) {
+      if (num < 85 || num > 100) {
+        return `Invalid SpO₂: Q78 Oxygen Saturation (SpO₂) must be between 85% and 100%. Entered: ${num}%`;
+      }
+    }
+
+    // 9. Q79 Random Blood Sugar (30 - 600 mg/dL)
+    if (isQ79RbsQuestion(q) || idL.includes("q79") || titleL.includes("rbs") || titleL.includes("random blood sugar")) {
+      if (num < 30 || num > 600) {
+        return `Invalid Random Blood Sugar: Q79 RBS must be between 30 mg/dL and 600 mg/dL. Entered: ${num} mg/dL`;
+      }
+    }
+
+    // 10. Q80 Haemoglobin (3 - 20 g/dL)
+    if (isQ80HbQuestion(q) || idL.includes("q80") || titleL.includes("haemoglobin") || titleL.includes("hemoglobin")) {
+      if (num < 3 || num > 20) {
+        return `Invalid Haemoglobin: Q80 Haemoglobin must be between 3.0 g/dL and 20.0 g/dL. Entered: ${num} g/dL`;
+      }
+    }
+
+    return null;
+  };
+
   const isQ93FollowupDateQuestion = (q) => {
     if (!q) return false;
     const idL = String(q.id || "").toLowerCase().trim();
@@ -1415,6 +1482,44 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
             if (!firstErrorMsg) firstErrorMsg = msg;
           }
         }
+
+        // Validate physical and clinical measurement bounds (Q67, Q68, Q70, Q71, Q74, Q78, Q79, Q80)
+        const rangeErr = checkQuestionPlausibility(q, val);
+        if (rangeErr) {
+          newErrors[q.id] = rangeErr;
+          if (!firstErrorMsg) firstErrorMsg = rangeErr;
+        }
+
+        // Special handling for Q75 and Q76 Blood Pressure 2-field inputs (Systolic: 70-260, Diastolic: 30-200)
+        if (isQ75BP1Question(q) || isQ76BP2Question(q)) {
+          const isP1 = isQ75BP1Question(q);
+          const sysKey = isP1 ? "sys_bp_1" : "sys_bp_2";
+          const diaKey = isP1 ? "dia_bp_1" : "dia_bp_2";
+          const sVal = data[sysKey];
+          const dVal = data[diaKey];
+
+          if (!sVal || !dVal) {
+            const msg = `Please complete both Systolic and Diastolic Blood Pressure readings for ${isP1 ? "Reading 1 (Q75)" : "Reading 2 (Q76)"}.`;
+            newErrors[q.id] = msg;
+            if (!firstErrorMsg) firstErrorMsg = msg;
+          } else {
+            const sNum = parseFloat(sVal);
+            const dNum = parseFloat(dVal);
+            if (isNaN(sNum) || sNum < 70 || sNum > 260) {
+              const msg = `Invalid Systolic BP in ${isP1 ? "Q75" : "Q76"}: Systolic BP must be between 70 and 260 mmHg. Entered: ${sVal}`;
+              newErrors[q.id] = msg;
+              if (!firstErrorMsg) firstErrorMsg = msg;
+            } else if (isNaN(dNum) || dNum < 30 || dNum > 200) {
+              const msg = `Invalid Diastolic BP in ${isP1 ? "Q75" : "Q76"}: Diastolic BP must be between 30 and 200 mmHg. Entered: ${dVal}`;
+              newErrors[q.id] = msg;
+              if (!firstErrorMsg) firstErrorMsg = msg;
+            } else if (sNum <= dNum) {
+              const msg = `Invalid BP in ${isP1 ? "Q75" : "Q76"}: Systolic BP (${sNum}) must be strictly greater than Diastolic BP (${dNum}).`;
+              newErrors[q.id] = msg;
+              if (!firstErrorMsg) firstErrorMsg = msg;
+            }
+          }
+        }
       }
     }
 
@@ -1500,16 +1605,18 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
   const validatePlausibilityRanges = () => {
     const checks = [
-      { keys: ["q67", "custom_q67", "height", "Q67"], min: 50.0, max: 250.0, label: "Q67. Height (cm)" },
-      { keys: ["q68", "custom_q68", "weight", "Q68"], min: 10.0, max: 300.0, label: "Q68. Weight (kg)" },
+      { keys: ["q67", "custom_q67", "height", "Q67"], min: 90.0, max: 200.0, label: "Q67. Height (cm)" },
+      { keys: ["q68", "custom_q68", "weight", "Q68"], min: 20.0, max: 150.0, label: "Q68. Weight (kg)" },
       { keys: ["bmi", "custom_bmi", "q69", "custom_q69", "Q69"], min: 10.0, max: 60.0, label: "Q69. BMI (kg/m²)" },
-      { keys: ["waist", "q70", "custom_q70", "Q70"], min: 30.0, max: 200.0, label: "Q70. Waist Circumference (cm)" },
-      { keys: ["hip", "q71", "custom_q71", "Q71"], min: 30.0, max: 200.0, label: "Q71. Hip Circumference (cm)" },
+      { keys: ["waist", "q70", "custom_q70", "Q70"], min: 50.0, max: 200.0, label: "Q70. Waist Circumference (cm)" },
+      { keys: ["hip", "q71", "custom_q71", "Q71"], min: 50.0, max: 200.0, label: "Q71. Hip Circumference (cm)" },
       { keys: ["waist_hip_ratio", "whr", "custom_whr", "q72", "custom_q72", "Q72"], min: 0.40, max: 2.00, label: "Q72. Waist-Hip Ratio" },
-      { keys: ["sys_bp", "systolic", "sbp", "custom_sys_bp", "sys_bp_1", "sys_bp_2"], min: 70, max: 260, label: "Systolic Blood Pressure (mmHg)" },
-      { keys: ["dia_bp", "diastolic", "dbp", "custom_dia_bp", "dia_bp_1", "dia_bp_2"], min: 40, max: 160, label: "Diastolic Blood Pressure (mmHg)" },
-      { keys: ["rbs", "blood_sugar", "custom_rbs"], min: 30, max: 600, label: "Random Blood Sugar (RBS mg/dL)" },
-      { keys: ["hb", "haemoglobin", "custom_hb"], min: 3.0, max: 20.0, label: "Haemoglobin (Hb g/dL)" },
+      { keys: ["q74", "custom_q74", "pulse", "Q74"], min: 40, max: 180, label: "Q74. Pulse (bpm)" },
+      { keys: ["sys_bp", "systolic", "sbp", "custom_sys_bp", "sys_bp_1", "sys_bp_2", "q75_sys", "q76_sys"], min: 70, max: 260, label: "Systolic Blood Pressure (mmHg)" },
+      { keys: ["dia_bp", "diastolic", "dbp", "custom_dia_bp", "dia_bp_1", "dia_bp_2", "q75_dia", "q76_dia"], min: 30, max: 200, label: "Diastolic Blood Pressure (mmHg)" },
+      { keys: ["q78", "custom_q78", "spo2", "Q78"], min: 85, max: 100, label: "Q78. SpO2 (%)" },
+      { keys: ["rbs", "blood_sugar", "custom_rbs", "q79", "custom_q79", "Q79"], min: 30, max: 600, label: "Q79. Random Blood Sugar (RBS mg/dL)" },
+      { keys: ["hb", "haemoglobin", "hemoglobin", "custom_hb", "q80", "custom_q80", "Q80"], min: 3.0, max: 20.0, label: "Q80. Haemoglobin (Hb g/dL)" },
       { keys: ["age", "custom_age", "q1", "custom_q1"], min: 18, max: 100, label: "Age (years)" }
     ];
 
@@ -2603,8 +2710,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                   <input
                                     type="number"
                                     placeholder="80"
-                                    min="40"
-                                    max="160"
+                                    min="30"
+                                    max="200"
                                     value={(() => {
                                       const prefix = isQ75BP1Question(q) ? "dia_bp_1" : "dia_bp_2";
                                       const qPrefix = isQ75BP1Question(q) ? "q75_dia" : "q76_dia";
@@ -2618,8 +2725,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                       const diaKey = isP1 ? "dia_bp_1" : "dia_bp_2";
                                       const sNum = parseFloat(data[sysKey] || 0);
 
-                                      if (val !== "" && (isNaN(dNum) || dNum < 40 || dNum > 160)) {
-                                        setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Diastolic BP: Must be a medically valid value between 40 and 160 mmHg." }));
+                                      if (val !== "" && (isNaN(dNum) || dNum < 30 || dNum > 200)) {
+                                        setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Diastolic BP: Must be a medically valid value between 30 and 200 mmHg." }));
                                       } else if (sNum > 0 && dNum > 0 && sNum <= dNum) {
                                         setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid BP: Systolic BP must be strictly greater than Diastolic BP." }));
                                       } else {
@@ -2961,67 +3068,67 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                 }
                               }
 
-                              // 2. Q67. Height (cm) [Medical range: 50.0 to 250.0 cm]
+                              // 2. Q67. Height (cm) [Medical range: 90.0 to 200.0 cm]
                               const isHeightQ = qIdLower.includes('q67') || titleLower.includes('q67') || titleLower.includes('height');
                               if (isHeightQ && val !== "") {
                                 const numVal = parseFloat(val);
-                                if (isNaN(numVal) || numVal < 50 || numVal > 250) {
-                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Height: Height must be a medically valid value between 50.0 cm and 250.0 cm." }));
+                                if (isNaN(numVal) || numVal < 90 || numVal > 200) {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Height: Height must be between 90 cm and 200 cm." }));
                                 } else {
                                   setFieldErrors(prev => ({ ...prev, [q.id]: null }));
                                 }
                               }
 
-                              // 3. Q68. Weight (kg) [Medical range: 10.0 to 300.0 kg]
+                              // 3. Q68. Weight (kg) [Medical range: 20.0 to 150.0 kg]
                               const isWeightQ = qIdLower.includes('q68') || titleLower.includes('q68') || titleLower.includes('weight');
                               if (isWeightQ && val !== "") {
                                 const numVal = parseFloat(val);
-                                if (isNaN(numVal) || numVal < 10 || numVal > 300) {
-                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Weight: Weight must be a medically valid value between 10.0 kg and 300.0 kg." }));
+                                if (isNaN(numVal) || numVal < 20 || numVal > 150) {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Weight: Weight must be between 20 kg and 150 kg." }));
                                 } else {
                                   setFieldErrors(prev => ({ ...prev, [q.id]: null }));
                                 }
                               }
 
-                              // 4. Q70. Waist Circumference (cm) [Medical range: 30.0 to 200.0 cm]
+                              // 4. Q70. Waist Circumference (cm) [Medical range: 50.0 to 200.0 cm]
                               const isWaistQ = qIdLower.includes('q70') || titleLower.includes('q70') || titleLower.includes('waist');
                               if (isWaistQ && val !== "") {
                                 const numVal = parseFloat(val);
-                                if (isNaN(numVal) || numVal < 30 || numVal > 200) {
-                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Waist Circumference: Waist circumference must be between 30.0 cm and 200.0 cm." }));
+                                if (isNaN(numVal) || numVal < 50 || numVal > 200) {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Waist Circumference: Waist circumference must be between 50 cm and 200 cm." }));
                                 } else {
                                   setFieldErrors(prev => ({ ...prev, [q.id]: null }));
                                 }
                               }
 
-                              // 5. Q71. Hip Circumference (cm) [Medical range: 30.0 to 200.0 cm]
+                              // 5. Q71. Hip Circumference (cm) [Medical range: 50.0 to 200.0 cm]
                               const isHipQ = qIdLower.includes('q71') || titleLower.includes('q71') || titleLower.includes('hip');
                               if (isHipQ && val !== "") {
                                 const numVal = parseFloat(val);
-                                if (isNaN(numVal) || numVal < 30 || numVal > 200) {
-                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Hip Circumference: Hip circumference must be between 30.0 cm and 200.0 cm." }));
+                                if (isNaN(numVal) || numVal < 50 || numVal > 200) {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Hip Circumference: Hip circumference must be between 50 cm and 200 cm." }));
                                 } else {
                                   setFieldErrors(prev => ({ ...prev, [q.id]: null }));
                                 }
                               }
 
-                              // 6. Q74. Pulse (bpm) [Medical range: 30 to 220 bpm]
+                              // 6. Q74. Pulse (bpm) [Medical range: 40 to 180 bpm]
                               const isPulseQ = qIdLower.includes('q74') || titleLower.includes('q74') || titleLower.includes('pulse');
                               if (isPulseQ && val !== "") {
                                 const numVal = parseFloat(val);
-                                if (isNaN(numVal) || numVal < 30 || numVal > 220) {
-                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Pulse Rate: Pulse rate must be between 30 bpm and 220 bpm." }));
+                                if (isNaN(numVal) || numVal < 40 || numVal > 180) {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Pulse Rate: Pulse rate must be between 40 bpm and 180 bpm." }));
                                 } else {
                                   setFieldErrors(prev => ({ ...prev, [q.id]: null }));
                                 }
                               }
 
-                              // 7. Q78. SpO₂ (%) [Medical range: 50 to 100 %]
+                              // 7. Q78. SpO₂ (%) [Medical range: 85 to 100 %]
                               const isSpO2Q = qIdLower.includes('q78') || titleLower.includes('q78') || titleLower.includes('spo2');
                               if (isSpO2Q && val !== "") {
                                 const numVal = parseFloat(val);
-                                if (isNaN(numVal) || numVal < 50 || numVal > 100) {
-                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid SpO₂: Oxygen saturation (SpO₂) must be between 50% and 100%." }));
+                                if (isNaN(numVal) || numVal < 85 || numVal > 100) {
+                                  setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid SpO₂: Oxygen saturation (SpO₂) must be between 85% and 100%." }));
                                 } else {
                                   setFieldErrors(prev => ({ ...prev, [q.id]: null }));
                                 }
