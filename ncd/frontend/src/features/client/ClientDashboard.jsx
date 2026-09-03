@@ -1317,19 +1317,45 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
 
 function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSurvey }) {
   const [selectedPid, setSelectedPid] = useState("");
+  const [serverRecords, setServerRecords] = useState([]);
+  const [loadingServer, setLoadingServer] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const fetchLiveRecords = async () => {
+    setLoadingServer(true);
+    try {
+      const res = await api.get("/api/v1/dashboard/screeninglist");
+      if (res && res.status === 'success' && Array.isArray(res.data)) {
+        setServerRecords(res.data);
+      }
+    } catch (e) {
+      try {
+        const qRes = await api.get("/api/v1/screening/queue");
+        if (qRes && qRes.status === 'success' && Array.isArray(qRes.data)) {
+          setServerRecords(qRes.data);
+        }
+      } catch (err) {}
+    } finally {
+      setLoadingServer(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLiveRecords();
+  }, []);
 
   const participantsList = React.useMemo(() => {
     const map = new Map();
-    [...syncQueue, ...completedRecords].forEach(item => {
+    [...syncQueue, ...completedRecords, ...serverRecords].forEach(item => {
       let raw = {};
       if (item.mem_scrn_q30) {
         try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
       }
-      const pid = item.participant_id || item.mem_scrn_part_id || raw.participant_id || raw.mem_scrn_part_id;
+      const pid = item.participant_id || item.mem_scrn_part_id || raw.participant_id || raw.mem_scrn_part_id || item.mem_scrn_id;
       if (pid && !map.has(String(pid).toUpperCase().trim())) {
-        const name = item.fullName || raw.fullName || item.mem_scrn_q16 || raw.mem_scrn_q16 || "Participant";
+        const name = item.fullName || raw.fullName || item.mem_scrn_q16 || raw.mem_scrn_q16 || item.full_name || "Participant";
         const age = item.age || raw.age || item.mem_scrn_q1 || raw.mem_scrn_q1 || "—";
-        const gender = item.gender || raw.gender || (item.mem_scrn_q2 == '1' ? 'Male' : 'Female') || "—";
+        const gender = item.gender || raw.gender || (item.mem_scrn_q2 == '1' ? 'Male' : item.mem_scrn_q2 == '2' ? 'Female' : '—') || "—";
         const loc = item.location || raw.location || item.mem_scrn_q17 || "Dharavi";
         map.set(String(pid).toUpperCase().trim(), {
           pid: String(pid).toUpperCase().trim(),
@@ -1343,15 +1369,25 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
       }
     });
     return Array.from(map.values());
-  }, [syncQueue, completedRecords]);
+  }, [syncQueue, completedRecords, serverRecords]);
+
+  const filteredParticipants = React.useMemo(() => {
+    if (!searchQuery.trim()) return participantsList;
+    const q = searchQuery.toLowerCase().trim();
+    return participantsList.filter(p => 
+      p.pid.toLowerCase().includes(q) || 
+      p.name.toLowerCase().includes(q) || 
+      p.loc.toLowerCase().includes(q)
+    );
+  }, [participantsList, searchQuery]);
 
   useEffect(() => {
-    if (!selectedPid && participantsList.length > 0) {
-      setSelectedPid(participantsList[0].pid);
+    if (!selectedPid && filteredParticipants.length > 0) {
+      setSelectedPid(filteredParticipants[0].pid);
     }
-  }, [participantsList, selectedPid]);
+  }, [filteredParticipants, selectedPid]);
 
-  const selectedParticipant = participantsList.find(p => p.pid === selectedPid) || participantsList[0];
+  const selectedParticipant = filteredParticipants.find(p => p.pid === selectedPid) || filteredParticipants[0];
   const dData = selectedParticipant?.raw || selectedParticipant?.item || {};
 
   const height = parseFloat(dData.q67 || dData.height || dData.custom_q67 || 0);
@@ -1377,33 +1413,57 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
   const hsi = parseInt(dData.q23 || dData.hsi || dData.custom_q23 || 0, 10);
 
   return (
-    <div className="p-5 rounded-3xl bg-white border border-purple-200 shadow-2xs space-y-5">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-        <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold shrink-0">
+    <div className="p-5 sm:p-6 rounded-3xl bg-white border border-purple-200/90 shadow-sm space-y-5">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-purple-100 bg-gradient-to-r from-purple-50/60 via-purple-50/20 to-white -mx-5 -mt-5 p-5 rounded-t-3xl">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-purple-600 text-white flex items-center justify-center font-bold shrink-0 shadow-2xs">
             🩺
           </div>
           <div>
-            <h3 className="text-base font-black text-slate-900 font-sans tracking-tight">
-              Doctor Participant Vitals &amp; Clinical Inspection Card Grid
+            <h3 className="text-base font-black text-purple-950 font-sans tracking-tight flex items-center gap-2">
+              <span>Doctor Participant Vitals &amp; Clinical Inspection Card Grid</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-300 font-mono">
+                Doctor Module
+              </span>
             </h3>
-            <p className="text-xs text-slate-500 font-medium font-mono">
+            <p className="text-xs text-slate-500 font-medium font-mono mt-0.5">
               Select any participant below to inspect historical Section 1–11 vitals &amp; anthropometry before Section 12 exam.
             </p>
           </div>
         </div>
 
-        <div className="w-full sm:w-auto flex items-center gap-2">
-          <label className="text-xs font-bold text-slate-700 uppercase font-mono shrink-0">Select Participant:</label>
+        <div className="w-full sm:w-auto flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={fetchLiveRecords}
+            disabled={loadingServer}
+            className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer font-mono"
+            title="Refresh Participant Screening List"
+          >
+            <RefreshCw size={13} className={`text-purple-700 ${loadingServer ? 'animate-spin' : ''}`} />
+            <span>{loadingServer ? 'Fetching...' : 'Refresh Queue'}</span>
+          </button>
+
+          <div className="relative flex-1 sm:w-48">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400" />
+            <input
+              type="text"
+              placeholder="Search ID/Name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-purple-200 bg-white text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-purple-400 font-mono"
+            />
+          </div>
+
           <select
             value={selectedPid}
             onChange={(e) => setSelectedPid(e.target.value)}
-            className="px-3.5 py-2 rounded-xl border border-purple-300 bg-purple-50/50 text-xs font-bold text-purple-950 font-mono outline-none cursor-pointer focus:ring-2 focus:ring-purple-400"
+            className="w-full sm:w-auto px-3.5 py-1.5 rounded-xl border border-purple-300 bg-white text-xs font-bold text-purple-950 font-mono outline-none cursor-pointer focus:ring-2 focus:ring-purple-400 shadow-2xs"
           >
-            {participantsList.length === 0 ? (
-              <option value="">-- No Participants Available --</option>
+            {filteredParticipants.length === 0 ? (
+              <option value="">-- No Participants Found --</option>
             ) : (
-              participantsList.map(p => (
+              filteredParticipants.map(p => (
                 <option key={p.pid} value={p.pid}>
                   {p.pid} — {p.name} ({p.gender}, {p.age} yrs - {p.loc})
                 </option>
@@ -1415,18 +1475,18 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
 
       {selectedParticipant ? (
         <div className="space-y-4">
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/90 flex flex-wrap items-center justify-between gap-3 font-mono text-xs">
-            <div className="flex items-center gap-4">
-              <span className="font-black text-purple-950 bg-purple-100 px-3 py-1 rounded-xl border border-purple-200">
+          <div className="p-3.5 rounded-2xl bg-purple-50/70 border border-purple-200/90 flex flex-wrap items-center justify-between gap-3 font-mono text-xs shadow-2xs">
+            <div className="flex items-center gap-4 flex-wrap">
+              <span className="font-black text-purple-950 bg-white px-3 py-1 rounded-xl border border-purple-300 shadow-2xs">
                 ID: {selectedParticipant.pid}
               </span>
-              <span className="font-bold text-slate-800">
+              <span className="font-extrabold text-slate-900">
                 Name: {selectedParticipant.name}
               </span>
-              <span className="text-slate-600">
+              <span className="text-slate-700 font-bold">
                 Demographics: {selectedParticipant.gender}, {selectedParticipant.age} yrs
               </span>
-              <span className="text-slate-600">
+              <span className="text-slate-700 font-bold">
                 Center: {selectedParticipant.loc}
               </span>
             </div>
@@ -1435,9 +1495,9 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
               <button
                 type="button"
                 onClick={() => onOpenSurvey({ sur_id: 1, participant_id: selectedParticipant.pid })}
-                className="px-4 py-1.5 rounded-xl bg-purple-900 text-white font-bold hover:bg-black transition-colors text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                className="px-4 py-2 rounded-xl bg-purple-900 hover:bg-black text-white font-extrabold transition-colors text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs font-sans"
               >
-                <span>Proceed to Section 12 Exam →</span>
+                <span>Proceed to Section 12 Clinical Exam →</span>
               </button>
             )}
           </div>
@@ -1613,8 +1673,28 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
           </div>
         </div>
       ) : (
-        <div className="p-8 text-center text-xs font-mono text-slate-500 bg-slate-50 rounded-2xl border border-slate-200">
-          No participant records available to inspect yet.
+        <div className="p-8 text-center bg-purple-50/40 rounded-2xl border border-purple-200/80 space-y-3 font-sans">
+          <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center mx-auto text-xl font-bold shadow-2xs">
+            🩺
+          </div>
+          <div>
+            <h4 className="text-sm font-black text-purple-950 font-sans">
+              No Participant Records Available for Inspection
+            </h4>
+            <p className="text-xs text-slate-500 font-medium font-mono mt-1 max-w-md mx-auto">
+              No participant screening records match your filter query or have been submitted for clinical examination yet.
+            </p>
+          </div>
+          <div className="pt-1 flex items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={fetchLiveRecords}
+              className="px-4 py-2 rounded-xl bg-purple-900 text-white font-bold hover:bg-black transition-colors text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs font-sans"
+            >
+              <RefreshCw size={13} className={loadingServer ? 'animate-spin' : ''} />
+              <span>Fetch Live Records 🔄</span>
+            </button>
+          </div>
         </div>
       )}
     </div>
