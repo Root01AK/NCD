@@ -36,7 +36,7 @@ export function getOptionLabel(opt) {
 /**
  * Auto-calculates AUDIT-C score and checks threshold (Positive >= 4 for Males, >= 3 for Females / Transgender)
  */
-export function calculateAuditCScore(formData) {
+export function calculateAuditCScore(formData, questions = []) {
   if (!formData) return { score: 0, threshold: 4, isPositive: false, hasAnyAnswer: false };
 
   const g = String(formData.gender || formData.mem_scrn_q2 || "").toLowerCase();
@@ -46,43 +46,73 @@ export function calculateAuditCScore(formData) {
   let score = 0;
   let hasAnyAnswer = false;
 
-  const parseAuditPoints = (v) => {
-    if (!v) return 0;
-    const str = typeof v === 'object' ? `${v.code || ''} ${v.label || ''}`.trim() : String(v).trim();
-    if (!str) return 0;
+  const parseOptionValue = (qNum, val) => {
+    if (val === undefined || val === null || val === "") return 0;
 
-    const explicitPtMatch = str.match(/(\d+)\s*pt/i) || str.match(/(\d+)\s*point/i);
-    if (explicitPtMatch) {
-      return parseInt(explicitPtMatch[1], 10);
-    }
+    // 1. If questions list is available, search by option index
+    if (Array.isArray(questions) && questions.length > 0) {
+      const qObj = questions.find(q => {
+        const idL = String(q.id || '').toLowerCase();
+        const titleL = String(q.title || '').toLowerCase();
+        return idL === `q${qNum}` || idL === `custom_q${qNum}` || idL === `mem_scrn_q${qNum}` || titleL.startsWith(`q${qNum}.`) || titleL.startsWith(`q${qNum} `);
+      });
 
-    const codeMatch = str.match(/^(?:Code\s*(\d+)|(\d+)\s*[:.\-]\s*)/i);
-    if (codeMatch) {
-      const codeNum = parseInt(codeMatch[1] || codeMatch[2], 10);
-      if (!isNaN(codeNum) && codeNum >= 1 && codeNum <= 5) {
-        return codeNum - 1;
+      if (qObj && Array.isArray(qObj.options)) {
+        const rawStr = typeof val === 'object' ? String(val.label || val.code || val.value || '') : String(val);
+        const idx = qObj.options.findIndex(opt => {
+          if (typeof opt === 'object' && opt !== null) {
+            return opt.code === rawStr || opt.label === rawStr || String(opt.value) === rawStr;
+          }
+          return String(opt).trim() === rawStr.trim();
+        });
+        if (idx !== -1) {
+          return idx + 1; // Option 1 -> 1, Option 2 -> 2, Option 3 -> 3, Option 4 -> 4, Option 5 -> 5
+        }
       }
     }
 
-    const rawMatch = str.match(/^(\d+)$/);
-    if (rawMatch) {
-      const num = parseInt(rawMatch[1], 10);
-      if (num >= 0 && num <= 4) return num;
-      if (num >= 1 && num <= 5) return num - 1;
+    // 2. Direct string/object handling
+    const str = typeof val === 'object' ? `${val.code || ''} ${val.label || ''}`.trim() : String(val).trim();
+    if (!str) return 0;
+
+    // Codebook separate override: Option 1 = 1, Option 2 = 2, Option 3 = 3, Option 4 = 4, Option 5 = 5
+    const codeMatch = str.match(/^(?:Option\s*)?([1-5])$/i) || str.match(/^(?:Code\s*)?([1-5])$/i);
+    if (codeMatch) {
+      return parseInt(codeMatch[1], 10);
     }
 
     const l = str.toLowerCase();
-    if (l.includes("never") || l.includes("1 or 2") || l.includes("one or two")) return 0;
-    if (l.includes("monthly or less") || l.includes("less than monthly") || l.includes("3 or 4") || l.includes("three or four")) return 1;
-    if (l.includes("2 to 4") || l.includes("5 or 6") || (l.includes("monthly") && !l.includes("less"))) return 2;
-    if (l.includes("2 to 3") || l.includes("7 to 9") || l.includes("weekly")) return 3;
-    if (l.includes("four or more") || l.includes("4 or more") || l.includes("daily") || l.includes("ten or more") || l.includes("10 or more")) return 4;
+
+    // Option 1 (value 1)
+    if (l.includes("never") || l.startsWith("1 or 2") || l.includes("option 1")) return 1;
+    // Option 2 (value 2)
+    if (l.includes("monthly or less") || l.includes("less than monthly") || l.startsWith("3 or 4") || l.includes("option 2")) return 2;
+    // Option 3 (value 3)
+    if (l.includes("two to four times") || (l.includes("monthly") && !l.includes("less")) || l.startsWith("5 or 6") || l.includes("option 3")) return 3;
+    // Option 4 (value 4)
+    if (l.includes("two to three times") || l.includes("weekly") || l.startsWith("7 to 9") || l.includes("option 4")) return 4;
+    // Option 5 (value 5)
+    if (l.includes("four or more times") || l.includes("daily") || l.startsWith("10 or more") || l.includes("option 5")) return 5;
+
+    // Direct numeric parse if 1-5
+    const num = parseInt(str, 10);
+    if (!isNaN(num) && num >= 1 && num <= 5) return num;
 
     return 0;
   };
 
   ["27", "28", "29"].forEach(qNum => {
     let val = null;
+    let foundQObj = null;
+
+    if (Array.isArray(questions) && questions.length > 0) {
+      foundQObj = questions.find(q => {
+        const idL = String(q.id || '').toLowerCase();
+        const titleL = String(q.title || '').toLowerCase();
+        return idL === `q${qNum}` || idL === `custom_q${qNum}` || idL === `mem_scrn_q${qNum}` || titleL.startsWith(`q${qNum}.`) || titleL.startsWith(`q${qNum} `);
+      });
+    }
+
     const searchKeys = Object.keys(formData).filter(k => {
       const kl = k.toLowerCase().trim();
       return (
@@ -104,7 +134,7 @@ export function calculateAuditCScore(formData) {
 
     if (val !== null && val !== undefined && val !== "") {
       hasAnyAnswer = true;
-      score += parseAuditPoints(val);
+      score += parseOptionValue(qNum, val, foundQObj);
     }
   });
 

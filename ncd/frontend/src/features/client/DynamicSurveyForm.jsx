@@ -129,9 +129,9 @@ const DEFAULT_SURVEY_QUESTIONS = [
   { id: "sec_4", title: "Section 4 · Alcohol use (AUDIT-C, with full AUDIT on a positive screen)", type: "section_header", section: 4 },
   { id: "q25", title: "Q25. Which best describes your alcohol use?", type: "single_choice", options: ["Never consumed", "Consumed in the past, stopped completely", "Currently consume"], required: true, section: 4 },
   { id: "q26", title: "Q26. If you stopped, how long ago?", type: "dropdown", options: ["Less than 6 months", "6 to 12 months", "1 to 5 years", "More than 5 years"], required: false, section: 4 },
-  { id: "q27", title: "Q27. How often do you have a drink containing alcohol?", type: "dropdown", options: [{ label: "Never (0 pts)", code: "0" }, { label: "Monthly or less (1 pt)", code: "1" }, { label: "Two to four times a month (2 pts)", code: "2" }, { label: "Two to three times a week (3 pts)", code: "3" }, { label: "Four or more times a week (4 pts)", code: "4" }], required: false, section: 4 },
-  { id: "q28", title: "Q28. How many standard drinks on a typical drinking day?", type: "dropdown", options: [{ label: "1 or 2 (0 pts)", code: "0" }, { label: "3 or 4 (1 pt)", code: "1" }, { label: "5 or 6 (2 pts)", code: "2" }, { label: "7 to 9 (3 pts)", code: "3" }, { label: "10 or more (4 pts)", code: "4" }], required: false, section: 4 },
-  { id: "q29", title: "Q29. How often do you have six or more standard drinks on one occasion?", type: "dropdown", options: [{ label: "Never (0 pts)", code: "0" }, { label: "Less than monthly (1 pt)", code: "1" }, { label: "Monthly (2 pts)", code: "2" }, { label: "Weekly (3 pts)", code: "3" }, { label: "Daily or almost daily (4 pts)", code: "4" }], required: false, section: 4 },
+  { id: "q27", title: "Q27. How often do you have a drink containing alcohol?", type: "dropdown", options: [{ label: "Never (Option 1 = 1)", code: "1" }, { label: "Monthly or less (Option 2 = 2)", code: "2" }, { label: "Two to four times a month (Option 3 = 3)", code: "3" }, { label: "Two to three times a week (Option 4 = 4)", code: "4" }, { label: "Four or more times a week (Option 5 = 5)", code: "5" }], required: false, section: 4 },
+  { id: "q28", title: "Q28. How many standard drinks on a typical drinking day?", type: "dropdown", options: [{ label: "1 or 2 (Option 1 = 1)", code: "1" }, { label: "3 or 4 (Option 2 = 2)", code: "2" }, { label: "5 or 6 (Option 3 = 3)", code: "3" }, { label: "7 to 9 (Option 4 = 4)", code: "4" }, { label: "10 or more (Option 5 = 5)", code: "5" }], required: false, section: 4 },
+  { id: "q29", title: "Q29. How often do you have six or more standard drinks on one occasion?", type: "dropdown", options: [{ label: "Never (Option 1 = 1)", code: "1" }, { label: "Less than monthly (Option 2 = 2)", code: "2" }, { label: "Monthly (Option 3 = 3)", code: "3" }, { label: "Weekly (Option 4 = 4)", code: "4" }, { label: "Daily or almost daily (Option 5 = 5)", code: "5" }], required: false, section: 4 },
   { id: "q30", title: "Q30. AUDIT-C Total Score (Auto-calculated)", type: "number", required: false, section: 4 }
 ];
 
@@ -650,8 +650,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         updates.hsi_high_dependence = hsiScore >= 4;
       }
 
-      // 5. AUDIT-C Total (Q30 = Q27 + Q28 + Q29)
-      const auditRes = calculateAuditCScore(d);
+      // 5. AUDIT-C Total (Q30 = Q27 + Q28 + Q29 option score sum)
+      const auditRes = calculateAuditCScore(d, activeCustomQuestions || DEFAULT_SURVEY_QUESTIONS);
       if (auditRes.hasAnyAnswer) {
         const auditScore = auditRes.score;
         const q30Key = Object.keys(d).find(k => k.toLowerCase().includes("q30")) || "custom_q30";
@@ -965,6 +965,15 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     });
   };
 
+  const isMobileQuestion = (q) => {
+    if (!q) return false;
+    const qIdLower = String(q.id || "").toLowerCase().trim();
+    const titleLower = String(q.title || "").toLowerCase().trim();
+    if (qIdLower === "contact_number" || qIdLower === "mobile" || qIdLower === "mobile_number" || qIdLower === "phone" || qIdLower === "q_mobile" || qIdLower === "q8") return true;
+    if (titleLower.includes("mobile number") || titleLower.includes("contact number") || titleLower.includes("phone number")) return true;
+    return false;
+  };
+
   const isAgeQuestion = (q) => {
     if (!q) return false;
     const qIdLower = String(q.id || "").toLowerCase().trim();
@@ -979,6 +988,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     if (isQuestionReadOnlyForUser(q)) return;
     const titleLower = (q.title || "").toLowerCase();
     const isAgeField = isAgeQuestion(q);
+    const isMobileField = isMobileQuestion(q);
 
     if (isAgeField && val !== "" && val !== undefined && val !== null) {
       const ageNum = parseInt(val, 10);
@@ -986,6 +996,24 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       if (isNaN(ageNum) || ageNum < 18 || ageNum > 100 || strVal.length > 3) {
         const errStr = `Invalid Age: Entered value "${val}" is out of range. Age must be between 18 and 100 years. 4-digit input (e.g. 1222) is rejected.`;
         setFieldErrors(prev => ({ ...prev, [q.id]: errStr }));
+      } else {
+        setFieldErrors(prev => {
+          if (prev[q.id]) {
+            const copy = { ...prev };
+            delete copy[q.id];
+            return copy;
+          }
+          return prev;
+        });
+      }
+    } else if (isMobileField && val !== "" && val !== undefined && val !== null) {
+      const mobileDigits = String(val).replace(/\D/g, "");
+      if (!mobileDigits) {
+        setFieldErrors(prev => ({ ...prev, [q.id]: "Contact / Mobile Number is mandatory. Enter a 10-digit mobile number." }));
+      } else if (mobileDigits.length !== 10) {
+        setFieldErrors(prev => ({ ...prev, [q.id]: `Contact / Mobile Number must be EXACTLY 10 digits. Entered: ${mobileDigits.length} digits.` }));
+      } else if (!/^[6-9]\d{9}$/.test(mobileDigits)) {
+        setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Mobile Number. Enter a valid 10-digit mobile number starting with 6, 7, 8, or 9." }));
       } else {
         setFieldErrors(prev => {
           if (prev[q.id]) {
@@ -1021,6 +1049,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
       if (titleLower.includes("name") || titleLower.includes("full name")) next.fullName = val;
       if (isAgeField) next.age = val;
+      if (isMobileField) next.contact_number = String(val || "").replace(/\D/g, "");
       if (titleLower.includes("gender")) next.gender = val;
       if (titleLower.includes("site") || titleLower.includes("location")) next.location = val;
       return next;
@@ -1538,6 +1567,24 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
           }
         }
 
+        const isMobileField = isMobileQuestion(q);
+        if (isMobileField) {
+          const mobileDigits = String(val || "").replace(/\D/g, "");
+          if (!mobileDigits) {
+            const msg = `Mobile / Contact Number is mandatory. Please enter a 10-digit mobile number for "${q.title}".`;
+            newErrors[q.id] = msg;
+            if (!firstErrorMsg) firstErrorMsg = msg;
+          } else if (mobileDigits.length !== 10) {
+            const msg = `Mobile Number for "${q.title}" must be EXACTLY 10 digits. Entered: ${mobileDigits.length} digits.`;
+            newErrors[q.id] = msg;
+            if (!firstErrorMsg) firstErrorMsg = msg;
+          } else if (!/^[6-9]\d{9}$/.test(mobileDigits)) {
+            const msg = `Invalid Mobile Number for "${q.title}". Must be a 10-digit number starting with 6, 7, 8, or 9.`;
+            newErrors[q.id] = msg;
+            if (!firstErrorMsg) firstErrorMsg = msg;
+          }
+        }
+
         // Validate physical and clinical measurement bounds (Q67, Q68, Q70, Q71, Q74, Q78, Q79, Q80 + schema min/max)
         const rangeErr = checkQuestionPlausibility(q, val) || checkQuestionSchemaMinMax(q, val);
         if (rangeErr) {
@@ -1588,7 +1635,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   };
 
   const handleProceedNext = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     let newErrors = {};
 
     if (!data.participant_id || String(data.participant_id).trim() === "") {
@@ -1596,18 +1643,28 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       notify("error", "Participant ID Required", newErrors.participant_id);
     }
 
-    if (isFieldSupervisor) {
-      const contactDigits = String(data.contact_number || "").replace(/\D/g, "");
-      if (!contactDigits) {
-        newErrors.contact_number = "Contact Number is mandatory. Enter a 10-digit mobile number.";
-      } else if (contactDigits.length !== 10) {
-        newErrors.contact_number = `Contact Number must be EXACTLY 10 digits. Entered: ${contactDigits.length} digits.`;
-      } else {
-        const existingPid = await isContactNumberDuplicate(contactDigits, data.participant_id);
-        if (existingPid) {
-          newErrors.contact_number = `Duplicate Contact Number: Mobile ${contactDigits} is already registered to Participant ${existingPid}. Duplicate numbers are not accepted.`;
-        }
+    // Mandatory Mobile Number validation for all user roles
+    const contactDigits = String(data.contact_number || "").replace(/\D/g, "");
+    if (!contactDigits) {
+      newErrors.contact_number = "Contact / Mobile Number is mandatory. Please enter a 10-digit mobile number.";
+      notify("error", "Mobile Number Required", newErrors.contact_number);
+    } else if (contactDigits.length !== 10) {
+      newErrors.contact_number = `Contact / Mobile Number must be EXACTLY 10 digits. Entered: ${contactDigits.length} digits.`;
+      notify("error", "Invalid Mobile Number", newErrors.contact_number);
+    } else if (!/^[6-9]\d{9}$/.test(contactDigits)) {
+      newErrors.contact_number = `Invalid Mobile Number. Enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.`;
+      notify("error", "Invalid Mobile Number", newErrors.contact_number);
+    } else {
+      const existingPid = await isContactNumberDuplicate(contactDigits, data.participant_id);
+      if (existingPid) {
+        newErrors.contact_number = `Duplicate Contact Number: Mobile ${contactDigits} is already registered to Participant ${existingPid}. Duplicate numbers are not accepted.`;
+        notify("error", "Duplicate Mobile Number", newErrors.contact_number);
       }
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setFieldErrors(prev => ({ ...prev, ...newErrors }));
+      return false;
     }
 
     // Save initiated record once on Proceeding past Step 0
@@ -2556,16 +2613,16 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                 <input
                                   type="number"
                                   min={0}
-                                  max={12}
+                                  max={15}
                                   placeholder="___"
                                   value={getFieldValue(q) !== undefined && getFieldValue(q) !== null ? getFieldValue(q) : (data.q30 ?? data.custom_q30 ?? data.audit_score ?? '')}
                                   onChange={(e) => {
                                     const val = e.target.value;
                                     if (val !== '') {
                                       const num = parseInt(val, 10);
-                                      if (isNaN(num) || num < 0 || num > 12) {
-                                        setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Score: AUDIT-C total score must be a number between 0 and 12." }));
-                                        if (notify) notify("error", "Invalid AUDIT-C Score", "AUDIT-C total score cannot exceed 12.");
+                                      if (isNaN(num) || num < 0 || num > 15) {
+                                        setFieldErrors(prev => ({ ...prev, [q.id]: "Invalid Score: Total score (Q27+Q28+Q29) must be a number between 0 and 15." }));
+                                        if (notify) notify("error", "Invalid Score", "Total score cannot exceed 15.");
                                         return;
                                       } else {
                                         setFieldErrors(prev => ({ ...prev, [q.id]: null }));
@@ -2577,11 +2634,11 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                   }}
                                   className="w-24 px-3 py-2 bg-slate-50 border border-slate-300 focus:border-amber-400 rounded-xl font-mono font-black text-2xl text-slate-900 text-center outline-none transition-all shadow-inner"
                                 />
-                                <span className="text-base font-bold text-slate-400">/ 12</span>
+                                <span className="text-base font-bold text-slate-400">/ 15</span>
                               </div>
                             </div>
                             <div className="px-5 py-3 bg-slate-50/80 border-t border-slate-200/90 text-xs font-medium text-slate-600 leading-relaxed font-sans">
-                              <span className="font-bold text-slate-800">Clinical Bands:</span> Positive screen is 4 or more for men, 3 or more for women and transgender participants.
+                              <span className="font-bold text-slate-800">Autocalculated Score:</span> Option 1 = 1, Option 2 = 2, Option 3 = 3, Option 4 = 4, Option 5 = 5. System computes Q27 + Q28 + Q29 sum.
                             </div>
                           </div>
                         ) : (isBmiQuestion(q)) ? (

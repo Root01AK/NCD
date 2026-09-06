@@ -183,3 +183,9 @@ S.No.	Section	Question Number	Minimum	Maximum	Remarks
 9	10: Vitals	78	85	100	SpO2 in %
 10	11: Point-of-care tests	79	30	600	Random Blood Sugar in mg/dL
 11	11: Point-of-care tests	80	03	20	Haemoglobin in gm/dL
+
+
+################## ################### ######################
+
+1. Without mobile number input the survey moves, fix this bug, need validation.
+2. Q30 is autocalculated answer which need to fetch by system and it need to calculate the score of Q27+Q28+Q29, here need to give values for the option as option 1 as 1, option 2 as 2, option 3 as 3, option 4 as 4, option 5 as 5 etc, where codebook is separate don't confuse it. need to calculate with option values and sum of total score need show in Q30 as autocalculated.
