@@ -46,56 +46,52 @@ export function calculateAuditCScore(formData, questions = []) {
   let score = 0;
   let hasAnyAnswer = false;
 
-  const parseOptionValue = (qNum, val) => {
+  const parseOptionValue = (qNum, val, qObj) => {
     if (val === undefined || val === null || val === "") return 0;
 
-    // 1. If questions list is available, search by option index
-    if (Array.isArray(questions) && questions.length > 0) {
-      const qObj = questions.find(q => {
-        const idL = String(q.id || '').toLowerCase();
-        const titleL = String(q.title || '').toLowerCase();
-        return idL === `q${qNum}` || idL === `custom_q${qNum}` || idL === `mem_scrn_q${qNum}` || titleL.startsWith(`q${qNum}.`) || titleL.startsWith(`q${qNum} `);
-      });
+    let rawStr = "";
+    if (typeof val === 'object' && val !== null) {
+      if (val.value !== undefined && val.value !== null && !isNaN(parseInt(val.value, 10)) && parseInt(val.value, 10) >= 1 && parseInt(val.value, 10) <= 5) {
+        return parseInt(val.value, 10);
+      }
+      if (val.code !== undefined && val.code !== null && !isNaN(parseInt(val.code, 10)) && parseInt(val.code, 10) >= 1 && parseInt(val.code, 10) <= 5) {
+        return parseInt(val.code, 10);
+      }
+      rawStr = String(val.label || val.code || val.value || '').trim();
+    } else {
+      rawStr = String(val).trim();
+    }
 
-      if (qObj && Array.isArray(qObj.options)) {
-        const rawStr = typeof val === 'object' ? String(val.label || val.code || val.value || '') : String(val);
-        const idx = qObj.options.findIndex(opt => {
-          if (typeof opt === 'object' && opt !== null) {
-            return opt.code === rawStr || opt.label === rawStr || String(opt.value) === rawStr;
-          }
-          return String(opt).trim() === rawStr.trim();
-        });
-        if (idx !== -1) {
-          return idx + 1; // Option 1 -> 1, Option 2 -> 2, Option 3 -> 3, Option 4 -> 4, Option 5 -> 5
+    if (!rawStr) return 0;
+
+    // 1. Direct leading digit match, e.g. "1 Never" -> 1, "2 Three or four" -> 2, "4 Weekly" -> 4
+    const leadingDigitMatch = rawStr.match(/^([1-5])(?:\s|[\.:\-\)]|$)/) || rawStr.match(/^(?:Option|Code)?\s*([1-5])/i);
+    if (leadingDigitMatch) {
+      return parseInt(leadingDigitMatch[1], 10);
+    }
+
+    // 2. If questions list is available, search by option index
+    if (qObj && Array.isArray(qObj.options)) {
+      const idx = qObj.options.findIndex(opt => {
+        if (typeof opt === 'object' && opt !== null) {
+          return opt.code === rawStr || opt.label === rawStr || String(opt.value) === rawStr;
         }
+        return String(opt).trim() === rawStr.trim();
+      });
+      if (idx !== -1) {
+        return idx + 1; // Option 1 -> 1, Option 2 -> 2, Option 3 -> 3, Option 4 -> 4, Option 5 -> 5
       }
     }
 
-    // 2. Direct string/object handling
-    const str = typeof val === 'object' ? `${val.code || ''} ${val.label || ''}`.trim() : String(val).trim();
-    if (!str) return 0;
-
-    // Codebook separate override: Option 1 = 1, Option 2 = 2, Option 3 = 3, Option 4 = 4, Option 5 = 5
-    const codeMatch = str.match(/^(?:Option\s*)?([1-5])$/i) || str.match(/^(?:Code\s*)?([1-5])$/i);
-    if (codeMatch) {
-      return parseInt(codeMatch[1], 10);
-    }
-
-    const l = str.toLowerCase();
-
-    // Option 1 (value 1)
+    // 3. Fallback label string matching
+    const l = rawStr.toLowerCase();
     if (l.includes("never") || l.startsWith("1 or 2") || l.includes("option 1")) return 1;
-    // Option 2 (value 2)
     if (l.includes("monthly or less") || l.includes("less than monthly") || l.startsWith("3 or 4") || l.includes("option 2")) return 2;
-    // Option 3 (value 3)
     if (l.includes("two to four times") || (l.includes("monthly") && !l.includes("less")) || l.startsWith("5 or 6") || l.includes("option 3")) return 3;
-    // Option 4 (value 4)
     if (l.includes("two to three times") || l.includes("weekly") || l.startsWith("7 to 9") || l.includes("option 4")) return 4;
-    // Option 5 (value 5)
     if (l.includes("four or more times") || l.includes("daily") || l.startsWith("10 or more") || l.includes("option 5")) return 5;
 
-    // Direct numeric parse if 1-5
-    const num = parseInt(str, 10);
+    const num = parseInt(rawStr, 10);
     if (!isNaN(num) && num >= 1 && num <= 5) return num;
 
     return 0;
@@ -109,26 +105,42 @@ export function calculateAuditCScore(formData, questions = []) {
       foundQObj = questions.find(q => {
         const idL = String(q.id || '').toLowerCase();
         const titleL = String(q.title || '').toLowerCase();
-        return idL === `q${qNum}` || idL === `custom_q${qNum}` || idL === `mem_scrn_q${qNum}` || titleL.startsWith(`q${qNum}.`) || titleL.startsWith(`q${qNum} `);
+        return idL === `q${qNum}` || idL === `custom_q${qNum}` || idL === `mem_scrn_q${qNum}` || idL === qNum || titleL.startsWith(`q${qNum}.`) || titleL.startsWith(`q${qNum} `) || titleL.includes(`q${qNum}`);
       });
     }
 
-    const searchKeys = Object.keys(formData).filter(k => {
-      const kl = k.toLowerCase().trim();
-      return (
-        kl === `q${qNum}` ||
-        kl === `custom_q${qNum}` ||
-        kl === `q_${qNum}` ||
-        kl === `custom_q_${qNum}` ||
-        kl === `mem_scrn_q${qNum}` ||
-        new RegExp(`(?:^|[^a-z0-9])q_?${qNum}(?:[^0-9]|$)`, 'i').test(kl)
-      );
-    });
+    if (foundQObj) {
+      const qObjKeys = [
+        foundQObj.id,
+        `custom_${foundQObj.id}`,
+        `mem_scrn_${foundQObj.id}`
+      ];
+      for (const k of qObjKeys) {
+        if (formData[k] !== undefined && formData[k] !== null && formData[k] !== "") {
+          val = formData[k];
+          break;
+        }
+      }
+    }
 
-    for (const k of searchKeys) {
-      if (formData[k] !== undefined && formData[k] !== null && formData[k] !== "") {
-        val = formData[k];
-        break;
+    if (val === null || val === undefined || val === "") {
+      const searchKeys = Object.keys(formData).filter(k => {
+        const kl = k.toLowerCase().trim();
+        return (
+          kl === `q${qNum}` ||
+          kl === `custom_q${qNum}` ||
+          kl === `q_${qNum}` ||
+          kl === `custom_q_${qNum}` ||
+          kl === `mem_scrn_q${qNum}` ||
+          new RegExp(`(?:^|[^a-z0-9])q_?${qNum}(?:[^0-9]|$)`, 'i').test(kl)
+        );
+      });
+
+      for (const k of searchKeys) {
+        if (formData[k] !== undefined && formData[k] !== null && formData[k] !== "") {
+          val = formData[k];
+          break;
+        }
       }
     }
 
@@ -919,6 +931,26 @@ export function isQuestionSkipped(q, allQuestions, formData) {
     }
 
     return true; // Skip/hide GAD-7 matrix if Q59 is 0 / Not at all
+  }
+
+  if (qNum === 64 || idL.includes("phq9") || idL.includes("phq_9") || idL.includes("q64") || titleL.includes("phq-9") || titleL.includes("patient health questionnaire")) {
+    const q63Val = getAnswer(63) || getAnswer(58);
+    if (!q63Val) return true; // Hide matrix until Q63/Q58 is answered
+    const f63 = (typeof q63Val === 'object' ? `${q63Val.code || ''} ${q63Val.label || ''} ${q63Val.value || ''}` : String(q63Val)).toLowerCase().trim();
+
+    // Show PHQ-9 matrix when Q63 (or Q58) is opted to Code 1, 2, 3, 4 (or positive response)
+    const isCode1234 = 
+      f63.includes("code 1") || f63.includes("code 2") || f63.includes("code 3") || f63.includes("code 4") ||
+      f63.startsWith("1") || f63.startsWith("2") || f63.startsWith("3") || f63.startsWith("4") ||
+      f63 === "1" || f63 === "2" || f63 === "3" || f63 === "4" ||
+      f63.includes("several") || f63.includes("more than half") || f63.includes("nearly every") || f63.includes("almost daily") ||
+      f63.includes("yes") || f63.includes("true");
+
+    if (isCode1234) {
+      return false; // Open/show PHQ-9 matrix question
+    }
+
+    return true; // Skip/hide PHQ-9 matrix if Q63 is 0 / Not at all
   }
 
   if (qNum === 65) {

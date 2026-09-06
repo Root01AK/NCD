@@ -139,7 +139,10 @@ const DEFAULT_SURVEY_QUESTIONS = [
   { id: "q58", title: "Q58. Over the last 2 weeks, how often have you been bothered by feeling down, depressed, or hopeless?", type: "dropdown", options: [{ label: "0 - Not at all", code: "0" }, { label: "1 - Several days", code: "1" }, { label: "2 - More than half the days", code: "2" }, { label: "3 - Nearly every day", code: "3" }], required: false, section: 8 },
   { id: "q59", title: "Q59. Over the last 2 weeks, how often have you been bothered by feeling nervous, anxious, or on edge?", type: "dropdown", options: [{ label: "0 - Not at all (Code 0)", code: "0" }, { label: "1 - Several days (Code 1)", code: "1" }, { label: "2 - More than half the days (Code 2)", code: "2" }, { label: "3 - Nearly every day (Code 3)", code: "3" }, { label: "4 - Almost daily (Code 4)", code: "4" }], required: false, section: 8 },
   { id: "q60", title: "Q60. GAD-7 Anxiety Scale (Matrix)", type: "matrix", required: false, section: 8 },
-  { id: "q61", title: "Q61. GAD-7 Total Score (Auto-calculated)", type: "number", required: false, section: 8 }
+  { id: "q61", title: "Q61. GAD-7 Total Score (Auto-calculated)", type: "number", required: false, section: 8 },
+  { id: "q63", title: "Q63. Over the last 2 weeks, how often have you been bothered by any of the following depression symptoms?", type: "dropdown", options: [{ label: "0 - Not at all (Code 0)", code: "0" }, { label: "1 - Several days (Code 1)", code: "1" }, { label: "2 - More than half the days (Code 2)", code: "2" }, { label: "3 - Nearly every day (Code 3)", code: "3" }, { label: "4 - Almost daily (Code 4)", code: "4" }], required: false, section: 8 },
+  { id: "q64", title: "Q64. Patient Health Questionnaire (PHQ-9) (Matrix)", type: "matrix", required: false, section: 8 },
+  { id: "q65", title: "Q65. PHQ-9 Total Score (Auto-calculated)", type: "number", required: false, section: 8 }
 ];
 
 
@@ -661,13 +664,22 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       const auditRes = calculateAuditCScore(d, activeCustomQuestions || DEFAULT_SURVEY_QUESTIONS);
       if (auditRes.hasAnyAnswer) {
         const auditScore = auditRes.score;
-        const q30Key = Object.keys(d).find(k => k.toLowerCase().includes("q30")) || "custom_q30";
+        const q30Obj = (activeCustomQuestions || DEFAULT_SURVEY_QUESTIONS).find(q => {
+          const idL = String(q.id || '').toLowerCase();
+          const titleL = String(q.title || '').toLowerCase();
+          return idL === 'q30' || idL.includes('q30') || titleL.startsWith('q30.') || titleL.startsWith('q30 ') || titleL.includes('audit-c total') || titleL.includes('audit-c score') || titleL.includes('audit total');
+        });
+        const q30Key = q30Obj ? `custom_${q30Obj.id}` : (Object.keys(d).find(k => k.toLowerCase().includes("q30")) || "custom_q30");
         if (d[q30Key] !== auditScore || d.q30 !== auditScore || d.custom_q30 !== auditScore || d.audit_score !== auditScore) {
           updates.q30 = auditScore;
           updates.custom_q30 = auditScore;
           updates.audit_score = auditScore;
           updates.AUDIT_C_score = auditScore;
           updates[q30Key] = auditScore;
+          if (q30Obj) {
+            updates[q30Obj.id] = auditScore;
+            updates[`custom_${q30Obj.id}`] = auditScore;
+          }
         }
       }
 
@@ -708,6 +720,32 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         }
       }
 
+      // 8. PHQ-9 Total Score Auto-calculation (Q64 Matrix -> Q65 Score)
+      let phq9Score = 0;
+      let hasPhq9Answer = false;
+      const phq9Rows = ["phq9_q1", "phq9_q2", "phq9_q3", "phq9_q4", "phq9_q5", "phq9_q6", "phq9_q7", "phq9_q8", "phq9_q9"];
+      phq9Rows.forEach((rKey, rIdx) => {
+        const val = d[`q64_${rKey}`] || d[`q64_row_${rIdx + 1}`] || (d.q64 && d.q64[rKey]);
+        if (val !== undefined && val !== null && val !== "") {
+          hasPhq9Answer = true;
+          const str = String(val).toLowerCase().trim();
+          if (str.includes("nearly every") || str === "3" || str === "code 3") phq9Score += 3;
+          else if (str.includes("more than half") || str === "2" || str === "code 2") phq9Score += 2;
+          else if (str.includes("several") || str === "1" || str === "code 1") phq9Score += 1;
+        }
+      });
+
+      if (hasPhq9Answer) {
+        const q65Key = Object.keys(d).find(k => k.toLowerCase().includes("q65")) || "custom_q65";
+        if (d[q65Key] !== phq9Score || d.q65 !== phq9Score || d.phq9_score !== phq9Score) {
+          updates.q65 = phq9Score;
+          updates.custom_q65 = phq9Score;
+          updates.phq9_score = phq9Score;
+          updates.PHQ9_score = phq9Score;
+          updates[q65Key] = phq9Score;
+        }
+      }
+
       if (Object.keys(updates).length === 0) return d;
       return { ...d, ...updates };
     });
@@ -718,6 +756,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     data.q21, data.custom_q21, data.q22, data.custom_q22,
     data.q27, data.custom_q27, data.q28, data.custom_q28, data.q29, data.custom_q29,
     data.q60_gad7_q1, data.q60_gad7_q2, data.q60_gad7_q3, data.q60_gad7_q4, data.q60_gad7_q5, data.q60_gad7_q6, data.q60_gad7_q7,
+    data.q64_phq9_q1, data.q64_phq9_q2, data.q64_phq9_q3, data.q64_phq9_q4, data.q64_phq9_q5, data.q64_phq9_q6, data.q64_phq9_q7, data.q64_phq9_q8, data.q64_phq9_q9,
     data.raw_date
   ]);
 
@@ -1173,8 +1212,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     if (!q) return false;
     const idL = String(q.id || "").toLowerCase();
     const titleL = String(q.title || "").toLowerCase();
-    if (titleL.includes("often") || titleL.includes("how many") || titleL.includes("drink")) return false;
-    return idL === "q30" || titleL.includes("audit-c total score") || titleL.includes("audit-c score") || (titleL.includes("audit") && titleL.includes("total score"));
+    if (titleL.includes("often") || titleL.includes("how many") || titleL.includes("standard drinks") || (titleL.includes("drink") && !titleL.includes("audit"))) return false;
+    return idL === "q30" || idL.includes("q30") || titleL.includes("q30") || titleL.includes("audit-c total") || titleL.includes("audit-c score") || titleL.includes("audit total") || (titleL.includes("audit") && (titleL.includes("total") || titleL.includes("sum")));
   };
 
   const isBmiQuestion = (q) => {
@@ -1421,6 +1460,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
     if (qTypeLower === 'matrix' || qTypeLower === 'grid' || qTypeLower === 'table') return true;
     if (qIdLower.includes('q60') || qIdLower.includes('gad') || qTitleLower.includes('gad-7') || qTitleLower.includes('anxiety')) return true;
+    if (qIdLower.includes('q64') || qIdLower.includes('phq') || qTitleLower.includes('phq-9') || qTitleLower.includes('patient health questionnaire')) return true;
     if (qIdLower.includes('q86') || qTitleLower.includes('q86') || qTitleLower.includes('fat loss')) return true;
     if (qIdLower.includes('q87') || qTitleLower.includes('q87') || qTitleLower.includes('muscle loss')) return true;
     if (q.rows && Array.isArray(q.rows) && q.rows.length > 0) return true;
@@ -1445,6 +1485,20 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         { id: "gad7_q5", label: "5. Being so restless that it is hard to sit still" },
         { id: "gad7_q6", label: "6. Becoming easily annoyed or irritable" },
         { id: "gad7_q7", label: "7. Feeling afraid, as if something awful might happen" }
+      ];
+    }
+
+    if (qIdLower.includes('q64') || qIdLower.includes('phq') || qTitleLower.includes('phq-9') || qTitleLower.includes('patient health questionnaire')) {
+      return [
+        { id: "phq9_q1", label: "1. Little interest or pleasure in doing things" },
+        { id: "phq9_q2", label: "2. Feeling down, depressed, or hopeless" },
+        { id: "phq9_q3", label: "3. Trouble falling or staying asleep, or sleeping too much" },
+        { id: "phq9_q4", label: "4. Feeling tired or having little energy" },
+        { id: "phq9_q5", label: "5. Poor appetite or overeating" },
+        { id: "phq9_q6", label: "6. Feeling bad about yourself - or that you are a failure or have let yourself or your family down" },
+        { id: "phq9_q7", label: "7. Trouble concentrating on things, such as reading the newspaper or watching television" },
+        { id: "phq9_q8", label: "8. Moving or speaking so slowly that other people could have noticed? Or the opposite – being so fidgety or restless that you have been moving around a lot more than usual" },
+        { id: "phq9_q9", label: "9. Thoughts that you would be better off dead or of hurting yourself in some way" }
       ];
     }
 
@@ -1486,7 +1540,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     const qIdLower = String(q.id || "").toLowerCase();
     const qTitleLower = String(q.title || "").toLowerCase();
 
-    if (qIdLower.includes('q60') || qIdLower.includes('gad') || qTitleLower.includes('gad-7') || qTitleLower.includes('anxiety')) {
+    if (qIdLower.includes('q60') || qIdLower.includes('gad') || qTitleLower.includes('gad-7') || qTitleLower.includes('anxiety') || qIdLower.includes('q64') || qIdLower.includes('phq') || qTitleLower.includes('phq-9') || qTitleLower.includes('patient health questionnaire')) {
       return [
         { code: "0", label: "Not at all", pts: 0 },
         { code: "1", label: "Several days", pts: 1 },
@@ -3218,7 +3272,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                             disabled={isQuestionReadOnlyForUser(q)}
                             readOnly={isQuestionReadOnlyForUser(q)}
                             placeholder={isQuestionReadOnlyForUser(q) ? "Read-Only (Recorded Upstream)" : "Enter text response..."} 
-                            value={data[`custom_${q.id}`] || data[q.id] || ''} 
+                            value={getQuestionValue(q) !== undefined && getQuestionValue(q) !== null ? getQuestionValue(q) : (data[`custom_${q.id}`] || data[q.id] || '')} 
                             onChange={(e) => updateCustomField(q, e.target.value)} 
                             className={`w-full px-3.5 py-2 rounded-xl border text-xs font-semibold shadow-2xs ${
                               isQuestionReadOnlyForUser(q) 
@@ -3232,7 +3286,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                             disabled={isQuestionReadOnlyForUser(q)}
                             readOnly={isQuestionReadOnlyForUser(q)}
                             placeholder={isQuestionReadOnlyForUser(q) ? "Read-Only" : "Enter numerical value..."} 
-                            value={data[`custom_${q.id}`] || data[q.id] || ''} 
+                            value={getQuestionValue(q) !== undefined && getQuestionValue(q) !== null ? getQuestionValue(q) : (data[`custom_${q.id}`] || data[q.id] || '')} 
                             onChange={(e) => {
                               const val = e.target.value;
                               const qIdLower = String(q.id || '').toLowerCase();
@@ -3351,36 +3405,39 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                           />
                         ) : null}
 
-                        {/* Matrix Question Type (GAD-7 Anxiety, Q86 Fat Loss, Q87 Muscle Loss, etc.) */}
+                        {/* Matrix Question Type (GAD-7 Anxiety, PHQ-9 Depression, Q86 Fat Loss, Q87 Muscle Loss, etc.) */}
                         {isMatrixQuestion(q) && (() => {
                           const qIdLower = String(q.id || "").toLowerCase();
                           const qTitleLower = String(q.title || "").toLowerCase();
+
                           const isGad7 = qIdLower.includes("gad") || qIdLower.includes("q60") || qTitleLower.includes("gad-7") || qTitleLower.includes("anxiety");
+                          const isPhq9 = qIdLower.includes("phq") || qIdLower.includes("q64") || qTitleLower.includes("phq-9") || qTitleLower.includes("patient health questionnaire");
+                          const isSpecialMatrix = isGad7 || isPhq9;
 
                           const mRows = getMatrixRows(q);
                           const mCols = getMatrixCols(q);
 
-                          let gad7TotalScore = 0;
-                          if (isGad7) {
+                          let matrixTotalScore = 0;
+                          if (isGad7 || isPhq9) {
                             mRows.forEach((row, rIdx) => {
                               const rowKey = typeof row === 'object' ? row.id || `row_${rIdx + 1}` : `row_${rIdx + 1}`;
                               const matrixValKey = `${q.id}_${rowKey}`;
                               const val = data[matrixValKey] || (data[q.id] && data[q.id][rowKey]);
                               if (val !== undefined && val !== null && val !== "") {
                                 const str = String(val).toLowerCase().trim();
-                                if (str.includes("nearly every") || str === "3" || str === "code 3") gad7TotalScore += 3;
-                                else if (str.includes("more than half") || str === "2" || str === "code 2") gad7TotalScore += 2;
-                                else if (str.includes("several") || str === "1" || str === "code 1") gad7TotalScore += 1;
+                                if (str.includes("nearly every") || str === "3" || str === "code 3") matrixTotalScore += 3;
+                                else if (str.includes("more than half") || str === "2" || str === "code 2") matrixTotalScore += 2;
+                                else if (str.includes("several") || str === "1" || str === "code 1") matrixTotalScore += 1;
                               }
                             });
                           }
 
                           return (
                             <div className="w-full overflow-hidden rounded-2xl border border-slate-200/90 shadow-2xs my-3 font-sans bg-white">
-                              {isGad7 && (
+                              {isSpecialMatrix && (
                                 <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200/90 flex items-center justify-between">
-                                  <span className="text-sm font-bold text-[#2d2f7f] font-sans tracking-wide">
-                                    GAD-7 Anxiety
+                                  <span className="text-sm font-bold text-[#2d2f7f] font-sans tracking-wide uppercase">
+                                    {isPhq9 ? "PATIENT HEALTH QUESTIONNAIRE (PHQ 9)" : "GAD-7 Anxiety"}
                                   </span>
                                   <span className="text-[10px] font-mono font-extrabold px-2.5 py-1 rounded-xl bg-purple-50 text-purple-900 border border-purple-200 shadow-2xs uppercase">
                                     Clinical Scale
@@ -3391,14 +3448,14 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                               <div className="w-full overflow-x-auto">
                                 <table className="w-full text-left border-collapse min-w-[640px]">
                                   <thead>
-                                    <tr className={isGad7 ? "bg-[#800080] text-white" : "bg-amber-50/70 border-b border-amber-200/80 font-mono"}>
+                                    <tr className={isSpecialMatrix ? "bg-[#800080] text-white" : "bg-amber-50/70 border-b border-amber-200/80 font-mono"}>
                                       <th className="py-3.5 px-4 text-xs font-bold uppercase tracking-wider">
-                                        {isGad7 ? "" : "Assessment Site / Row Parameter"}
+                                        {isSpecialMatrix ? "" : "Assessment Site / Row Parameter"}
                                       </th>
                                       {mCols.map((col, cIdx) => (
-                                        <th key={cIdx} className={`py-3.5 px-3 text-center text-xs font-bold ${isGad7 ? "text-white" : "text-slate-900"}`}>
+                                        <th key={cIdx} className={`py-3.5 px-3 text-center text-xs font-bold ${isSpecialMatrix ? "text-white" : "text-slate-900"}`}>
                                           <span className="inline-flex items-center gap-1.5 justify-center">
-                                            {!isGad7 && (
+                                            {!isSpecialMatrix && (
                                               <span className="px-1.5 py-0.5 rounded bg-amber-200/80 text-amber-950 font-black text-[11px] border border-amber-300">
                                                 {getOptionCode(col, cIdx)}
                                               </span>
@@ -3445,7 +3502,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                                   }}
                                                   className={`inline-flex items-center justify-center p-2 rounded-full border transition-all cursor-pointer ${
                                                     isChecked 
-                                                      ? isGad7
+                                                      ? isSpecialMatrix
                                                         ? 'bg-purple-100 border-purple-600 text-purple-900 shadow-2xs ring-2 ring-purple-500'
                                                         : 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs ring-2 ring-amber-400' 
                                                       : 'bg-white border-slate-300 text-slate-400 hover:bg-slate-50 hover:text-slate-700'
@@ -3469,13 +3526,13 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                 </table>
                               </div>
 
-                              {isGad7 && (
+                              {isSpecialMatrix && (
                                 <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 font-sans">
-                                  <span className="text-sm font-bold text-[#00a86b] font-sans">
+                                  <span className="text-sm font-bold text-slate-700 font-sans">
                                     Total Score
                                   </span>
-                                  <div className="px-4 py-2 bg-white border border-[#00a86b] text-slate-900 font-mono font-bold text-base rounded shadow-inner w-full sm:w-64 text-left">
-                                    {gad7TotalScore}
+                                  <div className="px-4 py-2 bg-[#e8ecef]/80 border border-slate-300 text-slate-900 font-mono font-bold text-base rounded-xs w-full sm:w-64 text-left">
+                                    {matrixTotalScore}
                                   </div>
                                 </div>
                               )}
