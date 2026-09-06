@@ -175,9 +175,16 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     const pagesList = [];
     let curP = [];
 
+    const isThankYouBanner = (q) => {
+      if (!q) return false;
+      const titleL = String(q.title || "").toLowerCase();
+      const idL = String(q.id || "").toLowerCase();
+      return titleL.includes("thank you") || titleL.includes("reach us") || titleL.includes("healthcare linkage") || idL.includes("thankyou");
+    };
+
     if (pageMode === 'one_section') {
       activeQs.forEach(q => {
-        const isH = q.type === 'section_header' || String(q.id || '').startsWith('sec_');
+        const isH = (q.type === 'section_header' || String(q.id || '').startsWith('sec_')) && !isThankYouBanner(q);
         if (isH) {
           if (curP.length > 0) {
             pagesList.push(curP);
@@ -192,7 +199,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     } else {
       let qCount = 0;
       activeQs.forEach(q => {
-        const isH = q.type === 'section_header' || String(q.id || '').startsWith('sec_');
+        const isH = (q.type === 'section_header' || String(q.id || '').startsWith('sec_')) && !isThankYouBanner(q);
         if (isH) {
           if (qCount > 0) {
             if (curP.length > 0) pagesList.push(curP);
@@ -213,6 +220,17 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       });
       if (curP.length > 0) pagesList.push(curP);
     }
+
+    if (pagesList.length > 1) {
+      const lastPageIndex = pagesList.length - 1;
+      const lastPage = pagesList[lastPageIndex];
+      const hasActualQuestions = lastPage.some(q => q.type !== 'section_header' && !String(q.id || '').startsWith('sec_'));
+      if (!hasActualQuestions) {
+        pagesList[lastPageIndex - 1].push(...lastPage);
+        pagesList.pop();
+      }
+    }
+
     return pagesList;
   };
 
@@ -324,15 +342,38 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   });
 
   useEffect(() => {
-    const loc = getActiveLocation();
-    fetchNextParticipantIDFromDB(loc).then(freshId => {
+    if (participant && (participant.participant_id || participant.mem_scrn_part_id)) {
+      const pid = participant.participant_id || participant.mem_scrn_part_id;
+      const loc = participant.location || participant.mem_scrn_q17 || getActiveLocation();
+      const isSec16 = Boolean(participant.section_16_mode || participant.start_section === 16);
+
       setData(prev => ({
         ...prev,
+        ...participant,
+        participant_id: pid,
+        fullName: participant.fullName || participant.mem_scrn_q16 || prev.fullName,
+        age: participant.age || participant.mem_scrn_q1 || prev.age,
+        gender: participant.gender || (participant.mem_scrn_q2 == "1" ? "Male" : "Female") || prev.gender,
         location: loc,
-        participant_id: freshId || generateParticipantID(loc)
+        start_section: participant.start_section || (isSec16 ? 16 : prev.start_section),
+        section_16_mode: isSec16 || prev.section_16_mode
       }));
-    });
-  }, []);
+
+      if (isSec16) {
+        setStep(1);
+        setQPage(0);
+      }
+    } else {
+      const loc = getActiveLocation();
+      fetchNextParticipantIDFromDB(loc).then(freshId => {
+        setData(prev => ({
+          ...prev,
+          location: loc,
+          participant_id: freshId || generateParticipantID(loc)
+        }));
+      });
+    }
+  }, [participant]);
 
   const [submitting, setSubmitting] = useState(false);
   const [customQuestions, setCustomQuestions] = useState([]);
@@ -950,8 +991,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       else if (qNum >= 89 && qNum <= 93) qSec = 12;
       else if (qNum >= 94 && qNum <= 96) qSec = 13;
       else if (qNum >= 97 && qNum <= 106) qSec = 14;
-      else if (qNum >= 107 && qNum <= 112) qSec = 15;
-      else if (qNum >= 113) qSec = 16;
+      else if (qNum >= 107 && qNum <= 111) qSec = 15;
+      else if (qNum >= 112) qSec = 16;
     } else if (
       idx < 8 ||
       titleLower.includes("age") || 
@@ -980,10 +1021,13 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     }
 
     if (isFieldSupervisor) {
-      return qSec === 1; // Field Supervisor strictly sees only Section 1 questions (Q1 to Q8)
+      if (data.section_16_mode || data.start_section === 16 || participant?.section_16_mode || participant?.start_section === 16) {
+        return qSec === 16;
+      }
+      return qSec === 1; // Field Supervisor strictly sees Section 1 during initial creation (Q1 to Q8)
     }
 
-    if (qSec === 16 && !isExistingParticipant) {
+    if (qSec === 16 && !isExistingParticipant && !data.section_16_mode) {
       return false; // Hide Section 16 during initial creation
     }
 
@@ -1389,8 +1433,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       else if (qNum >= 89 && qNum <= 93) qSec = 12;
       else if (qNum >= 94 && qNum <= 96) qSec = 13;
       else if (qNum >= 97 && qNum <= 106) qSec = 14;
-      else if (qNum >= 107 && qNum <= 112) qSec = 15;
-      else if (qNum >= 113) qSec = 16;
+      else if (qNum >= 107 && qNum <= 111) qSec = 15;
+      else if (qNum >= 112) qSec = 16;
     } else {
       const idStr = String(q.id || "").toLowerCase();
       if (idStr.startsWith("sec_")) {
@@ -1470,13 +1514,11 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
   const getMatrixRows = (q) => {
     if (!q) return [];
-    if (q.rows && Array.isArray(q.rows) && q.rows.length > 0) return q.rows;
-    if (q.matrix_rows && Array.isArray(q.matrix_rows) && q.matrix_rows.length > 0) return q.matrix_rows;
-
     const qIdLower = String(q.id || "").toLowerCase();
     const qTitleLower = String(q.title || "").toLowerCase();
 
-    if (qIdLower.includes('q60') || qIdLower.includes('gad') || qTitleLower.includes('gad-7') || qTitleLower.includes('anxiety')) {
+    // Priority 1: GAD-7 Anxiety Scale (7 items)
+    if (qIdLower.includes('q60') || qIdLower.includes('gad') || qTitleLower.includes('gad-7') || qTitleLower.includes('gad 7') || qTitleLower.includes('anxiety')) {
       return [
         { id: "gad7_q1", label: "1. Feeling nervous, anxious, or on edge" },
         { id: "gad7_q2", label: "2. Not being able to stop or control worrying" },
@@ -1488,7 +1530,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       ];
     }
 
-    if (qIdLower.includes('q64') || qIdLower.includes('phq') || qTitleLower.includes('phq-9') || qTitleLower.includes('patient health questionnaire')) {
+    // Priority 2: PHQ-9 Depression Scale (9 items)
+    if (qIdLower.includes('q64') || qIdLower.includes('phq') || qTitleLower.includes('phq-9') || qTitleLower.includes('phq 9') || qTitleLower.includes('patient health questionnaire') || qTitleLower.includes('depression')) {
       return [
         { id: "phq9_q1", label: "1. Little interest or pleasure in doing things" },
         { id: "phq9_q2", label: "2. Feeling down, depressed, or hopeless" },
@@ -1501,6 +1544,9 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         { id: "phq9_q9", label: "9. Thoughts that you would be better off dead or of hurting yourself in some way" }
       ];
     }
+
+    if (q.rows && Array.isArray(q.rows) && q.rows.length > 0) return q.rows;
+    if (q.matrix_rows && Array.isArray(q.matrix_rows) && q.matrix_rows.length > 0) return q.matrix_rows;
 
     if (qIdLower.includes('q86') || qTitleLower.includes('q86') || qTitleLower.includes('fat loss')) {
       return [
@@ -1534,13 +1580,10 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
   const getMatrixCols = (q) => {
     if (!q) return [];
-    if (q.cols && Array.isArray(q.cols) && q.cols.length > 0) return q.cols;
-    if (q.columns && Array.isArray(q.columns) && q.columns.length > 0) return q.columns;
-
     const qIdLower = String(q.id || "").toLowerCase();
     const qTitleLower = String(q.title || "").toLowerCase();
 
-    if (qIdLower.includes('q60') || qIdLower.includes('gad') || qTitleLower.includes('gad-7') || qTitleLower.includes('anxiety') || qIdLower.includes('q64') || qIdLower.includes('phq') || qTitleLower.includes('phq-9') || qTitleLower.includes('patient health questionnaire')) {
+    if (qIdLower.includes('q60') || qIdLower.includes('gad') || qTitleLower.includes('gad-7') || qTitleLower.includes('gad 7') || qTitleLower.includes('anxiety') || qIdLower.includes('q64') || qIdLower.includes('phq') || qTitleLower.includes('phq-9') || qTitleLower.includes('phq 9') || qTitleLower.includes('patient health questionnaire') || qTitleLower.includes('depression')) {
       return [
         { code: "0", label: "Not at all", pts: 0 },
         { code: "1", label: "Several days", pts: 1 },
@@ -1548,6 +1591,9 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         { code: "3", label: "Nearly every day", pts: 3 }
       ];
     }
+
+    if (q.cols && Array.isArray(q.cols) && q.cols.length > 0) return q.cols;
+    if (q.columns && Array.isArray(q.columns) && q.columns.length > 0) return q.columns;
 
     return [
       { code: "1", label: "Normal (No loss)" },
@@ -1914,6 +1960,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         nextSec = 15;
       }
 
+      const isSec16Submission = Boolean(data.section_16_mode || data.start_section === 16 || participant?.section_16_mode);
+
       const payload = {
         ...data,
         mem_scrn_part_id: data.participant_id,
@@ -1923,12 +1971,15 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         mem_scrn_q17: data.location,
         submitted_by_role: data.user_role,
         submitted_at: new Date().toISOString(),
+        section_16_completed: isSec16Submission ? true : Boolean(data.section_16_completed),
+        community_perception_completed: isSec16Submission ? true : Boolean(data.community_perception_completed),
+        sec_16_done: isSec16Submission ? true : Boolean(data.sec_16_done),
         counselor_section_completed: cSec8Done,
         counselor_sec15_required: cSec15Req,
         counselor_sec15_completed: cSec15Done,
-        status: statusVal,
-        current_queue: queueVal,
-        section: nextSec
+        status: isSec16Submission ? "Completed (Section 16 Done)" : statusVal,
+        current_queue: isSec16Submission ? "Completed" : queueVal,
+        section: isSec16Submission ? 16 : nextSec
       };
 
       await saveToQueue(payload);
@@ -1954,8 +2005,10 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         }
       }
 
-      const succMsg = isFieldSupervisor 
-        ? `Participant ${data.participant_id} demographics saved & sent to Staff Nurse queue.`
+      const succMsg = isSec16Submission
+        ? `Section 16 (Community Perception) completed for Participant ${data.participant_id}!`
+        : isFieldSupervisor 
+          ? `Participant ${data.participant_id} demographics saved & sent to Staff Nurse queue.`
         : isCounselorSubmission
           ? cSec15Done
             ? `Section 15 Health Counseling completed for Participant ${data.participant_id}!`
@@ -2504,6 +2557,28 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                       const opts = Array.isArray(q.options) ? q.options : [];
                       
                       if (qType === 'section_header' || String(q.id || '').startsWith('sec_')) {
+                        const titleL = String(q.title || "").toLowerCase();
+                        const idL = String(q.id || "").toLowerCase();
+                        const isThankYou = titleL.includes("thank you") || titleL.includes("reach us") || titleL.includes("healthcare linkage") || idL.includes("thankyou");
+                        
+                        if (isThankYou) {
+                          return (
+                            <div key={q.id || absoluteIdx} className="p-4 px-5 rounded-2xl bg-gradient-to-r from-emerald-950 via-slate-900 to-teal-950 text-white border border-emerald-700/80 shadow-md my-4 font-sans space-y-1.5">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shrink-0">
+                                  <CheckCircle2 size={18} />
+                                </div>
+                                <h3 className="text-xs font-black tracking-wider uppercase text-emerald-300 font-mono">
+                                  End of Survey — Healthcare Linkage & Support
+                                </h3>
+                              </div>
+                              <p className="text-xs text-emerald-100/90 font-medium pl-10 leading-relaxed">
+                                {q.title || "THANK YOU FOR PARTICIPATING. FOR HELP WITH HEALTHCARE LINKAGE YOU CAN REACH US AT ANYTIME."}
+                              </p>
+                            </div>
+                          );
+                        }
+
                         return (
                           <div key={q.id || absoluteIdx} className="p-3 px-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-amber-400/10 to-amber-500/5 border border-amber-300/80 shadow-2xs font-mono my-1">
                             <h3 className="text-xs font-black text-amber-950 tracking-wider uppercase flex items-center gap-2">
@@ -3410,8 +3485,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                           const qIdLower = String(q.id || "").toLowerCase();
                           const qTitleLower = String(q.title || "").toLowerCase();
 
-                          const isGad7 = qIdLower.includes("gad") || qIdLower.includes("q60") || qTitleLower.includes("gad-7") || qTitleLower.includes("anxiety");
-                          const isPhq9 = qIdLower.includes("phq") || qIdLower.includes("q64") || qTitleLower.includes("phq-9") || qTitleLower.includes("patient health questionnaire");
+                          const isGad7 = qIdLower.includes("gad") || qIdLower.includes("q60") || qTitleLower.includes("gad-7") || qTitleLower.includes("gad 7") || qTitleLower.includes("anxiety");
+                          const isPhq9 = !isGad7 && (qIdLower.includes("phq") || qIdLower.includes("q64") || qTitleLower.includes("phq-9") || qTitleLower.includes("phq 9") || qTitleLower.includes("patient health questionnaire") || qTitleLower.includes("depression"));
                           const isSpecialMatrix = isGad7 || isPhq9;
 
                           const mRows = getMatrixRows(q);
@@ -3437,7 +3512,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                               {isSpecialMatrix && (
                                 <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200/90 flex items-center justify-between">
                                   <span className="text-sm font-bold text-[#2d2f7f] font-sans tracking-wide uppercase">
-                                    {isPhq9 ? "PATIENT HEALTH QUESTIONNAIRE (PHQ 9)" : "GAD-7 Anxiety"}
+                                    {isPhq9 ? "PATIENT HEALTH QUESTIONNAIRE (PHQ 9)" : "GAD-7 ANXIETY SCALE"}
                                   </span>
                                   <span className="text-[10px] font-mono font-extrabold px-2.5 py-1 rounded-xl bg-purple-50 text-purple-900 border border-purple-200 shadow-2xs uppercase">
                                     Clinical Scale
@@ -4058,9 +4133,11 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                         <span>
                           {submitting 
                             ? "Submitting..." 
-                            : isFieldSupervisor 
-                              ? "Submit Demographics & Send to Staff Nurse Queue" 
-                              : `Submit ${data.user_role} Clinical Entry`}
+                            : (data.section_16_mode || data.start_section === 16 || participant?.section_16_mode)
+                              ? "Submit Section 16 — Community Perception"
+                              : isFieldSupervisor 
+                                ? "Submit Demographics & Send to Staff Nurse Queue" 
+                                : `Submit ${data.user_role} Clinical Entry`}
                         </span>
                       </button>
                     )}

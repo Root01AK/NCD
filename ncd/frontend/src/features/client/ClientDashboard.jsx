@@ -647,6 +647,30 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
               )}
             </div>
 
+            {/* Forms Section: Field Supervisor Section 16 (Community Perception Entry) */}
+            {Boolean(user?.role_name?.toLowerCase().includes("supervisor") || user?.role_id === 2 || userPrivileges.includes(16)) && (
+              <div className="space-y-3 pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900 tracking-tight">
+                      Forms
+                    </h2>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                      Field Supervisor observation forms &amp; Section 16 Community Perception entry.
+                    </p>
+                  </div>
+                </div>
+
+                <FieldSupervisorSection16Card
+                  syncQueue={syncQueue}
+                  completedRecords={completedRecords}
+                  activeLocation={activeLocation}
+                  onOpenSurvey={openSurvey}
+                  notify={notify}
+                />
+              </div>
+            )}
+
           </div>
         )}
 
@@ -1311,6 +1335,186 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
         </span>
       </footer>
 
+    </div>
+  );
+}
+
+function FieldSupervisorSection16Card({ syncQueue = [], completedRecords = [], activeLocation = "Dharavi", onOpenSurvey, notify }) {
+  const [selectedPid, setSelectedPid] = useState("");
+  const [serverRecords, setServerRecords] = useState([]);
+
+  useEffect(() => {
+    let mounted = true;
+    api.get("/api/v1/dashboard/screeninglist").then(res => {
+      if (mounted && res && res.status === 'success' && Array.isArray(res.data)) {
+        setServerRecords(res.data);
+      }
+    }).catch(() => {
+      api.get("/api/v1/screening/queue").then(qRes => {
+        if (mounted && qRes && qRes.status === 'success' && Array.isArray(qRes.data)) {
+          setServerRecords(qRes.data);
+        }
+      }).catch(() => {});
+    });
+    return () => { mounted = false; };
+  }, []);
+
+  const getPendingSec16Participants = () => {
+    const list = [];
+    const seenPids = new Set();
+
+    const addCandidate = (item) => {
+      if (!item) return;
+      let raw = {};
+      if (item.mem_scrn_q30) {
+        try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
+      }
+      const pId = String(item.participant_id || item.mem_scrn_part_id || raw.participant_id || raw.mem_scrn_part_id || "").trim();
+      if (!pId || pId === "N/A" || seenPids.has(pId.toUpperCase())) return;
+
+      // Location match check for active center
+      const loc = item.location || raw.location || item.mem_scrn_q17 || "";
+      const locLower = String(loc).toLowerCase();
+      const activeLocLower = String(activeLocation).toLowerCase().trim();
+      let matchLoc = true;
+      if (activeLocLower && activeLocLower !== "all") {
+        if (activeLocLower.includes("malvani") || activeLocLower.includes("ml")) {
+          matchLoc = locLower.includes("malvani") || locLower.includes("ml") || pId.toUpperCase().includes("ML");
+        } else if (activeLocLower.includes("dharavi") || activeLocLower.includes("dh")) {
+          matchLoc = locLower.includes("dharavi") || locLower.includes("dh") || pId.toUpperCase().includes("DH");
+        } else if (activeLocLower.includes("vashi") || activeLocLower.includes("va")) {
+          matchLoc = locLower.includes("vashi") || locLower.includes("va") || pId.toUpperCase().includes("VA");
+        } else {
+          matchLoc = locLower.includes(activeLocLower) || activeLocLower.includes(locLower);
+        }
+      }
+      if (!matchLoc) return;
+
+      // EXCLUSION LOGIC: Check if Section 16 is already completed
+      const surData = typeof item.survey_data === 'object' ? item.survey_data : {};
+      const isSec16Completed = Boolean(
+        item.section_16_completed ||
+        item.community_perception_completed ||
+        item.sec_16_done ||
+        item.community_perception ||
+        raw.section_16_completed ||
+        raw.community_perception ||
+        surData.section_16_completed ||
+        surData.community_perception ||
+        item.mem_scrn_q16_done
+      );
+
+      // If user completed Section 16, exclude from dropdown!
+      if (isSec16Completed) return;
+
+      const fullName = item.fullName || raw.fullName || item.mem_scrn_q16 || raw.mem_scrn_q16 || "Participant Record";
+      const age = item.age || raw.age || item.mem_scrn_q1 || "";
+      const gender = item.gender || raw.gender || (item.mem_scrn_q2 == "1" ? "Male" : "Female");
+
+      seenPids.add(pId.toUpperCase());
+      list.push({
+        ...item,
+        ...raw,
+        participant_id: pId,
+        fullName,
+        age,
+        gender,
+        location: loc || activeLocation
+      });
+    };
+
+    // 1. Local sync queue items
+    syncQueue.forEach(addCandidate);
+
+    // 2. Initiated local participants from localStorage
+    try {
+      const locStr = localStorage.getItem('ncd_local_initiated_participants');
+      if (locStr) {
+        const locArr = JSON.parse(locStr);
+        if (Array.isArray(locArr)) locArr.forEach(addCandidate);
+      }
+    } catch (e) {}
+
+    // 3. Completed records list
+    completedRecords.forEach(addCandidate);
+
+    // 4. Server records
+    serverRecords.forEach(addCandidate);
+
+    return list;
+  };
+
+  const pendingParticipants = getPendingSec16Participants();
+
+  const handleStartSection16 = () => {
+    if (!selectedPid) {
+      if (notify) notify("error", "Select Participant", "Please select a Participant ID from the dropdown to start Section 16.");
+      return;
+    }
+
+    const targetPart = pendingParticipants.find(p => p.participant_id === selectedPid);
+    if (!targetPart) return;
+
+    onOpenSurvey({
+      ...targetPart,
+      participant_id: selectedPid,
+      start_section: 16,
+      section_16_mode: true
+    });
+  };
+
+  return (
+    <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-amber-300 transition-all duration-200 font-sans my-2">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        {/* Left: Icon & Title/Subtitle */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 shrink-0">
+            <ClipboardCheck size={20} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-sm font-extrabold text-slate-900 tracking-tight">
+                Section 16 — Community Perception Entry
+              </h3>
+              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 font-mono">
+                Field Supervisor
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">
+              Select an initiated participant to enter Section 16 observations. Completed participants are hidden.
+            </p>
+          </div>
+        </div>
+
+        {/* Right: Inline Dropdown & Start Button */}
+        <div className="flex items-center gap-2.5 w-full md:w-auto">
+          <select
+            value={selectedPid}
+            onChange={(e) => setSelectedPid(e.target.value)}
+            className="flex-1 md:w-64 px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-semibold text-slate-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 shadow-2xs font-mono cursor-pointer"
+          >
+            <option value="">-- Select Participant ID --</option>
+            {pendingParticipants.map((p) => (
+              <option key={p.participant_id} value={p.participant_id}>
+                {p.participant_id} — {p.fullName} ({p.gender}, {p.age}y)
+              </option>
+            ))}
+          </select>
+
+          <button
+            onClick={handleStartSection16}
+            disabled={!selectedPid || pendingParticipants.length === 0}
+            className={`px-4 py-2 rounded-xl text-xs font-black font-mono transition-all flex items-center justify-center gap-1.5 shadow-2xs whitespace-nowrap ${
+              selectedPid
+                ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 border border-amber-300 hover:scale-[1.02] cursor-pointer'
+                : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+            }`}
+          >
+            <span>Start Section 16</span>
+            <ArrowRight size={14} />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
