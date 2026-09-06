@@ -690,8 +690,10 @@ export function isQuestionSkipped(q, allQuestions, formData) {
   // Extract Question Number robustly from q.id or q.title
   let qNum = null;
   const qIdStr = String(q.id || "").toLowerCase().trim();
+  const idL = qIdStr;
   const titleStr = String(q.title || "").trim();
-  const combinedStr = `${qIdStr} ${titleStr.toLowerCase()}`;
+  const titleL = titleStr.toLowerCase();
+  const combinedStr = `${qIdStr} ${titleL}`;
   
   const numMatch = combinedStr.match(/(?:^|[^a-z0-9])q(\d+)\b/i) || combinedStr.match(/^q(\d+)/i) || titleStr.match(/^Q(\d+)/i) || combinedStr.match(/(\d+)/);
   if (numMatch) {
