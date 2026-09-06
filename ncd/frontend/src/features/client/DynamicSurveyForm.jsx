@@ -2674,7 +2674,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                   min={0}
                                   max={15}
                                   placeholder="___"
-                                  value={getFieldValue(q) !== undefined && getFieldValue(q) !== null ? getFieldValue(q) : (data.q30 ?? data.custom_q30 ?? data.audit_score ?? '')}
+                                  value={getQuestionValue(q) !== undefined && getQuestionValue(q) !== null ? getQuestionValue(q) : (data.q30 ?? data.custom_q30 ?? data.audit_score ?? '')}
                                   onChange={(e) => {
                                     const val = e.target.value;
                                     if (val !== '') {
