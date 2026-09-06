@@ -132,7 +132,14 @@ const DEFAULT_SURVEY_QUESTIONS = [
   { id: "q27", title: "Q27. How often do you have a drink containing alcohol?", type: "dropdown", options: [{ label: "Never (Option 1 = 1)", code: "1" }, { label: "Monthly or less (Option 2 = 2)", code: "2" }, { label: "Two to four times a month (Option 3 = 3)", code: "3" }, { label: "Two to three times a week (Option 4 = 4)", code: "4" }, { label: "Four or more times a week (Option 5 = 5)", code: "5" }], required: false, section: 4 },
   { id: "q28", title: "Q28. How many standard drinks on a typical drinking day?", type: "dropdown", options: [{ label: "1 or 2 (Option 1 = 1)", code: "1" }, { label: "3 or 4 (Option 2 = 2)", code: "2" }, { label: "5 or 6 (Option 3 = 3)", code: "3" }, { label: "7 to 9 (Option 4 = 4)", code: "4" }, { label: "10 or more (Option 5 = 5)", code: "5" }], required: false, section: 4 },
   { id: "q29", title: "Q29. How often do you have six or more standard drinks on one occasion?", type: "dropdown", options: [{ label: "Never (Option 1 = 1)", code: "1" }, { label: "Less than monthly (Option 2 = 2)", code: "2" }, { label: "Monthly (Option 3 = 3)", code: "3" }, { label: "Weekly (Option 4 = 4)", code: "4" }, { label: "Daily or almost daily (Option 5 = 5)", code: "5" }], required: false, section: 4 },
-  { id: "q30", title: "Q30. AUDIT-C Total Score (Auto-calculated)", type: "number", required: false, section: 4 }
+  { id: "q30", title: "Q30. AUDIT-C Total Score (Auto-calculated)", type: "number", required: false, section: 4 },
+
+  // Section 8: Mental Health Screen
+  { id: "sec_8", title: "SECTION 8 · MENTAL HEALTH SCREEN — STAFF NURSE", type: "section_header", section: 8 },
+  { id: "q58", title: "Q58. Over the last 2 weeks, how often have you been bothered by feeling down, depressed, or hopeless?", type: "dropdown", options: [{ label: "0 - Not at all", code: "0" }, { label: "1 - Several days", code: "1" }, { label: "2 - More than half the days", code: "2" }, { label: "3 - Nearly every day", code: "3" }], required: false, section: 8 },
+  { id: "q59", title: "Q59. Over the last 2 weeks, how often have you been bothered by feeling nervous, anxious, or on edge?", type: "dropdown", options: [{ label: "0 - Not at all (Code 0)", code: "0" }, { label: "1 - Several days (Code 1)", code: "1" }, { label: "2 - More than half the days (Code 2)", code: "2" }, { label: "3 - Nearly every day (Code 3)", code: "3" }, { label: "4 - Almost daily (Code 4)", code: "4" }], required: false, section: 8 },
+  { id: "q60", title: "Q60. GAD-7 Anxiety Scale (Matrix)", type: "matrix", required: false, section: 8 },
+  { id: "q61", title: "Q61. GAD-7 Total Score (Auto-calculated)", type: "number", required: false, section: 8 }
 ];
 
 
@@ -675,6 +682,32 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         updates.custom_amber_review_date = amberFormatted;
       }
 
+      // 7. GAD-7 Total Score Auto-calculation (Q60 Matrix -> Q61 Score)
+      let gad7Score = 0;
+      let hasGad7Answer = false;
+      const gad7Rows = ["gad7_q1", "gad7_q2", "gad7_q3", "gad7_q4", "gad7_q5", "gad7_q6", "gad7_q7"];
+      gad7Rows.forEach((rKey, rIdx) => {
+        const val = d[`q60_${rKey}`] || d[`q60_row_${rIdx + 1}`] || (d.q60 && d.q60[rKey]);
+        if (val !== undefined && val !== null && val !== "") {
+          hasGad7Answer = true;
+          const str = String(val).toLowerCase().trim();
+          if (str.includes("nearly every") || str === "3" || str === "code 3") gad7Score += 3;
+          else if (str.includes("more than half") || str === "2" || str === "code 2") gad7Score += 2;
+          else if (str.includes("several") || str === "1" || str === "code 1") gad7Score += 1;
+        }
+      });
+
+      if (hasGad7Answer) {
+        const q61Key = Object.keys(d).find(k => k.toLowerCase().includes("q61")) || "custom_q61";
+        if (d[q61Key] !== gad7Score || d.q61 !== gad7Score || d.gad7_score !== gad7Score) {
+          updates.q61 = gad7Score;
+          updates.custom_q61 = gad7Score;
+          updates.gad7_score = gad7Score;
+          updates.GAD7_score = gad7Score;
+          updates[q61Key] = gad7Score;
+        }
+      }
+
       if (Object.keys(updates).length === 0) return d;
       return { ...d, ...updates };
     });
@@ -684,6 +717,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     data.sys_bp_1, data.sys_bp_2, data.dia_bp_1, data.dia_bp_2,
     data.q21, data.custom_q21, data.q22, data.custom_q22,
     data.q27, data.custom_q27, data.q28, data.custom_q28, data.q29, data.custom_q29,
+    data.q60_gad7_q1, data.q60_gad7_q2, data.q60_gad7_q3, data.q60_gad7_q4, data.q60_gad7_q5, data.q60_gad7_q6, data.q60_gad7_q7,
     data.raw_date
   ]);
 
@@ -1386,6 +1420,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     const qTypeLower = String(q.type || "").toLowerCase();
 
     if (qTypeLower === 'matrix' || qTypeLower === 'grid' || qTypeLower === 'table') return true;
+    if (qIdLower.includes('q60') || qIdLower.includes('gad') || qTitleLower.includes('gad-7') || qTitleLower.includes('anxiety')) return true;
     if (qIdLower.includes('q86') || qTitleLower.includes('q86') || qTitleLower.includes('fat loss')) return true;
     if (qIdLower.includes('q87') || qTitleLower.includes('q87') || qTitleLower.includes('muscle loss')) return true;
     if (q.rows && Array.isArray(q.rows) && q.rows.length > 0) return true;
@@ -1400,6 +1435,18 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
     const qIdLower = String(q.id || "").toLowerCase();
     const qTitleLower = String(q.title || "").toLowerCase();
+
+    if (qIdLower.includes('q60') || qIdLower.includes('gad') || qTitleLower.includes('gad-7') || qTitleLower.includes('anxiety')) {
+      return [
+        { id: "gad7_q1", label: "1. Feeling nervous, anxious, or on edge" },
+        { id: "gad7_q2", label: "2. Not being able to stop or control worrying" },
+        { id: "gad7_q3", label: "3. Worrying too much about different things" },
+        { id: "gad7_q4", label: "4. Trouble relaxing" },
+        { id: "gad7_q5", label: "5. Being so restless that it is hard to sit still" },
+        { id: "gad7_q6", label: "6. Becoming easily annoyed or irritable" },
+        { id: "gad7_q7", label: "7. Feeling afraid, as if something awful might happen" }
+      ];
+    }
 
     if (qIdLower.includes('q86') || qTitleLower.includes('q86') || qTitleLower.includes('fat loss')) {
       return [
@@ -1435,6 +1482,18 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     if (!q) return [];
     if (q.cols && Array.isArray(q.cols) && q.cols.length > 0) return q.cols;
     if (q.columns && Array.isArray(q.columns) && q.columns.length > 0) return q.columns;
+
+    const qIdLower = String(q.id || "").toLowerCase();
+    const qTitleLower = String(q.title || "").toLowerCase();
+
+    if (qIdLower.includes('q60') || qIdLower.includes('gad') || qTitleLower.includes('gad-7') || qTitleLower.includes('anxiety')) {
+      return [
+        { code: "0", label: "Not at all", pts: 0 },
+        { code: "1", label: "Several days", pts: 1 },
+        { code: "2", label: "More than half the days", pts: 2 },
+        { code: "3", label: "Nearly every day", pts: 3 }
+      ];
+    }
 
     return [
       { code: "1", label: "Normal (No loss)" },
@@ -3292,81 +3351,137 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                           />
                         ) : null}
 
-                        {/* Matrix Question Type (Q86 Fat Loss, Q87 Muscle Loss, etc.) */}
-                        {isMatrixQuestion(q) && (
-                          <div className="w-full overflow-x-auto rounded-2xl border border-slate-200/90 shadow-2xs my-2 font-sans bg-white">
-                            <table className="w-full text-left border-collapse min-w-[640px]">
-                              <thead>
-                                <tr className="bg-amber-50/70 border-b border-amber-200/80 font-mono">
-                                  <th className="py-3 px-4 text-xs font-black text-slate-800 uppercase tracking-wider">
-                                    Assessment Site / Row Parameter
-                                  </th>
-                                  {getMatrixCols(q).map((col, cIdx) => (
-                                    <th key={cIdx} className="py-3 px-3 text-center text-xs font-extrabold text-slate-900">
-                                      <span className="inline-flex items-center gap-1.5 justify-center">
-                                        <span className="px-1.5 py-0.5 rounded bg-amber-200/80 text-amber-950 font-black text-[11px] border border-amber-300">
-                                          {getOptionCode(col, cIdx)}
-                                        </span>
-                                        <span className="font-sans font-extrabold text-xs">{getOptionLabel(col)}</span>
-                                      </span>
-                                    </th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100">
-                                {getMatrixRows(q).map((row, rIdx) => {
-                                  const rowKey = typeof row === 'object' ? row.id || `row_${rIdx + 1}` : `row_${rIdx + 1}`;
-                                  const rowLabel = typeof row === 'object' ? row.label || row.title || row.name : row;
-                                  const matrixValKey = `${q.id}_${rowKey}`;
-                                  const curRowVal = data[matrixValKey] || (data[q.id] && data[q.id][rowKey]) || '';
+                        {/* Matrix Question Type (GAD-7 Anxiety, Q86 Fat Loss, Q87 Muscle Loss, etc.) */}
+                        {isMatrixQuestion(q) && (() => {
+                          const qIdLower = String(q.id || "").toLowerCase();
+                          const qTitleLower = String(q.title || "").toLowerCase();
+                          const isGad7 = qIdLower.includes("gad") || qIdLower.includes("q60") || qTitleLower.includes("gad-7") || qTitleLower.includes("anxiety");
 
-                                  return (
-                                    <tr key={rIdx} className="hover:bg-amber-50/20 transition-colors">
-                                      <td className="py-3 px-4 text-xs sm:text-sm font-extrabold text-slate-900 leading-snug">
-                                        {rowLabel}
-                                      </td>
-                                      {getMatrixCols(q).map((col, cIdx) => {
-                                        const colVal = getOptionLabel(col);
-                                        const colCode = getOptionCode(col, cIdx);
-                                        const isChecked = String(curRowVal).trim() === String(colVal).trim() || String(curRowVal).trim() === String(colCode).trim();
+                          const mRows = getMatrixRows(q);
+                          const mCols = getMatrixCols(q);
 
-                                        return (
-                                          <td key={cIdx} className="py-3 px-3 text-center">
-                                            <label 
-                                              onClick={() => {
-                                                updateCustomField({ id: matrixValKey }, colVal);
-                                                setData(prev => {
-                                                  const curObj = (typeof prev[q.id] === 'object' && prev[q.id] !== null) ? prev[q.id] : {};
-                                                  return {
-                                                    ...prev,
-                                                    [matrixValKey]: colVal,
-                                                    [q.id]: {
-                                                      ...curObj,
-                                                      [rowKey]: colVal
-                                                    }
-                                                  };
-                                                });
-                                              }}
-                                              className={`inline-flex items-center justify-center p-2.5 rounded-xl border transition-all cursor-pointer ${isChecked ? 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs ring-2 ring-amber-400' : 'bg-slate-50/60 border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-700'}`}
-                                            >
-                                              <input
-                                                type="radio"
-                                                name={`${q.id}_${rowKey}`}
-                                                checked={isChecked}
-                                                onChange={() => {}}
-                                                className="w-4 h-4 text-amber-600 focus:ring-0 cursor-pointer"
-                                              />
-                                            </label>
-                                          </td>
-                                        );
-                                      })}
+                          let gad7TotalScore = 0;
+                          if (isGad7) {
+                            mRows.forEach((row, rIdx) => {
+                              const rowKey = typeof row === 'object' ? row.id || `row_${rIdx + 1}` : `row_${rIdx + 1}`;
+                              const matrixValKey = `${q.id}_${rowKey}`;
+                              const val = data[matrixValKey] || (data[q.id] && data[q.id][rowKey]);
+                              if (val !== undefined && val !== null && val !== "") {
+                                const str = String(val).toLowerCase().trim();
+                                if (str.includes("nearly every") || str === "3" || str === "code 3") gad7TotalScore += 3;
+                                else if (str.includes("more than half") || str === "2" || str === "code 2") gad7TotalScore += 2;
+                                else if (str.includes("several") || str === "1" || str === "code 1") gad7TotalScore += 1;
+                              }
+                            });
+                          }
+
+                          return (
+                            <div className="w-full overflow-hidden rounded-2xl border border-slate-200/90 shadow-2xs my-3 font-sans bg-white">
+                              {isGad7 && (
+                                <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200/90 flex items-center justify-between">
+                                  <span className="text-sm font-bold text-[#2d2f7f] font-sans tracking-wide">
+                                    GAD-7 Anxiety
+                                  </span>
+                                  <span className="text-[10px] font-mono font-extrabold px-2.5 py-1 rounded-xl bg-purple-50 text-purple-900 border border-purple-200 shadow-2xs uppercase">
+                                    Clinical Scale
+                                  </span>
+                                </div>
+                              )}
+
+                              <div className="w-full overflow-x-auto">
+                                <table className="w-full text-left border-collapse min-w-[640px]">
+                                  <thead>
+                                    <tr className={isGad7 ? "bg-[#800080] text-white" : "bg-amber-50/70 border-b border-amber-200/80 font-mono"}>
+                                      <th className="py-3.5 px-4 text-xs font-bold uppercase tracking-wider">
+                                        {isGad7 ? "" : "Assessment Site / Row Parameter"}
+                                      </th>
+                                      {mCols.map((col, cIdx) => (
+                                        <th key={cIdx} className={`py-3.5 px-3 text-center text-xs font-bold ${isGad7 ? "text-white" : "text-slate-900"}`}>
+                                          <span className="inline-flex items-center gap-1.5 justify-center">
+                                            {!isGad7 && (
+                                              <span className="px-1.5 py-0.5 rounded bg-amber-200/80 text-amber-950 font-black text-[11px] border border-amber-300">
+                                                {getOptionCode(col, cIdx)}
+                                              </span>
+                                            )}
+                                            <span className="font-sans font-bold text-xs">{getOptionLabel(col)}</span>
+                                          </span>
+                                        </th>
+                                      ))}
                                     </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    {mRows.map((row, rIdx) => {
+                                      const rowKey = typeof row === 'object' ? row.id || `row_${rIdx + 1}` : `row_${rIdx + 1}`;
+                                      const rowLabel = typeof row === 'object' ? row.label || row.title || row.name : row;
+                                      const matrixValKey = `${q.id}_${rowKey}`;
+                                      const curRowVal = data[matrixValKey] || (data[q.id] && data[q.id][rowKey]) || '';
+
+                                      return (
+                                        <tr key={rIdx} className="hover:bg-slate-50/80 transition-colors">
+                                          <td className="py-3.5 px-4 text-xs sm:text-sm font-semibold text-slate-800 leading-snug">
+                                            {rowLabel}
+                                          </td>
+                                          {mCols.map((col, cIdx) => {
+                                            const colVal = getOptionLabel(col);
+                                            const colCode = getOptionCode(col, cIdx);
+                                            const isChecked = String(curRowVal).trim() === String(colVal).trim() || String(curRowVal).trim() === String(colCode).trim();
+
+                                            return (
+                                              <td key={cIdx} className="py-3.5 px-3 text-center">
+                                                <label 
+                                                  onClick={() => {
+                                                    updateCustomField({ id: matrixValKey }, colVal);
+                                                    setData(prev => {
+                                                      const curObj = (typeof prev[q.id] === 'object' && prev[q.id] !== null) ? prev[q.id] : {};
+                                                      return {
+                                                        ...prev,
+                                                        [matrixValKey]: colVal,
+                                                        [q.id]: {
+                                                          ...curObj,
+                                                          [rowKey]: colVal
+                                                        }
+                                                      };
+                                                    });
+                                                  }}
+                                                  className={`inline-flex items-center justify-center p-2 rounded-full border transition-all cursor-pointer ${
+                                                    isChecked 
+                                                      ? isGad7
+                                                        ? 'bg-purple-100 border-purple-600 text-purple-900 shadow-2xs ring-2 ring-purple-500'
+                                                        : 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs ring-2 ring-amber-400' 
+                                                      : 'bg-white border-slate-300 text-slate-400 hover:bg-slate-50 hover:text-slate-700'
+                                                  }`}
+                                                >
+                                                  <input
+                                                    type="radio"
+                                                    name={`${q.id}_${rowKey}`}
+                                                    checked={isChecked}
+                                                    onChange={() => {}}
+                                                    className="w-4 h-4 text-purple-700 focus:ring-0 cursor-pointer"
+                                                  />
+                                                </label>
+                                              </td>
+                                            );
+                                          })}
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+
+                              {isGad7 && (
+                                <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 font-sans">
+                                  <span className="text-sm font-bold text-[#00a86b] font-sans">
+                                    Total Score
+                                  </span>
+                                  <div className="px-4 py-2 bg-white border border-[#00a86b] text-slate-900 font-mono font-bold text-base rounded shadow-inner w-full sm:w-64 text-left">
+                                    {gad7TotalScore}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         {/* Single Choice (Custom Dropdown vs Grid/Pills) */}
                         {(qType === 'dropdown' || qType === 'single_choice' || qType === 'radio') && !isQ3LocationQuestion(q) && !isMatrixQuestion(q) && (

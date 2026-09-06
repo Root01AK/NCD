@@ -900,12 +900,23 @@ export function isQuestionSkipped(q, allQuestions, formData) {
     }
   }
 
-  if (qNum === 60) {
+  if (qNum === 60 || idL.includes("gad7") || idL.includes("q60") || titleL.includes("gad-7") || titleL.includes("anxiety")) {
     const q59Val = getAnswer(59);
-    if (q59Val) {
-      const f59 = (typeof q59Val === 'object' ? `${q59Val.code || ''} ${q59Val.label || ''}` : String(q59Val)).toLowerCase().trim();
-      if (f59.includes("code 2") || f59.includes("code 3") || f59.startsWith("2") || f59.startsWith("3") || f59 === "2" || f59 === "3") return true;
+    if (!q59Val) return true; // Hide matrix until Q59 is answered
+    const f59 = (typeof q59Val === 'object' ? `${q59Val.code || ''} ${q59Val.label || ''} ${q59Val.value || ''}` : String(q59Val)).toLowerCase().trim();
+
+    // Show GAD-7 matrix when Q59 is opted to Code 1, 2, 3, 4 (or positive response)
+    const isCode1234 = 
+      f59.includes("code 1") || f59.includes("code 2") || f59.includes("code 3") || f59.includes("code 4") ||
+      f59.startsWith("1") || f59.startsWith("2") || f59.startsWith("3") || f59.startsWith("4") ||
+      f59 === "1" || f59 === "2" || f59 === "3" || f59 === "4" ||
+      f59.includes("several") || f59.includes("more than half") || f59.includes("nearly every") || f59.includes("almost daily");
+
+    if (isCode1234) {
+      return false; // Open/show GAD-7 matrix question
     }
+
+    return true; // Skip/hide GAD-7 matrix if Q59 is 0 / Not at all
   }
 
   if (qNum === 65) {
