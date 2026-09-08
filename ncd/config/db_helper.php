@@ -30,6 +30,17 @@ if (file_exists($envPath)) {
     }
 }
 
+// Helper to safely fetch environment variables from $_ENV, $_SERVER, or getenv()
+if (!function_exists('ncd_get_env')) {
+    function ncd_get_env($key, $default = null) {
+        if (isset($_ENV[$key]) && $_ENV[$key] !== '') return $_ENV[$key];
+        if (isset($_SERVER[$key]) && $_SERVER[$key] !== '') return $_SERVER[$key];
+        $val = getenv($key);
+        if ($val !== false && $val !== '') return $val;
+        return $default;
+    }
+}
+
 // 2. Helper function to return Yii DB Connection config
 if (!function_exists('ncd_get_db_config')) {
     function ncd_get_db_config($center = null) {
@@ -48,7 +59,7 @@ if (!function_exists('ncd_get_db_config')) {
         }
 
         // Priority 2: Check for DATABASE_URL / DATABASE_URL_MYSQL connection string from Coolify
-        $dbUrl = getenv('DATABASE_URL') ?: getenv('DATABASE_URL_MYSQL');
+        $dbUrl = ncd_get_env('DATABASE_URL') ?: ncd_get_env('DATABASE_URL_MYSQL');
         if ($dbUrl) {
             $parsed = parse_url($dbUrl);
             if ($parsed) {
@@ -73,31 +84,20 @@ if (!function_exists('ncd_get_db_config')) {
         }
 
         // Priority 3: Environment variables (Coolify / Docker / Custom VPS)
-        $host = getenv('DB_HOST') ?: (getenv('MYSQL_HOST') ?: (getenv('SERVICE_HOST_MYSQL') ?: '127.0.0.1'));
-        $port = (int)(getenv('DB_PORT') ?: (getenv('MYSQL_PORT') ?: (getenv('SERVICE_PORT_MYSQL') ?: 3306)));
+        $host = ncd_get_env('DB_HOST') ?: ncd_get_env('MYSQL_HOST') ?: ncd_get_env('SERVICE_HOST_MYSQL') ?: '127.0.0.1';
+        $port = (int)(ncd_get_env('DB_PORT') ?: ncd_get_env('MYSQL_PORT') ?: ncd_get_env('SERVICE_PORT_MYSQL') ?: 3306);
         
-        $dbname = getenv('DB_NAME') ?: (getenv('MYSQL_DATABASE') ?: (getenv('SERVICE_DATABASE_MYSQL') ?: 'ncd'));
+        $dbname = ncd_get_env('DB_NAME') ?: ncd_get_env('MYSQL_DATABASE') ?: ncd_get_env('SERVICE_DATABASE_MYSQL') ?: 'ncd';
         if ($center) {
             $centerKey = 'DB_NAME_' . strtoupper($center);
-            if (getenv($centerKey)) {
-                $dbname = getenv($centerKey);
+            if (ncd_get_env($centerKey)) {
+                $dbname = ncd_get_env($centerKey);
             }
         }
 
-        $username = getenv('DB_USER') ?: (getenv('MYSQL_USER') ?: (getenv('SERVICE_USER_MYSQL') ?: 'root'));
+        $username = ncd_get_env('DB_USER') ?: ncd_get_env('MYSQL_USER') ?: ncd_get_env('SERVICE_USER_MYSQL') ?: 'root';
 
-        $password = false;
-        if (getenv('DB_PASSWORD') !== false) {
-            $password = getenv('DB_PASSWORD');
-        } else if (getenv('MYSQL_PASSWORD') !== false) {
-            $password = getenv('MYSQL_PASSWORD');
-        } else if (getenv('SERVICE_PASSWORD_MYSQL') !== false) {
-            $password = getenv('SERVICE_PASSWORD_MYSQL');
-        } else if (getenv('MYSQL_ROOT_PASSWORD') !== false) {
-            $password = getenv('MYSQL_ROOT_PASSWORD');
-        } else {
-            $password = 'Kirub@2001';
-        }
+        $password = ncd_get_env('DB_PASSWORD') ?? ncd_get_env('MYSQL_PASSWORD') ?? ncd_get_env('SERVICE_PASSWORD_MYSQL') ?? ncd_get_env('DB_ROOT_PASSWORD') ?? ncd_get_env('MYSQL_ROOT_PASSWORD') ?? 'Kirub@2001';
 
         return [
             'class' => 'yii\db\Connection',
