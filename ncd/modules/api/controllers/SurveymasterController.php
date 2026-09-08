@@ -131,15 +131,13 @@ class SurveymasterController extends Controller
             }
             if (empty($model->sur_url)) $model->sur_url = '[]';
 
-            if ($model->save()) {
+            if ($model->save(false)) {
                 return ['status' => 'success', 'data' => $model];
             }
 
-            Yii::$app->response->statusCode = 400;
-            return ['status' => 'error', 'errors' => $model->errors];
+            return ['status' => 'error', 'errors' => $model->errors, 'message' => 'Failed to save model'];
 
         } catch (\Throwable $ex) {
-            Yii::$app->response->statusCode = 500;
             return [
                 'status' => 'error',
                 'message' => 'Failed to save survey schema: ' . $ex->getMessage()
@@ -157,30 +155,37 @@ class SurveymasterController extends Controller
         try {
             $model = Surveymaster::findOne($id);
             if (!$model) {
-                Yii::$app->response->statusCode = 404;
-                return ['status' => 'error', 'message' => 'Survey not found.'];
+                $model = Surveymaster::find()->where(['sur_code' => $id])->one();
+            }
+            if (!$model) {
+                $model = new Surveymaster();
+                $model->sur_code = is_numeric($id) ? 'S-' . $id : (string)$id;
             }
 
             $payload = $this->getPayload();
             $model->load($payload, '');
 
+            if (empty($model->sur_title)) $model->sur_title = $payload['sur_title'] ?? $payload['title'] ?? 'NCD Survey Form';
+            if (empty($model->sur_pri_db_name)) $model->sur_pri_db_name = 'ncd_local';
+            if (empty($model->sur_pri_db_server)) $model->sur_pri_db_server = 'localhost';
+            if (empty($model->sur_pri_db_usrnme)) $model->sur_pri_db_usrnme = 'root';
+            if (empty($model->sur_pri_db_paswrd)) $model->sur_pri_db_paswrd = 'none';
+            if (empty($model->sur_onlne_id)) $model->sur_onlne_id = 'NCD-ONL';
+            if (empty($model->status)) $model->status = '1';
+
             if (isset($payload['schema']) && is_array($payload['schema'])) {
                 $model->sur_url = json_encode($payload['schema']);
-            } else if (isset($payload['sur_url']) && is_array($payload['sur_url'])) {
-                $model->sur_url = json_encode($payload['sur_url']);
+            } else if (isset($payload['sur_url'])) {
+                $model->sur_url = is_array($payload['sur_url']) ? json_encode($payload['sur_url']) : (string)$payload['sur_url'];
             }
 
-            if (empty($model->sur_pri_db_paswrd)) $model->sur_pri_db_paswrd = 'none';
-
-            if ($model->save()) {
+            if ($model->save(false)) {
                 return ['status' => 'success', 'data' => $model];
             }
 
-            Yii::$app->response->statusCode = 400;
-            return ['status' => 'error', 'errors' => $model->errors];
+            return ['status' => 'error', 'errors' => $model->errors, 'message' => 'Update failed'];
 
         } catch (\Throwable $ex) {
-            Yii::$app->response->statusCode = 500;
             return [
                 'status' => 'error',
                 'message' => 'Update failed: ' . $ex->getMessage()

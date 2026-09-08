@@ -550,7 +550,7 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
             schema: questions
           });
 
-      if (res && res.status === 'success') {
+      if (res && (res.status === 'success' || res.data)) {
         notify("success", isUpdating ? "Survey Saved" : "Survey Created", "The survey schema has been saved to the database successfully.");
         if (onBack) onBack();
       } else {
@@ -559,7 +559,8 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
       }
     } catch (e) {
       console.error(e);
-      notify("error", "Save Failed", "Could not save the survey schema to the database.");
+      const serverErr = e.response?.data?.message || e.response?.data?.errors || e.message || "Could not save the survey schema to the database.";
+      notify("error", "Save Failed", typeof serverErr === 'object' ? JSON.stringify(serverErr) : String(serverErr));
     }
   };
 
