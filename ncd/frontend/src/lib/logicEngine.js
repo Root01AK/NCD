@@ -905,52 +905,48 @@ export function isQuestionSkipped(q, allQuestions, formData) {
     if (fullStr.includes("yes") || fullStr.includes("code 1") || fullStr.startsWith("1") || fullStr === "1") return false;
   }
 
-  // Explicit Rule 11: Q58 & Q59 (Follow-up Vitals)
+  // Explicit Rule 11: Q58 (Anxiety Screen -> GAD-7) & Q59/Q63 (Depression Screen -> PHQ-9)
   if (qNum === 59) {
-    const q58Val = getAnswer(58);
-    if (q58Val) {
-      const f58 = (typeof q58Val === 'object' ? `${q58Val.code || ''} ${q58Val.label || ''}` : String(q58Val)).toLowerCase().trim();
-      if (f58.includes("code 2") || f58.includes("code 3") || f58.startsWith("2") || f58.startsWith("3") || f58 === "2" || f58 === "3") return true;
-    }
+    return false; // Do not hide Q59, allow answering both screening questions
   }
 
   if (qNum === 60 || idL.includes("gad7") || idL.includes("q60") || titleL.includes("gad-7") || titleL.includes("anxiety")) {
-    const q59Val = getAnswer(59);
-    if (!q59Val) return true; // Hide matrix until Q59 is answered
-    const f59 = (typeof q59Val === 'object' ? `${q59Val.code || ''} ${q59Val.label || ''} ${q59Val.value || ''}` : String(q59Val)).toLowerCase().trim();
+    const q58Val = getAnswer(58) || getAnswer(59);
+    if (!q58Val) return true; // Hide GAD-7 matrix until Q58/Q59 is answered
+    const f58 = (typeof q58Val === 'object' ? `${q58Val.code || ''} ${q58Val.label || ''} ${q58Val.value || ''}` : String(q58Val)).toLowerCase().trim();
 
-    // Show GAD-7 matrix when Q59 is opted to Code 1, 2, 3, 4 (or positive response)
+    // Show GAD-7 matrix when Q58/Q59 (Anxiety Screen) is opted to Code 1, 2, 3, 4 (or positive response: Several days, etc.)
     const isCode1234 = 
-      f59.includes("code 1") || f59.includes("code 2") || f59.includes("code 3") || f59.includes("code 4") ||
-      f59.startsWith("1") || f59.startsWith("2") || f59.startsWith("3") || f59.startsWith("4") ||
-      f59 === "1" || f59 === "2" || f59 === "3" || f59 === "4" ||
-      f59.includes("several") || f59.includes("more than half") || f59.includes("nearly every") || f59.includes("almost daily");
+      f58.includes("code 1") || f58.includes("code 2") || f58.includes("code 3") || f58.includes("code 4") ||
+      f58.startsWith("1") || f58.startsWith("2") || f58.startsWith("3") || f58.startsWith("4") ||
+      f58 === "1" || f58 === "2" || f58 === "3" || f58 === "4" ||
+      f58.includes("several") || f58.includes("more than half") || f58.includes("nearly every") || f58.includes("almost daily");
 
     if (isCode1234) {
-      return false; // Open/show GAD-7 matrix question
+      return false; // Open/show GAD-7 Anxiety matrix question
     }
 
-    return true; // Skip/hide GAD-7 matrix if Q59 is 0 / Not at all
+    return true; // Skip/hide GAD-7 matrix if Q58/Q59 is 0 / Not at all
   }
 
   if (qNum === 64 || idL.includes("phq9") || idL.includes("phq_9") || idL.includes("q64") || titleL.includes("phq-9") || titleL.includes("patient health questionnaire")) {
-    const q63Val = getAnswer(63) || getAnswer(58);
-    if (!q63Val) return true; // Hide matrix until Q63/Q58 is answered
-    const f63 = (typeof q63Val === 'object' ? `${q63Val.code || ''} ${q63Val.label || ''} ${q63Val.value || ''}` : String(q63Val)).toLowerCase().trim();
+    const qDepVal = getAnswer(59) || getAnswer(63);
+    if (!qDepVal) return true; // Hide PHQ-9 matrix until Q59/Q63 is answered
+    const fDep = (typeof qDepVal === 'object' ? `${qDepVal.code || ''} ${qDepVal.label || ''} ${qDepVal.value || ''}` : String(qDepVal)).toLowerCase().trim();
 
-    // Show PHQ-9 matrix when Q63 (or Q58) is opted to Code 1, 2, 3, 4 (or positive response)
+    // Show PHQ-9 matrix when Q59/Q63 (Depression Screen) is opted to Code 1, 2, 3, 4 (or positive response)
     const isCode1234 = 
-      f63.includes("code 1") || f63.includes("code 2") || f63.includes("code 3") || f63.includes("code 4") ||
-      f63.startsWith("1") || f63.startsWith("2") || f63.startsWith("3") || f63.startsWith("4") ||
-      f63 === "1" || f63 === "2" || f63 === "3" || f63 === "4" ||
-      f63.includes("several") || f63.includes("more than half") || f63.includes("nearly every") || f63.includes("almost daily") ||
-      f63.includes("yes") || f63.includes("true");
+      fDep.includes("code 1") || fDep.includes("code 2") || fDep.includes("code 3") || fDep.includes("code 4") ||
+      fDep.startsWith("1") || fDep.startsWith("2") || fDep.startsWith("3") || fDep.startsWith("4") ||
+      fDep === "1" || fDep === "2" || fDep === "3" || fDep === "4" ||
+      fDep.includes("several") || fDep.includes("more than half") || fDep.includes("nearly every") || fDep.includes("almost daily") ||
+      fDep.includes("yes") || fDep.includes("true");
 
     if (isCode1234) {
-      return false; // Open/show PHQ-9 matrix question
+      return false; // Open/show PHQ-9 Depression matrix question
     }
 
-    return true; // Skip/hide PHQ-9 matrix if Q63 is 0 / Not at all
+    return true; // Skip/hide PHQ-9 matrix if Q59/Q63 is 0 / Not at all
   }
 
   if (qNum === 65) {

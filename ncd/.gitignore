@@ -27,3 +27,9 @@ phpunit.phar
 /phpunit.xml
 /xampp-win32-5.5.35-0-VC11-installer.exe
 /ncd.rar
+
+# Local Environment & Database Configuration (Protected from Git pull/push)
+.env
+.env.local
+/config/db_local.php
+/config/db_config.php

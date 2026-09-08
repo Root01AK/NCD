@@ -165,18 +165,27 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
         const userName = p.submitted_by_user || extra.user_name || p.user_name || p.user_code || "Staff User";
         const dateStr = p.screening_date || extra.screening_date || (p.submitted_at ? new Date(p.submitted_at).toLocaleDateString() : new Date().toLocaleDateString());
 
-        const isFsDone = true;
-        const isNurseDone = Boolean(extra.medical_history || extra.bp_systolic || p.mem_scrn_q9 || p.bp_sys);
-        const isDoctorDone = Boolean(extra.cvd_risk_assessment || extra.overall_risk_rating);
-        const isCounselorDone = Boolean(extra.phq9_depression_score || extra.health_counseling_notes);
-        const isCmcDone = Boolean(extra.referral_confirmation_date || extra.treatment_adherence_status);
+        const isFsSec1Done = true; // Section 1 Demographics completed when initiated
+        const isNurseDone = Boolean(p.sections_2_8_completed || extra.sections_2_8_completed || extra.medical_history || extra.bp_systolic || p.mem_scrn_q9 || p.bp_sys || extra.q9);
+        const isDoctorDone = Boolean(p.sections_9_15_completed || extra.sections_9_15_completed || extra.cvd_risk_assessment || extra.overall_risk_rating || extra.q93);
+        const isSec16Done = Boolean(p.section_16_completed || p.sec_16_done || p.community_perception_completed || extra.section_16_completed || extra.sec_16_done || extra.community_perception || extra.q112);
 
-        let currentPendingQueue = "Pending Staff Nurse Screening";
-        if (!isNurseDone) currentPendingQueue = "Pending Staff Nurse Screening";
-        else if (!isDoctorDone) currentPendingQueue = "Pending Doctor Clinical Exam";
-        else if (!isCounselorDone) currentPendingQueue = "Pending Counselor Therapy";
-        else if (!isCmcDone) currentPendingQueue = "Pending Case Coordinator (CMC)";
-        else currentPendingQueue = "Completed All Stages";
+        let currentPendingQueue = "With Staff Nurse Queue";
+        let currentRole = "Staff Nurse";
+
+        if (isSec16Done && isDoctorDone && isNurseDone) {
+          currentPendingQueue = "Completed (All 16 Sections Done)";
+          currentRole = "Completed";
+        } else if (isDoctorDone && isNurseDone) {
+          currentPendingQueue = "With Field Supervisor (Pending Section 16)";
+          currentRole = "Field Supervisor";
+        } else if (isNurseDone) {
+          currentPendingQueue = "With Doctor Queue (Pending Clinical Exam)";
+          currentRole = "Doctor";
+        } else {
+          currentPendingQueue = "With Staff Nurse Queue (Pending Vitals & History)";
+          currentRole = "Staff Nurse";
+        }
 
         mappedList.push({
           ...extra,
@@ -191,19 +200,18 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
           created_by_role: roleName,
           created_by_user: userName,
           current_stage: currentPendingQueue,
-          is_fs_done: isFsDone,
+          current_user_role: currentRole,
+          is_fs_done: isFsSec1Done,
           is_nurse_done: isNurseDone,
           is_doctor_done: isDoctorDone,
-          is_counselor_done: isCounselorDone,
-          is_cmc_done: isCmcDone,
+          is_sec16_done: isSec16Done,
           risk: extra.overall_risk_rating || (p.mem_scrn_q24 == 1 ? "High Risk" : "Standard Risk"),
           raw_payload: p.mem_scrn_q30 || p,
           audit_trail: [
-            { role: roleName, action: "Initiated Participant Screening", user: userName, timestamp: dateStr, status: "Section 1 Demographics Completed" },
-            isNurseDone && { role: "Staff Nurse", action: "Clinical Vitals & Medical History", user: extra.nurse_user || userName, timestamp: "Completed", status: "Sections 2-11 Completed" },
-            isDoctorDone && { role: "Doctor", action: "Clinical Exam & Risk Categorisation", user: extra.doctor_user || "Doctor Account", timestamp: "Completed", status: "Sections 12-13 Completed" },
-            isCounselorDone && { role: "Counselor", action: "Mental Health & Counseling", user: extra.counselor_user || "Counselor Account", timestamp: "Completed", status: "Section 15 Completed" },
-            isCmcDone && { role: "Case Coordinator", action: "Linkages & Follow-up Tracking", user: extra.cmc_user || "Coordinator Account", timestamp: "Completed", status: "Section 14 Completed" }
+            { role: "Field Supervisor", action: "Initiated Participant & Completed Section 1 Demographics", user: userName, timestamp: dateStr, status: "Section 1 Completed" },
+            isNurseDone && { role: "Staff Nurse", action: "Completed Vitals, Medical History & PHQ-9 Mental Health", user: extra.nurse_user || "Staff Nurse", timestamp: "Completed", status: "Sections 2-8 Completed" },
+            isDoctorDone && { role: "Doctor", action: "Completed Clinical Exam, Diagnostics & CVD Risk Rating", user: extra.doctor_user || "Doctor Account", timestamp: "Completed", status: "Sections 9-15 Completed" },
+            isSec16Done && { role: "Field Supervisor", action: "Completed Section 16 Community Perception Observations", user: extra.sec16_user || userName, timestamp: "Completed", status: "Section 16 Completed" }
           ].filter(Boolean)
         });
       });
@@ -639,6 +647,9 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
               )}
             </div>
 
+            {/* Section-Wise Answer Tracker */}
+            <SectionWiseAnswerTracker participant={selectedParticipant} />
+
             {/* Multi-Role Audit Trail */}
             <div className="space-y-4">
               <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider font-mono flex items-center gap-1.5 border-b pb-2">
@@ -851,6 +862,213 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
         </div>
       )}
 
+    </div>
+  );
+}
+
+function SectionWiseAnswerTracker({ participant }) {
+  const [activeSectionTab, setActiveSectionTab] = useState("sec_1");
+
+  if (!participant) return null;
+
+  let raw = {};
+  if (participant.raw_payload) {
+    try {
+      raw = typeof participant.raw_payload === 'string' ? JSON.parse(participant.raw_payload) : participant.raw_payload;
+    } catch (e) {}
+  }
+  const data = { ...participant, ...raw };
+
+  const sectionsConfig = [
+    {
+      id: "sec_1",
+      title: "Section 1: Demographics",
+      role: "Field Supervisor",
+      isCompleted: true,
+      fields: [
+        { label: "Participant ID", val: data.participant_id || data.mem_scrn_part_id },
+        { label: "Full Name", val: data.fullName || data.mem_scrn_q16 },
+        { label: "Age", val: data.age || data.mem_scrn_q1 },
+        { label: "Gender", val: data.gender || (data.mem_scrn_q2 == "1" ? "Male" : "Female") },
+        { label: "Center Location", val: data.location || data.mem_scrn_q17 },
+        { label: "Contact Number", val: data.contact_number || data.mem_scrn_q18 },
+        { label: "Education Level", val: data.education || data.mem_scrn_q3 },
+        { label: "Marital Status", val: data.marital_status || data.mem_scrn_q4 }
+      ]
+    },
+    {
+      id: "sec_2",
+      title: "Section 2: Medical History",
+      role: "Staff Nurse",
+      isCompleted: Boolean(data.sections_2_8_completed || data.medical_history || data.mem_scrn_q9 || data.q9),
+      fields: [
+        { label: "Known Diabetes", val: data.q9 || data.diabetes_history },
+        { label: "Known Hypertension", val: data.q10 || data.hypertension_history },
+        { label: "Family Medical History", val: data.q11 || data.family_history },
+        { label: "Past CVD Events", val: data.q12 || data.cvd_history }
+      ]
+    },
+    {
+      id: "sec_3",
+      title: "Section 3: Tobacco Use",
+      role: "Staff Nurse",
+      isCompleted: Boolean(data.sections_2_8_completed || data.tobacco_use || data.q17),
+      fields: [
+        { label: "Smokeless Tobacco", val: data.q17 || data.smokeless_tobacco },
+        { label: "Smoking Status", val: data.q18 || data.smoking_status },
+        { label: "Frequency", val: data.q19 || data.tobacco_frequency }
+      ]
+    },
+    {
+      id: "sec_4",
+      title: "Section 4: Alcohol Use (AUDIT-C)",
+      role: "Staff Nurse",
+      isCompleted: Boolean(data.sections_2_8_completed || data.audit_c_score || data.q30),
+      fields: [
+        { label: "Q27 Alcohol Frequency", val: data.q27 },
+        { label: "Q28 Typical Quantity", val: data.q28 },
+        { label: "Q29 Binge Frequency", val: data.q29 },
+        { label: "Q30 AUDIT-C Total Score", val: data.q30 || data.audit_c_score }
+      ]
+    },
+    {
+      id: "sec_5_7",
+      title: "Sections 5-7: Vitals & Exam",
+      role: "Staff Nurse",
+      isCompleted: Boolean(data.sections_2_8_completed || data.bp_sys || data.height),
+      fields: [
+        { label: "Systolic BP", val: data.bp_sys ? `${data.bp_sys} mmHg` : null },
+        { label: "Diastolic BP", val: data.bp_dia ? `${data.bp_dia} mmHg` : null },
+        { label: "Pulse Rate", val: data.pulse_rate ? `${data.pulse_rate} bpm` : null },
+        { label: "Height", val: data.height ? `${data.height} cm` : null },
+        { label: "Weight", val: data.weight ? `${data.weight} kg` : null },
+        { label: "BMI", val: data.bmi }
+      ]
+    },
+    {
+      id: "sec_8",
+      title: "Section 8: Mental Health (PHQ-9 / GAD-7)",
+      role: "Staff Nurse",
+      isCompleted: Boolean(data.sections_2_8_completed || data.phq9_score || data.q65 || data.q61),
+      fields: [
+        { label: "Q58/Q63 Depression Screen", val: data.q63 || data.q58 },
+        { label: "Q64 PHQ-9 Matrix", val: data.phq9_matrix ? "Matrix Recorded" : null },
+        { label: "Q65 PHQ-9 Total Score", val: data.phq9_score || data.q65 },
+        { label: "Q59 Anxiety Screen", val: data.q59 },
+        { label: "Q61 GAD-7 Total Score", val: data.gad7_score || data.q61 }
+      ]
+    },
+    {
+      id: "sec_9_13",
+      title: "Sections 9-13: Clinical Diagnostics & Risk",
+      role: "Doctor",
+      isCompleted: Boolean(data.sections_9_15_completed || data.overall_risk_rating || data.q93),
+      fields: [
+        { label: "Random Blood Sugar (RBS)", val: data.rbs ? `${data.rbs} mg/dL` : null },
+        { label: "HbA1c Level", val: data.hba1c ? `${data.hba1c} %` : null },
+        { label: "Total Cholesterol", val: data.cholesterol ? `${data.cholesterol} mg/dL` : null },
+        { label: "WHO CVD Risk Rating", val: data.overall_risk_rating || data.risk },
+        { label: "Medication Prescribed", val: data.medication_prescribed },
+        { label: "Follow-up Date (Q93)", val: data.q93 }
+      ]
+    },
+    {
+      id: "sec_14_15",
+      title: "Sections 14-15: Linkages & Counseling",
+      role: "Counselor / Doctor",
+      isCompleted: Boolean(data.sections_9_15_completed || data.counseling_notes || data.referral_center),
+      fields: [
+        { label: "Referral Health Center", val: data.referral_center },
+        { label: "Counseling Notes", val: data.counseling_notes }
+      ]
+    },
+    {
+      id: "sec_16",
+      title: "Section 16: Community Perception",
+      role: "Field Supervisor",
+      isCompleted: Boolean(data.section_16_completed || data.sec_16_done || data.q112 || data.q113),
+      fields: [
+        { label: "Q112 Major Health Issues", val: Array.isArray(data.q112) ? data.q112.join(", ") : data.q112 },
+        { label: "Q113 Water & Sanitation", val: data.q113 },
+        { label: "Q114 Camp Barriers", val: Array.isArray(data.q114) ? data.q114.join(", ") : data.q114 },
+        { label: "Q115 Info Preferences", val: Array.isArray(data.q115) ? data.q115.join(", ") : data.q115 }
+      ]
+    }
+  ];
+
+  return (
+    <div className="space-y-3 font-sans">
+      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+        <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider font-mono flex items-center gap-1.5">
+          <FileText size={14} className="text-amber-600" /> Section-Wise Answer Tracker
+        </h4>
+        <span className="text-[10px] font-mono font-bold text-slate-500">
+          16 Sections
+        </span>
+      </div>
+
+      {/* Section Tabs */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 text-[11px] font-mono no-scrollbar">
+        {sectionsConfig.map(sec => (
+          <button
+            key={sec.id}
+            onClick={() => setActiveSectionTab(sec.id)}
+            className={`px-2.5 py-1 rounded-lg shrink-0 font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+              activeSectionTab === sec.id
+                ? 'bg-amber-400 text-slate-950 shadow-2xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            <span>{sec.id.toUpperCase().replace('_', ' ')}</span>
+            {sec.isCompleted ? (
+              <span className="text-[9px] text-emerald-700 font-extrabold">✓</span>
+            ) : (
+              <span className="text-[9px] text-slate-400">•</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Active Section Details */}
+      {(() => {
+        const currentSec = sectionsConfig.find(s => s.id === activeSectionTab) || sectionsConfig[0];
+        const populatedFields = currentSec.fields.filter(f => f.val !== undefined && f.val !== null && String(f.val).trim() !== "");
+
+        return (
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5">
+            <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+              <div>
+                <h5 className="text-xs font-extrabold text-slate-900">{currentSec.title}</h5>
+                <span className="text-[10px] font-mono font-semibold text-slate-500">Assigned Role: {currentSec.role}</span>
+              </div>
+              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+                currentSec.isCompleted
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : 'bg-amber-50 text-amber-900 border-amber-200'
+              }`}>
+                {currentSec.isCompleted ? '✓ Completed' : 'Pending Entry'}
+              </span>
+            </div>
+
+            {populatedFields.length > 0 ? (
+              <div className="space-y-2">
+                {populatedFields.map((f, i) => (
+                  <div key={i} className="flex justify-between items-start text-xs border-b border-slate-100 pb-1.5 last:border-0 font-mono">
+                    <span className="text-slate-500 font-medium text-[11px]">{f.label}:</span>
+                    <span className="font-bold text-slate-900 text-right max-w-[200px] break-words">{String(f.val)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 font-mono italic text-center py-2">
+                {currentSec.isCompleted 
+                  ? "Section marked complete." 
+                  : `No answers recorded for ${currentSec.title} yet.`}
+              </p>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }

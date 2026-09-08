@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { FileText, ChevronLeft, ChevronDown, Check, Calendar, Phone, User, ShieldCheck, Shield, Clock, PlusCircle, ArrowRight, Save, MapPin, Activity, Stethoscope, HeartPulse, Brain, Link2, CheckCircle2, UserCheck, AlertCircle, AlertTriangle, LayoutGrid, CheckSquare, ListFilter, X, PauseCircle, Play, Trash2, Bookmark, Layers, LayoutList } from "lucide-react";
+import { FileText, ChevronLeft, ChevronDown, Check, Calendar, Phone, User, Users, ShieldCheck, Shield, Clock, PlusCircle, ArrowRight, Save, MapPin, Activity, Stethoscope, HeartPulse, Brain, Link2, CheckCircle2, UserCheck, AlertCircle, AlertTriangle, LayoutGrid, CheckSquare, ListFilter, X, PauseCircle, Play, Trash2, Bookmark, Layers, LayoutList } from "lucide-react";
 import { T } from "../../lib/theme";
 import { saveToQueue, getQueue } from "../../lib/db";
 import { api } from "../../lib/api";
@@ -78,6 +78,95 @@ export async function isContactNumberDuplicate(contactDigits, currentParticipant
   } catch (e) {}
 
   return false;
+}
+
+export function calculateQ90Category(d) {
+  if (!d) return 'GREEN';
+
+  // 1. Extract BP (Average BP Q77 or calculate from Q75/Q76)
+  let sbp = null;
+  let dbp = null;
+
+  const avgBp = d.q77 || d.custom_q77 || d.average_bp || d.bp_avg || '';
+  if (avgBp && String(avgBp).includes('/')) {
+    const parts = String(avgBp).split('/');
+    const s = parseFloat(parts[0]);
+    const db = parseFloat(parts[1]);
+    if (!isNaN(s)) sbp = s;
+    if (!isNaN(db)) dbp = db;
+  }
+
+  if (sbp === null && (d.sys_bp_1 || d.sys_bp_2 || d.custom_q75 || d.custom_q76)) {
+    const s1 = parseFloat(d.sys_bp_1 || d.custom_q75);
+    const s2 = parseFloat(d.sys_bp_2 || d.custom_q76);
+    if (!isNaN(s1) && !isNaN(s2)) sbp = (s1 + s2) / 2;
+    else if (!isNaN(s1)) sbp = s1;
+    else if (!isNaN(s2)) sbp = s2;
+  }
+
+  if (dbp === null && (d.dia_bp_1 || d.dia_bp_2 || d.custom_q75 || d.custom_q76)) {
+    const d1 = parseFloat(d.dia_bp_1);
+    const d2 = parseFloat(d.dia_bp_2);
+    if (!isNaN(d1) && !isNaN(d2)) dbp = (d1 + d2) / 2;
+    else if (!isNaN(d1)) dbp = d1;
+    else if (!isNaN(d2)) dbp = d2;
+  }
+
+  // 2. Extract RBS (Q79)
+  const rbsVal = parseFloat(d.q79 || d.custom_q79 || d.rbs || d.random_blood_sugar);
+  const rbs = !isNaN(rbsVal) ? rbsVal : null;
+
+  // 3. Extract Hb (Q80)
+  const hbVal = parseFloat(d.q80 || d.custom_q80 || d.hb || d.haemoglobin || d.hemoglobin);
+  const hb = !isNaN(hbVal) ? hbVal : null;
+
+  // 4. Extract BMI (Q69 or calculate from height/weight)
+  let bmi = null;
+  const bmiRaw = parseFloat(d.q69 || d.custom_q69 || d.bmi || d.custom_bmi);
+  if (!isNaN(bmiRaw)) {
+    bmi = bmiRaw;
+  } else if ((d.weight || d.custom_q68) && (d.height || d.custom_q67)) {
+    const w = parseFloat(d.weight || d.custom_q68);
+    const h = parseFloat(d.height || d.custom_q67);
+    if (!isNaN(w) && !isNaN(h) && h > 0) {
+      bmi = w / ((h / 100) * (h / 100));
+    }
+  }
+
+  // 5. Precancerous oral lesion (Q53 / oral examination)
+  const oralVal = String(d.q53 || d.custom_q53 || d.oral_exam || d.precancerous_lesion || '').toLowerCase();
+  const isOralPositive = oralVal.includes("positive") || oralVal.includes("yes") || oralVal.includes("lesion") || oralVal.includes("code 1") || oralVal === "1";
+
+  // 6. PHQ-9 Item 9 Positive (q64_phq9_q9)
+  const phq9Item9 = d.q64_phq9_q9 || d.phq9_q9 || (d.q64 && d.q64.phq9_q9) || '';
+  const strPhq9 = String(phq9Item9).toLowerCase().trim();
+  const isPhq9Item9Positive = strPhq9.includes("several") || strPhq9.includes("more than half") || strPhq9.includes("nearly every") || strPhq9 === "1" || strPhq9 === "2" || strPhq9 === "3" || strPhq9.includes("code 1") || strPhq9.includes("code 2") || strPhq9.includes("code 3");
+
+  // 7. AUDIT Score (Q30) >= 16 (or AUDIT-C score)
+  const auditVal = parseFloat(d.q30 || d.custom_q30 || d.audit_score || d.audit_total);
+  const isAudit16Plus = !isNaN(auditVal) && auditVal >= 16;
+
+  // --- EVALUATE RED BAND ---
+  const isRedBp = (sbp !== null && sbp >= 140) || (dbp !== null && dbp >= 90);
+  const isRedRbs = rbs !== null && rbs >= 200;
+  const isRedHb = hb !== null && hb < 11.0;
+  const isRedBmi = bmi !== null && (bmi < 20.0 || bmi >= 30.0);
+
+  if (isRedBp || isRedRbs || isRedHb || isRedBmi || isOralPositive || isPhq9Item9Positive || isAudit16Plus) {
+    return "RED";
+  }
+
+  // --- EVALUATE AMBER BAND ---
+  const isAmberBp = (sbp !== null && sbp >= 130 && sbp < 140) || (dbp !== null && dbp >= 80 && dbp < 90);
+  const isAmberRbs = rbs !== null && rbs >= 140 && rbs < 200;
+  const isAmberBmi = bmi !== null && bmi >= 25.0 && bmi <= 29.9;
+
+  if (isAmberBp || isAmberRbs || isAmberBmi) {
+    return "AMBER";
+  }
+
+  // --- EVALUATE GREEN BAND ---
+  return "GREEN";
 }
 
 export function registerContactNumber(contactDigits, participantId) {
@@ -333,6 +422,9 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     screening_date: currentDateFormatted,
     raw_date: new Date().toISOString().split('T')[0],
     contact_number: "",
+    is_family_number: false,
+    is_shared_family_no: 0,
+    family_contact_flag: "No",
     fullName: "",
     age: "",
     gender: "Male",
@@ -347,10 +439,15 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       const loc = participant.location || participant.mem_scrn_q17 || getActiveLocation();
       const isSec16 = Boolean(participant.section_16_mode || participant.start_section === 16);
 
+      const isFamNo = Boolean(participant.is_family_number || participant.is_shared_family_no || participant.family_contact_flag === "Yes");
       setData(prev => ({
         ...prev,
         ...participant,
         participant_id: pid,
+        contact_number: participant.contact_number || participant.mem_scrn_q18 || prev.contact_number,
+        is_family_number: isFamNo,
+        is_shared_family_no: isFamNo ? 1 : 0,
+        family_contact_flag: isFamNo ? "Yes" : "No",
         fullName: participant.fullName || participant.mem_scrn_q16 || prev.fullName,
         age: participant.age || participant.mem_scrn_q1 || prev.age,
         gender: participant.gender || (participant.mem_scrn_q2 == "1" ? "Male" : "Female") || prev.gender,
@@ -380,6 +477,84 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   const [activeDraft, setActiveDraft] = useState(null);
   const [isPausedModalOpen, setIsPausedModalOpen] = useState(false);
   const [showStaffNurseTransferModal, setShowStaffNurseTransferModal] = useState(false);
+
+  const [familyMembersList, setFamilyMembersList] = useState([]);
+  const [checkingFamily, setCheckingFamily] = useState(false);
+
+  useEffect(() => {
+    const contactDigits = String(data.contact_number || "").replace(/\D/g, "");
+    if (contactDigits.length === 10) {
+      let isMounted = true;
+      setCheckingFamily(true);
+      
+      const searchFamily = async () => {
+        const matches = [];
+        const seenPids = new Set();
+
+        const addMatch = (pid, name, age, gender, date) => {
+          if (!pid || pid === data.participant_id || seenPids.has(pid)) return;
+          seenPids.add(pid);
+          matches.push({ pid, name: name || pid, age: age || "-", gender: gender || "-", date: date || "Recorded" });
+        };
+
+        try {
+          const initStr = localStorage.getItem('ncd_local_initiated_participants');
+          if (initStr) {
+            const list = JSON.parse(initStr);
+            if (Array.isArray(list)) {
+              list.forEach(p => {
+                const phone = String(p.contact_number || p.mem_scrn_q18 || "").replace(/\D/g, "");
+                if (phone === contactDigits) {
+                  addMatch(p.participant_id || p.mem_scrn_part_id, p.fullName || p.mem_scrn_q16, p.age || p.mem_scrn_q1, p.gender, p.date_of_survey);
+                }
+              });
+            }
+          }
+        } catch (e) {}
+
+        try {
+          const queue = await getQueue();
+          if (Array.isArray(queue)) {
+            queue.forEach(item => {
+              let raw = {};
+              if (item.mem_scrn_q30) {
+                try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
+              }
+              const itemPhone = String(item.contact_number || raw.contact_number || "").replace(/\D/g, "");
+              if (itemPhone === contactDigits) {
+                addMatch(
+                  item.participant_id || item.mem_scrn_part_id || raw.participant_id,
+                  item.fullName || item.mem_scrn_q16 || raw.fullName,
+                  item.age || item.mem_scrn_q1 || raw.age,
+                  item.gender || raw.gender,
+                  item.date_of_survey
+                );
+              }
+            });
+          }
+        } catch (e) {}
+
+        if (isMounted) {
+          setFamilyMembersList(matches);
+          setCheckingFamily(false);
+          if (matches.length > 0 && !data.is_family_number) {
+            setData(prev => ({
+              ...prev,
+              is_family_number: true,
+              is_shared_family_no: 1,
+              family_contact_flag: "Yes"
+            }));
+          }
+        }
+      };
+
+      searchFamily();
+      return () => { isMounted = false; };
+    } else {
+      setFamilyMembersList([]);
+      setCheckingFamily(false);
+    }
+  }, [data.contact_number, data.participant_id]);
 
   const roleLowerCheck = (data.user_role || activeUser?.role_name || activeUser?.role || "").toLowerCase();
   const isStaffNurseRole = roleLowerCheck.includes("nurse") || roleLowerCheck.includes("staff nurse");
@@ -735,6 +910,32 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         updates.custom_amber_review_date = amberFormatted;
       }
 
+      // 6.5. Auto-default Q60 (GAD-7 administered?) to "1 - Yes" when Q58 or Q59 screening is positive (Code 1, 2, 3, 4)
+      const q58Val = d.q58 || d.custom_q58 || d.q59 || d.custom_q59;
+      if (q58Val) {
+        const str58 = String(typeof q58Val === 'object' ? `${q58Val.code || ''} ${q58Val.label || ''}` : q58Val).toLowerCase().trim();
+        const isPos58 = str58.includes("several") || str58.includes("more than half") || str58.includes("nearly every") || str58.includes("almost daily") || str58.includes("code 1") || str58.includes("code 2") || str58.includes("code 3") || str58.includes("code 4") || str58 === "1" || str58 === "2" || str58 === "3" || str58 === "4";
+        
+        if (isPos58 && (!d.q60 || d.q60 === "")) {
+          updates.q60 = "1 - Yes";
+          updates.custom_q60 = "1 - Yes";
+        }
+      }
+
+      // Auto-default Q62 / Q64 (PHQ-9 administered?) to "1 - Yes" when Q59 or Q63 screening is positive (Code 1, 2, 3, 4)
+      const qDepVal = d.q59 || d.custom_q59 || d.q63 || d.custom_q63;
+      if (qDepVal) {
+        const strDep = String(typeof qDepVal === 'object' ? `${qDepVal.code || ''} ${qDepVal.label || ''}` : qDepVal).toLowerCase().trim();
+        const isPosDep = strDep.includes("several") || strDep.includes("more than half") || strDep.includes("nearly every") || strDep.includes("almost daily") || strDep.includes("code 1") || strDep.includes("code 2") || strDep.includes("code 3") || strDep.includes("code 4") || strDep === "1" || strDep === "2" || strDep === "3" || strDep === "4";
+        
+        if (isPosDep && (!d.q62 || d.q62 === "") && (!d.q64 || d.q64 === "")) {
+          updates.q62 = "1 - Yes";
+          updates.custom_q62 = "1 - Yes";
+          updates.q64 = "1 - Yes";
+          updates.custom_q64 = "1 - Yes";
+        }
+      }
+
       // 7. GAD-7 Total Score Auto-calculation (Q60 Matrix -> Q61 Score)
       let gad7Score = 0;
       let hasGad7Answer = false;
@@ -787,6 +988,15 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         }
       }
 
+      // 9. Q90 Risk Categorization Auto-calculation (GREEN / AMBER / RED)
+      const q90Band = calculateQ90Category(d);
+      if (q90Band && (d.q90 !== q90Band || d.custom_q90 !== q90Band || d.clinical_band !== q90Band)) {
+        updates.q90 = q90Band;
+        updates.custom_q90 = q90Band;
+        updates.clinical_band = q90Band;
+        updates.category = q90Band;
+      }
+
       if (Object.keys(updates).length === 0) return d;
       return { ...d, ...updates };
     });
@@ -794,8 +1004,13 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     data.weight, data.height, data.custom_q67, data.custom_q68,
     data.waist, data.hip, data.custom_q70, data.custom_q71,
     data.sys_bp_1, data.sys_bp_2, data.dia_bp_1, data.dia_bp_2,
+    data.q75, data.custom_q75, data.q76, data.custom_q76, data.q77, data.custom_q77,
+    data.q79, data.custom_q79, data.q80, data.custom_q80, data.q69, data.custom_q69,
+    data.q53, data.custom_q53, data.q30, data.custom_q30,
     data.q21, data.custom_q21, data.q22, data.custom_q22,
     data.q27, data.custom_q27, data.q28, data.custom_q28, data.q29, data.custom_q29,
+    data.q58, data.custom_q58, data.q59, data.custom_q59, data.q60, data.custom_q60,
+    data.q62, data.custom_q62, data.q63, data.custom_q63, data.q64, data.custom_q64,
     data.q60_gad7_q1, data.q60_gad7_q2, data.q60_gad7_q3, data.q60_gad7_q4, data.q60_gad7_q5, data.q60_gad7_q6, data.q60_gad7_q7,
     data.q64_phq9_q1, data.q64_phq9_q2, data.q64_phq9_q3, data.q64_phq9_q4, data.q64_phq9_q5, data.q64_phq9_q6, data.q64_phq9_q7, data.q64_phq9_q8, data.q64_phq9_q9,
     data.raw_date
@@ -1236,12 +1451,19 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     return idL === "q3" || titleL.startsWith("q3.") || titleL.startsWith("q3 ") || (titleL.includes("q3") && (titleL.includes("site") || titleL.includes("location")));
   };
 
+  const isQ90CategoryQuestion = (q) => {
+    if (!q) return false;
+    const idL = String(q.id || "").toLowerCase();
+    const titleL = String(q.title || "").toLowerCase();
+    return idL === "q90" || idL.includes("q90") || titleL.includes("q90") || titleL.includes("assign a category") || titleL.includes("most severe band");
+  };
+
   const isGadTotalQuestion = (q) => {
     if (!q) return false;
     const idL = String(q.id || "").toLowerCase();
     const titleL = String(q.title || "").toLowerCase();
     if (titleL.includes("item") || titleL.includes("response") || titleL.includes("feeling") || titleL.includes("nervous")) return false;
-    return idL === "q61_score" || idL === "gad_total" || titleL.includes("gad-7 total score") || titleL.includes("gad-7 score") || (titleL.includes("gad") && titleL.includes("total score"));
+    return idL === "q61" || idL === "q61_score" || idL === "gad_total" || titleL.includes("gad-7 total score") || titleL.includes("gad-7 score") || (titleL.includes("gad") && titleL.includes("total score"));
   };
 
   const isPhqTotalQuestion = (q) => {
@@ -1249,7 +1471,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     const idL = String(q.id || "").toLowerCase();
     const titleL = String(q.title || "").toLowerCase();
     if (titleL.includes("item") || titleL.includes("response") || titleL.includes("thoughts") || titleL.includes("self-harm") || titleL.includes("bothered")) return false;
-    return idL === "q63_score" || idL === "phq_total" || titleL.includes("phq-9 total score") || titleL.includes("phq-9 score") || (titleL.includes("phq") && titleL.includes("total score"));
+    return idL === "q65" || idL === "q65_score" || idL === "q63_score" || idL === "phq_total" || titleL.includes("phq-9 total score") || titleL.includes("phq-9 score") || (titleL.includes("phq") && titleL.includes("total score"));
   };
 
   const isAuditTotalQuestion = (q) => {
@@ -1502,11 +1724,14 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     const qTitleLower = String(q.title || "").toLowerCase();
     const qTypeLower = String(q.type || "").toLowerCase();
 
+    // Score questions MUST NEVER be treated as matrix questions!
+    if (qIdLower === 'q61' || qIdLower === 'q65' || qTitleLower.includes('total score') || qTitleLower.includes('auto-calculated') || qTypeLower === 'number') return false;
+
     if (qTypeLower === 'matrix' || qTypeLower === 'grid' || qTypeLower === 'table') return true;
     if (qIdLower.includes('q60') || qIdLower.includes('gad') || qTitleLower.includes('gad-7') || qTitleLower.includes('anxiety')) return true;
-    if (qIdLower.includes('q64') || qIdLower.includes('phq') || qTitleLower.includes('phq-9') || qTitleLower.includes('patient health questionnaire')) return true;
-    if (qIdLower.includes('q86') || qTitleLower.includes('q86') || qTitleLower.includes('fat loss')) return true;
-    if (qIdLower.includes('q87') || qTitleLower.includes('q87') || qTitleLower.includes('muscle loss')) return true;
+    if (qIdLower.includes('q64') || qIdLower.includes('q62') || qIdLower.includes('phq') || qTitleLower.includes('phq-9') || qTitleLower.includes('depression')) return true;
+    if (qIdLower.includes('q86') || qTitleLower.includes('fat loss')) return true;
+    if (qIdLower.includes('q87') || qTitleLower.includes('muscle loss')) return true;
     if (q.rows && Array.isArray(q.rows) && q.rows.length > 0) return true;
     if (q.matrix_rows && Array.isArray(q.matrix_rows) && q.matrix_rows.length > 0) return true;
     return false;
@@ -1813,10 +2038,10 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     } else if (!/^[6-9]\d{9}$/.test(contactDigits)) {
       newErrors.contact_number = `Invalid Mobile Number. Enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.`;
       notify("error", "Invalid Mobile Number", newErrors.contact_number);
-    } else {
+    } else if (!data.is_family_number && !data.is_shared_family_no) {
       const existingPid = await isContactNumberDuplicate(contactDigits, data.participant_id);
       if (existingPid) {
-        newErrors.contact_number = `Duplicate Contact Number: Mobile ${contactDigits} is already registered to Participant ${existingPid}. Duplicate numbers are not accepted.`;
+        newErrors.contact_number = `Duplicate Contact Number: Mobile ${contactDigits} is registered to Participant ${existingPid}. Click "Family-No" button if this is a shared family mobile number.`;
         notify("error", "Duplicate Mobile Number", newErrors.contact_number);
       }
     }
@@ -1971,6 +2196,9 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         mem_scrn_q17: data.location,
         submitted_by_role: data.user_role,
         submitted_at: new Date().toISOString(),
+        is_family_number: Boolean(data.is_family_number || data.is_shared_family_no),
+        is_shared_family_no: data.is_family_number ? 1 : 0,
+        family_contact_flag: data.is_family_number ? "Yes" : "No",
         section_16_completed: isSec16Submission ? true : Boolean(data.section_16_completed),
         community_perception_completed: isSec16Submission ? true : Boolean(data.community_perception_completed),
         sec_16_done: isSec16Submission ? true : Boolean(data.sec_16_done),
@@ -2368,7 +2596,35 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                         <label className="text-xs font-bold text-slate-700 uppercase tracking-wider font-mono flex items-center gap-1.5">
                           <Phone size={13} className="text-amber-600" /> Contact Number *
                         </label>
-                        <span className="text-amber-900 font-bold text-[10px] font-mono">(10 Digits)</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextVal = !data.is_family_number;
+                              set("is_family_number")(nextVal);
+                              set("is_shared_family_no")(nextVal ? 1 : 0);
+                              set("family_contact_flag")(nextVal ? "Yes" : "No");
+                              if (fieldErrors.contact_number) {
+                                setFieldErrors(prev => {
+                                  const c = { ...prev };
+                                  delete c.contact_number;
+                                  return c;
+                                });
+                              }
+                              notify("info", nextVal ? "Family-No Mode Enabled" : "Family-No Mode Disabled", nextVal ? "Shared family contact number permitted for this record." : "Individual contact number mode.");
+                            }}
+                            className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black font-mono transition-all flex items-center gap-1 cursor-pointer border ${
+                              data.is_family_number
+                                ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-2xs'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-300'
+                            }`}
+                            title="Enable if an entire family shares one mobile number"
+                          >
+                            <Users size={11} className={data.is_family_number ? 'text-slate-950' : 'text-slate-500'} />
+                            <span>Family-No {data.is_family_number ? '(ON)' : '(OFF)'}</span>
+                          </button>
+                          <span className="text-amber-900 font-bold text-[10px] font-mono">(10 Digits)</span>
+                        </div>
                       </div>
                       <input 
                         type="tel" 
@@ -2386,8 +2642,47 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                         }}
                         placeholder="Enter 10-digit number"
                         maxLength={10}
-                        className="w-full bg-white border border-slate-300 text-slate-900 font-mono text-sm outline-none px-3.5 py-2.5 rounded-xl shadow-2xs focus:border-amber-500"
+                        className={`w-full bg-white border text-slate-900 font-mono text-sm outline-none px-3.5 py-2.5 rounded-xl shadow-2xs focus:border-amber-500 ${
+                          data.is_family_number ? 'border-amber-400 bg-amber-50/20' : 'border-slate-300'
+                        }`}
                       />
+                      {data.is_family_number && (
+                        <p className="mt-1.5 text-[11px] font-bold text-amber-800 flex items-center gap-1 font-mono">
+                          <CheckCircle2 size={13} className="text-amber-600 shrink-0" />
+                          <span>Family-No Activated: Shared family contact number permitted across family records.</span>
+                        </p>
+                      )}
+
+                      {/* Family Lookup Result Box */}
+                      {familyMembersList.length > 0 && (
+                        <div className="mt-3 bg-amber-50/80 border border-amber-300 rounded-2xl p-3.5 space-y-2 text-xs font-mono animate-in fade-in duration-200">
+                          <div className="flex items-center justify-between border-b border-amber-200/80 pb-2">
+                            <span className="font-extrabold text-slate-900 flex items-center gap-1.5 text-[11px] uppercase tracking-wide">
+                              <Users size={14} className="text-amber-700" /> Screened Family Members ({familyMembersList.length})
+                            </span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-200 text-amber-900">
+                              Shared Mobile Match
+                            </span>
+                          </div>
+                          <div className="space-y-1.5 max-h-32 overflow-y-auto no-scrollbar">
+                            {familyMembersList.map((m, i) => (
+                              <div key={i} className="flex justify-between items-center bg-white px-3 py-1.5 rounded-xl border border-amber-200/60 shadow-2xs">
+                                <div>
+                                  <span className="font-bold text-slate-900 text-xs">{m.name}</span>
+                                  <span className="text-[10px] text-slate-500 block">ID: <strong className="text-slate-800">{m.pid}</strong></span>
+                                </div>
+                                <div className="text-right text-[10px] text-slate-600 font-mono">
+                                  <span>{m.gender}, {m.age} yrs</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-[10px] text-amber-900 font-semibold pt-1">
+                            ✓ Participant will be linked to this family group under shared contact number {data.contact_number}.
+                          </p>
+                        </div>
+                      )}
+
                       {fieldErrors.contact_number && (
                         <p className="mt-1.5 text-xs font-bold text-red-600 flex items-center gap-1">
                           <AlertCircle size={13} className="text-red-600 shrink-0" />
@@ -2717,7 +3012,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                   min={0}
                                   max={21}
                                   placeholder="___"
-                                  value={data[`custom_${q.id}`] !== undefined ? data[`custom_${q.id}`] : (data[q.id] !== undefined ? data[q.id] : '')}
+                                  value={data[q.id] !== undefined && data[q.id] !== null && data[q.id] !== '' ? data[q.id] : (data[`custom_${q.id}`] !== undefined && data[`custom_${q.id}`] !== null && data[`custom_${q.id}`] !== '' ? data[`custom_${q.id}`] : (data.q61 !== undefined ? data.q61 : (data.gad7_score !== undefined ? data.gad7_score : '')))}
                                   onChange={(e) => {
                                     const val = e.target.value;
                                     if (val !== '') {
@@ -2760,7 +3055,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                   min={0}
                                   max={27}
                                   placeholder="___"
-                                  value={data[`custom_${q.id}`] !== undefined ? data[`custom_${q.id}`] : (data[q.id] !== undefined ? data[q.id] : '')}
+                                  value={data[q.id] !== undefined && data[q.id] !== null && data[q.id] !== '' ? data[q.id] : (data[`custom_${q.id}`] !== undefined && data[`custom_${q.id}`] !== null && data[`custom_${q.id}`] !== '' ? data[`custom_${q.id}`] : (data.q65 !== undefined ? data.q65 : (data.phq9_score !== undefined ? data.phq9_score : '')))}
                                   onChange={(e) => {
                                     const val = e.target.value;
                                     if (val !== '') {
@@ -3258,6 +3553,110 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                               </div>
                             </div>
                           </div>
+                        ) : (isQ90CategoryQuestion(q)) ? (
+                          <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs font-sans my-2 bg-white animate-in fade-in duration-200">
+                            <div className="bg-slate-50 px-5 py-3.5 border-b border-slate-200/90 flex items-center justify-between">
+                              <div>
+                                <span className="text-xs font-black uppercase text-slate-800 font-mono tracking-wider block">
+                                  Q90. Risk Categorization (Most Severe Band Wins)
+                                </span>
+                                <span className="text-[11px] text-slate-500 font-medium pt-0.5 block">
+                                  Auto-calculated from BP, RBS, Hb, BMI, Oral Exam, PHQ-9 & AUDIT-C
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-mono font-extrabold px-2.5 py-1 rounded-xl bg-amber-50 text-amber-950 border border-amber-300 shadow-2xs shrink-0">
+                                Auto-Calculated
+                              </span>
+                            </div>
+
+                            <div className="p-5 bg-white space-y-4">
+                              {(() => {
+                                const currentVal = data[q.id] || data[`custom_${q.id}`] || data.q90 || data.clinical_band;
+                                const calculatedBand = calculateQ90Category(data) || 'GREEN';
+                                const band = (currentVal && ['GREEN', 'AMBER', 'RED'].includes(String(currentVal).toUpperCase()))
+                                  ? String(currentVal).toUpperCase()
+                                  : calculatedBand;
+
+                                const pillStyles = {
+                                  GREEN: {
+                                    cardBg: 'bg-emerald-50/80 border-emerald-300 text-emerald-950 ring-2 ring-emerald-400',
+                                    badgeBg: 'bg-emerald-600 text-white',
+                                    label: 'GREEN',
+                                    desc: 'BP below 130/80; RBS below 140; Hb 11.0 or above; BMI 20.0 to 24.9. No referral needed.'
+                                  },
+                                  AMBER: {
+                                    cardBg: 'bg-amber-50/80 border-amber-300 text-amber-950 ring-2 ring-amber-400',
+                                    badgeBg: 'bg-amber-500 text-white',
+                                    label: 'AMBER',
+                                    desc: 'BP 130–139 / 80–89; or RBS 140–199; or BMI 25.0 to 29.9. Monitor, one-month review at Q93.'
+                                  },
+                                  RED: {
+                                    cardBg: 'bg-rose-50/80 border-rose-300 text-rose-950 ring-2 ring-rose-500',
+                                    badgeBg: 'bg-rose-600 text-white',
+                                    label: 'RED',
+                                    desc: 'BP 140/90 or above; or RBS 200 or above; or Hb below 11.0; or BMI below 20.0 or 30.0 and above; or precancerous oral lesion; or PHQ-9 item 9 positive; or AUDIT 16 or above. Refer.'
+                                  }
+                                };
+
+                                return (
+                                  <div className="space-y-3">
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                      {['GREEN', 'AMBER', 'RED'].map((bKey) => {
+                                        const isCurrent = band === bKey;
+                                        const cfg = pillStyles[bKey];
+
+                                        return (
+                                          <button
+                                            key={bKey}
+                                            type="button"
+                                            onClick={() => {
+                                              updateCustomField(q, bKey);
+                                              setData(prev => ({
+                                                ...prev,
+                                                q90: bKey,
+                                                custom_q90: bKey,
+                                                clinical_band: bKey,
+                                                [q.id]: bKey
+                                              }));
+                                            }}
+                                            className={`px-5 py-3 rounded-2xl font-mono font-black text-sm tracking-wider transition-all flex items-center gap-2.5 border shadow-2xs cursor-pointer ${
+                                              isCurrent
+                                                ? cfg.cardBg
+                                                : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-700 opacity-60'
+                                            }`}
+                                          >
+                                            <span className={`w-3.5 h-3.5 rounded-full ${cfg.badgeBg} ${isCurrent ? 'animate-pulse ring-2 ring-white shadow-xs' : ''}`} />
+                                            {bKey}
+                                            {isCurrent && (
+                                              <span className="text-[10px] font-sans font-bold px-2 py-0.5 rounded-md bg-white/90 border border-current ml-1 shadow-2xs">
+                                                SELECTED BAND
+                                              </span>
+                                            )}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+
+                                    {/* Active Band Criteria Box */}
+                                    <div className={`p-4 rounded-xl border font-sans text-xs font-medium leading-relaxed shadow-2xs transition-all ${pillStyles[band].cardBg}`}>
+                                      <div className="flex items-center gap-2 font-bold mb-1.5 uppercase font-mono tracking-wider">
+                                        <span className={`w-2.5 h-2.5 rounded-full ${pillStyles[band].badgeBg}`} />
+                                        {band} BAND CRITERIA & ACTION:
+                                      </div>
+                                      <p className="text-slate-800 font-sans leading-normal">{pillStyles[band].desc}</p>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+
+                            <div className="px-5 py-3 bg-slate-50/80 border-t border-slate-200/90 text-xs font-medium text-slate-600 leading-relaxed flex items-center justify-between font-sans">
+                              <span>Any single parameter can place participant in a band. Most severe band wins (RED &gt; AMBER &gt; GREEN).</span>
+                              <span className="font-bold text-amber-900 font-mono text-[10px] bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
+                                Auto-Calculated
+                              </span>
+                            </div>
+                          </div>
                         ) : (isQ93FollowupDateQuestion(q) || qType === 'date') ? (
                           <div className="space-y-4 my-2 animate-in fade-in duration-200 font-sans">
                             <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3">
@@ -3489,6 +3888,11 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                           const isPhq9 = !isGad7 && (qIdLower.includes("phq") || qIdLower.includes("q64") || qTitleLower.includes("phq-9") || qTitleLower.includes("phq 9") || qTitleLower.includes("patient health questionnaire") || qTitleLower.includes("depression"));
                           const isSpecialMatrix = isGad7 || isPhq9;
 
+                          const curQVal = String(data[q.id] || data[`custom_${q.id}`] || '').toLowerCase().trim();
+                          if (isSpecialMatrix && (curQVal.includes("declined") || curQVal.includes("no,") || curQVal === "2" || curQVal === "code 2")) {
+                            return null;
+                          }
+
                           const mRows = getMatrixRows(q);
                           const mCols = getMatrixCols(q);
 
@@ -3514,7 +3918,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                   <span className="text-sm font-bold text-[#2d2f7f] font-sans tracking-wide uppercase">
                                     {isPhq9 ? "PATIENT HEALTH QUESTIONNAIRE (PHQ 9)" : "GAD-7 ANXIETY SCALE"}
                                   </span>
-                                  <span className="text-[10px] font-mono font-extrabold px-2.5 py-1 rounded-xl bg-purple-50 text-purple-900 border border-purple-200 shadow-2xs uppercase">
+                                  <span className="text-[10px] font-mono font-extrabold px-2.5 py-1 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 shadow-2xs uppercase">
                                     Clinical Scale
                                   </span>
                                 </div>
@@ -3523,7 +3927,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                               <div className="w-full overflow-x-auto">
                                 <table className="w-full text-left border-collapse min-w-[640px]">
                                   <thead>
-                                    <tr className={isSpecialMatrix ? "bg-[#800080] text-white" : "bg-amber-50/70 border-b border-amber-200/80 font-mono"}>
+                                    <tr className={isSpecialMatrix ? "bg-[#2d2f7f] text-white" : "bg-amber-50/70 border-b border-amber-200/80 font-mono"}>
                                       <th className="py-3.5 px-4 text-xs font-bold uppercase tracking-wider">
                                         {isSpecialMatrix ? "" : "Assessment Site / Row Parameter"}
                                       </th>
@@ -3558,28 +3962,67 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                             const colCode = getOptionCode(col, cIdx);
                                             const isChecked = String(curRowVal).trim() === String(colVal).trim() || String(curRowVal).trim() === String(colCode).trim();
 
+                                            const isNotAtAllCol = cIdx === 0 || String(colVal).toLowerCase().includes('not at all') || String(colVal).toLowerCase().includes('normal') || String(colVal).toLowerCase().includes('no loss') || String(colCode) === '0' || String(colCode) === '1';
+
                                             return (
                                               <td key={cIdx} className="py-3.5 px-3 text-center">
                                                 <label 
                                                   onClick={() => {
-                                                    updateCustomField({ id: matrixValKey }, colVal);
-                                                    setData(prev => {
-                                                      const curObj = (typeof prev[q.id] === 'object' && prev[q.id] !== null) ? prev[q.id] : {};
-                                                      return {
-                                                        ...prev,
-                                                        [matrixValKey]: colVal,
-                                                        [q.id]: {
-                                                          ...curObj,
-                                                          [rowKey]: colVal
-                                                        }
-                                                      };
-                                                    });
+                                                    if (isNotAtAllCol) {
+                                                      if (isChecked) {
+                                                        // Toggle off if clicking already checked "Not at all" / "Normal (No loss)"
+                                                        updateCustomField({ id: matrixValKey }, '');
+                                                        setData(prev => {
+                                                          const curObj = (typeof prev[q.id] === 'object' && prev[q.id] !== null) ? { ...prev[q.id] } : {};
+                                                          delete curObj[rowKey];
+                                                          const updated = { ...prev, [matrixValKey]: '', [q.id]: curObj };
+                                                          delete updated[matrixValKey];
+                                                          return updated;
+                                                        });
+                                                      } else {
+                                                        // Select "Not at all" for current row & clear "Not at all" from all other rows in this matrix
+                                                        updateCustomField({ id: matrixValKey }, colVal);
+                                                        setData(prev => {
+                                                          const curObj = (typeof prev[q.id] === 'object' && prev[q.id] !== null) ? { ...prev[q.id] } : {};
+                                                          const updated = { ...prev };
+
+                                                          mRows.forEach((r, idx) => {
+                                                            const rKey = typeof r === 'object' ? r.id || `row_${idx + 1}` : `row_${idx + 1}`;
+                                                            const rValKey = `${q.id}_${rKey}`;
+                                                            const existingVal = String(prev[rValKey] || (prev[q.id] && prev[q.id][rKey]) || '').toLowerCase().trim();
+
+                                                            if (rKey !== rowKey && (existingVal.includes('not at all') || existingVal.includes('normal') || existingVal.includes('no loss') || existingVal === '0' || existingVal === '1' || existingVal === 'code 0' || existingVal === 'code 1')) {
+                                                              delete updated[rValKey];
+                                                              delete curObj[rKey];
+                                                              updateCustomField({ id: rValKey }, '');
+                                                            }
+                                                          });
+
+                                                          curObj[rowKey] = colVal;
+                                                          updated[matrixValKey] = colVal;
+                                                          updated[q.id] = curObj;
+                                                          return updated;
+                                                        });
+                                                      }
+                                                    } else {
+                                                      // Standard matrix option selection
+                                                      updateCustomField({ id: matrixValKey }, colVal);
+                                                      setData(prev => {
+                                                        const curObj = (typeof prev[q.id] === 'object' && prev[q.id] !== null) ? prev[q.id] : {};
+                                                        return {
+                                                          ...prev,
+                                                          [matrixValKey]: colVal,
+                                                          [q.id]: {
+                                                            ...curObj,
+                                                            [rowKey]: colVal
+                                                          }
+                                                        };
+                                                      });
+                                                    }
                                                   }}
                                                   className={`inline-flex items-center justify-center p-2 rounded-full border transition-all cursor-pointer ${
                                                     isChecked 
-                                                      ? isSpecialMatrix
-                                                        ? 'bg-purple-100 border-purple-600 text-purple-900 shadow-2xs ring-2 ring-purple-500'
-                                                        : 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs ring-2 ring-amber-400' 
+                                                      ? 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs ring-2 ring-amber-400' 
                                                       : 'bg-white border-slate-300 text-slate-400 hover:bg-slate-50 hover:text-slate-700'
                                                   }`}
                                                 >
@@ -3588,7 +4031,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                                     name={`${q.id}_${rowKey}`}
                                                     checked={isChecked}
                                                     onChange={() => {}}
-                                                    className="w-4 h-4 text-purple-700 focus:ring-0 cursor-pointer"
+                                                    className="w-4 h-4 text-amber-600 focus:ring-0 cursor-pointer"
                                                   />
                                                 </label>
                                               </td>
