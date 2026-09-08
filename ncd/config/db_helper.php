@@ -95,9 +95,9 @@ if (!function_exists('ncd_get_db_config')) {
             }
         }
 
-        $username = ncd_get_env('DB_USER') ?: ncd_get_env('MYSQL_USER') ?: ncd_get_env('SERVICE_USER_MYSQL') ?: 'root';
+        $username = ncd_get_env('DB_USER') ?: ncd_get_env('MYSQL_USER') ?: 'root';
 
-        $password = ncd_get_env('DB_PASSWORD') ?? ncd_get_env('MYSQL_PASSWORD') ?? ncd_get_env('SERVICE_PASSWORD_MYSQL') ?? ncd_get_env('DB_ROOT_PASSWORD') ?? ncd_get_env('MYSQL_ROOT_PASSWORD') ?? 'Kirub@2001';
+        $password = ncd_get_env('DB_PASSWORD') ?: ncd_get_env('MYSQL_PASSWORD') ?: ncd_get_env('DB_ROOT_PASSWORD') ?: 'Kirub@2001';
 
         return [
             'class' => 'yii\db\Connection',
