@@ -83,23 +83,29 @@ if (!function_exists('ncd_get_db_config')) {
             }
         }
 
-        // Priority 3: Environment variables (Coolify / Docker / Custom VPS)
-        $rawHost = ncd_get_env('DB_HOST') ?: ncd_get_env('MYSQL_HOST') ?: ncd_get_env('SERVICE_HOST_MYSQL') ?: '127.0.0.1';
-        $host = $rawHost;
-        if ($rawHost !== '127.0.0.1' && $rawHost !== 'localhost' && filter_var($rawHost, FILTER_VALIDATE_IP) === false) {
-            $ip = @gethostbyname($rawHost);
-            if ($ip === $rawHost) {
-                $fallbackHosts = ['host.docker.internal', '172.17.0.1', '172.18.0.1', 'localhost'];
-                foreach ($fallbackHosts as $fh) {
-                    $fip = @gethostbyname($fh);
-                    if ($fip !== $fh || filter_var($fh, FILTER_VALIDATE_IP) !== false) {
-                        $host = $fh;
-                        break;
-                    }
-                }
+        // Priority 3: Automated multi-host discovery (Coolify / Docker / VPS)
+        $port = (int)(ncd_get_env('DB_PORT') ?: ncd_get_env('MYSQL_PORT') ?: ncd_get_env('SERVICE_PORT_MYSQL') ?: 3306);
+        
+        $candidateHosts = [];
+        if (ncd_get_env('DB_HOST')) $candidateHosts[] = ncd_get_env('DB_HOST');
+        if (ncd_get_env('MYSQL_HOST')) $candidateHosts[] = ncd_get_env('MYSQL_HOST');
+        $candidateHosts[] = 'g113b51lhaak9txrr24qnaxj';
+        $candidateHosts[] = 'ncd-db';
+        $candidateHosts[] = '172.17.0.1';
+        $candidateHosts[] = '172.18.0.1';
+        $candidateHosts[] = 'host.docker.internal';
+        $candidateHosts[] = '127.0.0.1';
+        $candidateHosts = array_unique(array_filter($candidateHosts));
+
+        $host = $candidateHosts[0] ?? '127.0.0.1';
+        foreach ($candidateHosts as $ch) {
+            $fp = @fsockopen($ch, $port, $errno, $errstr, 0.3);
+            if ($fp) {
+                fclose($fp);
+                $host = $ch;
+                break;
             }
         }
-        $port = (int)(ncd_get_env('DB_PORT') ?: ncd_get_env('MYSQL_PORT') ?: ncd_get_env('SERVICE_PORT_MYSQL') ?: 3306);
         
         $dbname = ncd_get_env('DB_NAME') ?: ncd_get_env('MYSQL_DATABASE') ?: ncd_get_env('SERVICE_DATABASE_MYSQL') ?: 'ncd';
         if ($center) {
@@ -109,9 +115,9 @@ if (!function_exists('ncd_get_db_config')) {
             }
         }
 
-        $username = ncd_get_env('DB_USER') ?: ncd_get_env('MYSQL_USER') ?: 'root';
+        $username = ncd_get_env('DB_USER') ?: ncd_get_env('MYSQL_USER') ?: ncd_get_env('SERVICE_USER_MYSQL') ?: 'mariadb';
 
-        $password = ncd_get_env('DB_PASSWORD') ?: ncd_get_env('MYSQL_PASSWORD') ?: ncd_get_env('DB_ROOT_PASSWORD') ?: 'Kirub@2001';
+        $password = ncd_get_env('DB_PASSWORD') ?: ncd_get_env('MYSQL_PASSWORD') ?: ncd_get_env('SERVICE_PASSWORD_MYSQL') ?: ncd_get_env('DB_ROOT_PASSWORD') ?: 'Kirub@20011';
 
         return [
             'class' => 'yii\db\Connection',
