@@ -84,7 +84,21 @@ if (!function_exists('ncd_get_db_config')) {
         }
 
         // Priority 3: Environment variables (Coolify / Docker / Custom VPS)
-        $host = ncd_get_env('DB_HOST') ?: ncd_get_env('MYSQL_HOST') ?: ncd_get_env('SERVICE_HOST_MYSQL') ?: '127.0.0.1';
+        $rawHost = ncd_get_env('DB_HOST') ?: ncd_get_env('MYSQL_HOST') ?: ncd_get_env('SERVICE_HOST_MYSQL') ?: '127.0.0.1';
+        $host = $rawHost;
+        if ($rawHost !== '127.0.0.1' && $rawHost !== 'localhost' && filter_var($rawHost, FILTER_VALIDATE_IP) === false) {
+            $ip = @gethostbyname($rawHost);
+            if ($ip === $rawHost) {
+                $fallbackHosts = ['host.docker.internal', '172.17.0.1', '172.18.0.1', 'localhost'];
+                foreach ($fallbackHosts as $fh) {
+                    $fip = @gethostbyname($fh);
+                    if ($fip !== $fh || filter_var($fh, FILTER_VALIDATE_IP) !== false) {
+                        $host = $fh;
+                        break;
+                    }
+                }
+            }
+        }
         $port = (int)(ncd_get_env('DB_PORT') ?: ncd_get_env('MYSQL_PORT') ?: ncd_get_env('SERVICE_PORT_MYSQL') ?: 3306);
         
         $dbname = ncd_get_env('DB_NAME') ?: ncd_get_env('MYSQL_DATABASE') ?: ncd_get_env('SERVICE_DATABASE_MYSQL') ?: 'ncd';
