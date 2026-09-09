@@ -4,12 +4,7 @@ Password: admin123
 Username : DEO
 Password : DEO
 
-
-1. In DEO create a proper header, footer non scrollable, where card, location wise completed, total survey, and what are DEO features the old version has add that also, add profile page page.
-
-2. In Survey Management need a enchancement like section wise question we need to build with skip logic and option dropdown, bullet In, add radio button, checkbox, text field, matrix and when a survey is initaild we need to get the user details 
-
-3. Admin panel need separate nav option of participant 
+ 
 
 
 1.	Demographics	Field Supervisor
