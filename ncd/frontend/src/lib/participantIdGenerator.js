@@ -65,8 +65,8 @@ export function generateNextParticipantID(location = 'Dharavi', existingRecords 
     });
   }
 
-  // 2. Scan localStorage (completed / initiated records & queue)
-  ['ncd_local_initiated_participants', 'ncd_offline_queue', 'ncd_used_participant_ids'].forEach(storageKey => {
+  // 2. Scan localStorage (active initiated records & offline queue only)
+  ['ncd_local_initiated_participants', 'ncd_offline_queue'].forEach(storageKey => {
     try {
       const rawStr = localStorage.getItem(storageKey);
       if (rawStr) {
@@ -89,21 +89,13 @@ export function generateNextParticipantID(location = 'Dharavi', existingRecords 
     } catch (e) {}
   });
 
-  // 3. Compute active contiguous sequence (ignoring large gap outlier seeds like 16 -> 26)
+  // 3. Compute next sequence number (starts from 1 if no records exist)
   const sorted = Array.from(foundSeqs).sort((a, b) => a - b);
-  let activeSeq = 0;
+  let nextSeq = 1;
   if (sorted.length > 0) {
-    activeSeq = sorted[0];
-    for (let i = 1; i < sorted.length; i++) {
-      if ((sorted[i] - sorted[i - 1]) <= 3) {
-        activeSeq = sorted[i];
-      } else {
-        break; // stop at big gap jump
-      }
-    }
+    nextSeq = Math.max(...sorted) + 1;
   }
 
-  const nextSeq = activeSeq + 1;
   return `NCD${prefix}${String(nextSeq).padStart(4, '0')}`;
 }
 
