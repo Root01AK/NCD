@@ -78,6 +78,9 @@ class SurveymasterController extends Controller
 
     private function ensureTablesExist()
     {
+        static $tablesChecked = false;
+        if ($tablesChecked) return;
+
         try {
             $db = Yii::$app->db;
             $db->open();

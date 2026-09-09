@@ -44,15 +44,19 @@ if (!function_exists('ncd_get_env')) {
 // Helper to safely resolve a reachable DB hostname with DNS and socket probing
 if (!function_exists('ncd_resolve_db_host')) {
     function ncd_resolve_db_host($preferredHost = null, $port = 3306) {
+        static $cachedHost = null;
+        if ($cachedHost !== null) {
+            return $cachedHost;
+        }
+
         $candidates = [];
         if ($preferredHost) $candidates[] = $preferredHost;
         if (ncd_get_env('DB_HOST')) $candidates[] = ncd_get_env('DB_HOST');
-        if (ncd_get_env('MYSQL_HOST')) $candidates[] = ncd_get_env('MYSQL_HOST');
-        if (ncd_get_env('SERVICE_HOST_MYSQL')) $candidates[] = ncd_get_env('SERVICE_HOST_MYSQL');
-        $candidates[] = 'g113b51lhaak9txrr24qnaxj';
-        $candidates[] = 'ncd-db';
+        $candidates[] = 'db';
         $candidates[] = '172.17.0.1';
         $candidates[] = '172.18.0.1';
+        $candidates[] = 'g113b51lhaak9txrr24qnaxj';
+        $candidates[] = 'ncd-db';
         $candidates[] = 'host.docker.internal';
         $candidates[] = '127.0.0.1';
         $candidates = array_unique(array_filter($candidates));
@@ -65,25 +69,29 @@ if (!function_exists('ncd_resolve_db_host')) {
                     continue; // Skip unresolvable DNS names
                 }
             }
-            $fp = @fsockopen($cand, (int)$port, $errno, $errstr, 0.4);
+            $fp = @fsockopen($cand, (int)$port, $errno, $errstr, 0.08);
             if ($fp) {
                 fclose($fp);
-                return $cand;
+                $cachedHost = $cand;
+                return $cachedHost;
             }
         }
 
         // 2. Fallback to first resolvable host or IP
         foreach ($candidates as $cand) {
             if ($cand === '127.0.0.1' || $cand === 'localhost' || filter_var($cand, FILTER_VALIDATE_IP) !== false) {
-                return $cand;
+                $cachedHost = $cand;
+                return $cachedHost;
             }
             $ip = @gethostbyname($cand);
             if ($ip !== $cand) {
-                return $cand;
+                $cachedHost = $cand;
+                return $cachedHost;
             }
         }
 
-        return '127.0.0.1';
+        $cachedHost = '127.0.0.1';
+        return $cachedHost;
     }
 }
 
