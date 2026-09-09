@@ -41,6 +41,52 @@ if (!function_exists('ncd_get_env')) {
     }
 }
 
+// Helper to safely resolve a reachable DB hostname with DNS and socket probing
+if (!function_exists('ncd_resolve_db_host')) {
+    function ncd_resolve_db_host($preferredHost = null, $port = 3306) {
+        $candidates = [];
+        if ($preferredHost) $candidates[] = $preferredHost;
+        if (ncd_get_env('DB_HOST')) $candidates[] = ncd_get_env('DB_HOST');
+        if (ncd_get_env('MYSQL_HOST')) $candidates[] = ncd_get_env('MYSQL_HOST');
+        if (ncd_get_env('SERVICE_HOST_MYSQL')) $candidates[] = ncd_get_env('SERVICE_HOST_MYSQL');
+        $candidates[] = 'g113b51lhaak9txrr24qnaxj';
+        $candidates[] = 'ncd-db';
+        $candidates[] = '172.17.0.1';
+        $candidates[] = '172.18.0.1';
+        $candidates[] = 'host.docker.internal';
+        $candidates[] = '127.0.0.1';
+        $candidates = array_unique(array_filter($candidates));
+
+        // 1. Probe candidate hosts with socket connection
+        foreach ($candidates as $cand) {
+            if ($cand !== '127.0.0.1' && $cand !== 'localhost' && filter_var($cand, FILTER_VALIDATE_IP) === false) {
+                $ip = @gethostbyname($cand);
+                if ($ip === $cand) {
+                    continue; // Skip unresolvable DNS names
+                }
+            }
+            $fp = @fsockopen($cand, (int)$port, $errno, $errstr, 0.4);
+            if ($fp) {
+                fclose($fp);
+                return $cand;
+            }
+        }
+
+        // 2. Fallback to first resolvable host or IP
+        foreach ($candidates as $cand) {
+            if ($cand === '127.0.0.1' || $cand === 'localhost' || filter_var($cand, FILTER_VALIDATE_IP) !== false) {
+                return $cand;
+            }
+            $ip = @gethostbyname($cand);
+            if ($ip !== $cand) {
+                return $cand;
+            }
+        }
+
+        return '127.0.0.1';
+    }
+}
+
 // 2. Helper function to return Yii DB Connection config
 if (!function_exists('ncd_get_db_config')) {
     function ncd_get_db_config($center = null) {
@@ -63,11 +109,11 @@ if (!function_exists('ncd_get_db_config')) {
         if ($dbUrl) {
             $parsed = parse_url($dbUrl);
             if ($parsed) {
-                $host = $parsed['host'] ?? '127.0.0.1';
-                $port = $parsed['port'] ?? 3306;
-                $username = isset($parsed['user']) ? urldecode($parsed['user']) : 'root';
-                $password = isset($parsed['pass']) ? urldecode($parsed['pass']) : '';
-                $dbname = isset($parsed['path']) ? ltrim($parsed['path'], '/') : 'default';
+                $port = (int)($parsed['port'] ?? 3306);
+                $host = ncd_resolve_db_host($parsed['host'] ?? null, $port);
+                $username = isset($parsed['user']) ? urldecode($parsed['user']) : 'mariadb';
+                $password = isset($parsed['pass']) ? urldecode($parsed['pass']) : 'Kirub@20011';
+                $dbname = isset($parsed['path']) ? ltrim($parsed['path'], '/') : 'ncd';
 
                 return [
                     'class' => 'yii\db\Connection',
@@ -85,27 +131,7 @@ if (!function_exists('ncd_get_db_config')) {
 
         // Priority 3: Automated multi-host discovery (Coolify / Docker / VPS)
         $port = (int)(ncd_get_env('DB_PORT') ?: ncd_get_env('MYSQL_PORT') ?: ncd_get_env('SERVICE_PORT_MYSQL') ?: 3306);
-        
-        $candidateHosts = [];
-        if (ncd_get_env('DB_HOST')) $candidateHosts[] = ncd_get_env('DB_HOST');
-        if (ncd_get_env('MYSQL_HOST')) $candidateHosts[] = ncd_get_env('MYSQL_HOST');
-        $candidateHosts[] = 'g113b51lhaak9txrr24qnaxj';
-        $candidateHosts[] = 'ncd-db';
-        $candidateHosts[] = '172.17.0.1';
-        $candidateHosts[] = '172.18.0.1';
-        $candidateHosts[] = 'host.docker.internal';
-        $candidateHosts[] = '127.0.0.1';
-        $candidateHosts = array_unique(array_filter($candidateHosts));
-
-        $host = $candidateHosts[0] ?? '127.0.0.1';
-        foreach ($candidateHosts as $ch) {
-            $fp = @fsockopen($ch, $port, $errno, $errstr, 0.3);
-            if ($fp) {
-                fclose($fp);
-                $host = $ch;
-                break;
-            }
-        }
+        $host = ncd_resolve_db_host(ncd_get_env('DB_HOST'), $port);
         
         $dbname = ncd_get_env('DB_NAME') ?: ncd_get_env('MYSQL_DATABASE') ?: ncd_get_env('SERVICE_DATABASE_MYSQL') ?: 'ncd';
         if ($center) {
