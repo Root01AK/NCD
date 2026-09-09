@@ -44,9 +44,8 @@ if (!function_exists('ncd_get_env')) {
 // Global helper to ensure database schema and default records are present
 if (!function_exists('ncd_ensure_schema_ready')) {
     function ncd_ensure_schema_ready($db = null) {
-        static $initialized = false;
-        if ($initialized) return;
-        $initialized = true;
+        $lockFile = sys_get_temp_dir() . '/ncd_schema_ready.lock';
+        if (file_exists($lockFile)) return;
 
         try {
             if (!$db && class_exists('Yii') && isset(\Yii::$app) && isset(\Yii::$app->db)) {
@@ -56,83 +55,66 @@ if (!function_exists('ncd_ensure_schema_ready')) {
             $db->open();
 
             $tables = $db->createCommand('SHOW TABLES LIKE "cms_users"')->queryColumn();
-            if (empty($tables)) {
-                $candidates = [
-                    dirname(__DIR__) . '/DB/ncd.sql',
-                    '/var/www/html/DB/ncd.sql',
-                    dirname(__DIR__, 2) . '/DB/ncd.sql'
-                ];
-                foreach ($candidates as $sqlFile) {
-                    if (file_exists($sqlFile)) {
-                        $sqlContent = file_get_contents($sqlFile);
-                        $queries = explode(";\n", $sqlContent);
-                        foreach ($queries as $q) {
-                            $q = trim($q);
-                            if ($q && strpos($q, '/*') !== 0 && strpos($q, '--') !== 0) {
-                                try {
-                                    $db->createCommand($q)->execute();
-                                } catch (\Throwable $ignored) {}
-                            }
+            if (!empty($tables)) {
+                @touch($lockFile);
+                return;
+            }
+
+            $candidates = [
+                dirname(__DIR__) . '/DB/ncd.sql',
+                '/var/www/html/DB/ncd.sql',
+                dirname(__DIR__, 2) . '/DB/ncd.sql'
+            ];
+            foreach ($candidates as $sqlFile) {
+                if (file_exists($sqlFile)) {
+                    $sqlContent = file_get_contents($sqlFile);
+                    $queries = explode(";\n", $sqlContent);
+                    foreach ($queries as $q) {
+                        $q = trim($q);
+                        if ($q && strpos($q, '/*') !== 0 && strpos($q, '--') !== 0) {
+                            try {
+                                $db->createCommand($q)->execute();
+                            } catch (\Throwable $ignored) {}
                         }
-                        break;
                     }
+                    @touch($lockFile);
+                    break;
                 }
             }
         } catch (\Throwable $e) {}
     }
 }
 
-// Helper to safely resolve a reachable DB hostname with DNS and socket probing
+// Ultra-fast DB Host resolution with zero DNS latency
 if (!function_exists('ncd_resolve_db_host')) {
     function ncd_resolve_db_host($preferredHost = null, $port = 3306) {
-        static $cachedHost = null;
-        if ($cachedHost !== null) {
-            return $cachedHost;
+        if ($preferredHost && $preferredHost !== 'ncd-db' && $preferredHost !== 'g113b51lhaak9txrr24qnaxj') {
+            return $preferredHost;
+        }
+        $envHost = ncd_get_env('DB_HOST');
+        if ($envHost && $envHost !== 'ncd-db' && $envHost !== 'g113b51lhaak9txrr24qnaxj') {
+            return $envHost;
         }
 
-        $candidates = [];
-        if ($preferredHost) $candidates[] = $preferredHost;
-        if (ncd_get_env('DB_HOST')) $candidates[] = ncd_get_env('DB_HOST');
-        $candidates[] = 'db';
-        $candidates[] = '172.17.0.1';
-        $candidates[] = '172.18.0.1';
-        $candidates[] = 'g113b51lhaak9txrr24qnaxj';
-        $candidates[] = 'ncd-db';
-        $candidates[] = 'host.docker.internal';
-        $candidates[] = '127.0.0.1';
-        $candidates = array_unique(array_filter($candidates));
-
-        // 1. Probe candidate hosts with socket connection
-        foreach ($candidates as $cand) {
-            if ($cand !== '127.0.0.1' && $cand !== 'localhost' && filter_var($cand, FILTER_VALIDATE_IP) === false) {
-                $ip = @gethostbyname($cand);
-                if ($ip === $cand) {
-                    continue; // Skip unresolvable DNS names
-                }
-            }
-            $fp = @fsockopen($cand, (int)$port, $errno, $errstr, 0.08);
-            if ($fp) {
-                fclose($fp);
-                $cachedHost = $cand;
-                return $cachedHost;
-            }
+        // Fast disk cache check
+        $cacheFile = sys_get_temp_dir() . '/ncd_db_host.cache';
+        if (file_exists($cacheFile)) {
+            $cached = trim((string)file_get_contents($cacheFile));
+            if ($cached) return $cached;
         }
 
-        // 2. Fallback to first resolvable host or IP
-        foreach ($candidates as $cand) {
-            if ($cand === '127.0.0.1' || $cand === 'localhost' || filter_var($cand, FILTER_VALIDATE_IP) !== false) {
-                $cachedHost = $cand;
-                return $cachedHost;
-            }
-            $ip = @gethostbyname($cand);
-            if ($ip !== $cand) {
-                $cachedHost = $cand;
-                return $cachedHost;
-            }
+        // Direct check: 'db' container first, then 127.0.0.1
+        $resolved = 'db';
+        $fp = @fsockopen('db', (int)$port, $errno, $errstr, 0.05);
+        if ($fp) {
+            fclose($fp);
+            $resolved = 'db';
+        } else {
+            $resolved = '127.0.0.1';
         }
 
-        $cachedHost = '127.0.0.1';
-        return $cachedHost;
+        @file_put_contents($cacheFile, $resolved);
+        return $resolved;
     }
 }
 
