@@ -66,6 +66,9 @@ class UsersController extends Controller
     public function actionIndex()
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
+        if (function_exists('ncd_ensure_schema_ready')) {
+            ncd_ensure_schema_ready();
+        }
 
         try {
             // For admin panel return all users cleanly

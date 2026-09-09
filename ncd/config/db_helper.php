@@ -41,6 +41,47 @@ if (!function_exists('ncd_get_env')) {
     }
 }
 
+// Global helper to ensure database schema and default records are present
+if (!function_exists('ncd_ensure_schema_ready')) {
+    function ncd_ensure_schema_ready($db = null) {
+        static $initialized = false;
+        if ($initialized) return;
+        $initialized = true;
+
+        try {
+            if (!$db && class_exists('Yii') && isset(\Yii::$app) && isset(\Yii::$app->db)) {
+                $db = \Yii::$app->db;
+            }
+            if (!$db) return;
+            $db->open();
+
+            $tables = $db->createCommand('SHOW TABLES LIKE "cms_users"')->queryColumn();
+            if (empty($tables)) {
+                $candidates = [
+                    dirname(__DIR__) . '/DB/ncd.sql',
+                    '/var/www/html/DB/ncd.sql',
+                    dirname(__DIR__, 2) . '/DB/ncd.sql'
+                ];
+                foreach ($candidates as $sqlFile) {
+                    if (file_exists($sqlFile)) {
+                        $sqlContent = file_get_contents($sqlFile);
+                        $queries = explode(";\n", $sqlContent);
+                        foreach ($queries as $q) {
+                            $q = trim($q);
+                            if ($q && strpos($q, '/*') !== 0 && strpos($q, '--') !== 0) {
+                                try {
+                                    $db->createCommand($q)->execute();
+                                } catch (\Throwable $ignored) {}
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        } catch (\Throwable $e) {}
+    }
+}
+
 // Helper to safely resolve a reachable DB hostname with DNS and socket probing
 if (!function_exists('ncd_resolve_db_host')) {
     function ncd_resolve_db_host($preferredHost = null, $port = 3306) {

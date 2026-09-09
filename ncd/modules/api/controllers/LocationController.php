@@ -66,6 +66,9 @@ class LocationController extends Controller
     public function actionIndex()
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
+        if (function_exists('ncd_ensure_schema_ready')) {
+            ncd_ensure_schema_ready();
+        }
 
         try {
             $locations = Locationmaster::find()->orderBy(['loc_id' => SORT_ASC])->asArray()->all();
