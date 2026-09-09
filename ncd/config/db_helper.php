@@ -84,10 +84,10 @@ if (!function_exists('ncd_get_db_config')) {
         }
 
         // Priority 3: Environment variables (Coolify / Docker / Custom VPS)
-        $host = ncd_get_env('DB_HOST') ?: ncd_get_env('MYSQL_HOST') ?: ncd_get_env('SERVICE_HOST_MYSQL') ?: '127.0.0.1';
+        $host = ncd_get_env('DB_HOST') ?: ncd_get_env('MYSQL_HOST') ?: ncd_get_env('SERVICE_HOST_MYSQL') ?: 'vx52k3ag4v42zjrygc4ar1qo';
         $port = (int)(ncd_get_env('DB_PORT') ?: ncd_get_env('MYSQL_PORT') ?: ncd_get_env('SERVICE_PORT_MYSQL') ?: 3306);
         
-        $dbname = ncd_get_env('DB_NAME') ?: ncd_get_env('MYSQL_DATABASE') ?: ncd_get_env('SERVICE_DATABASE_MYSQL') ?: 'ncd';
+        $dbname = ncd_get_env('DB_NAME') ?: ncd_get_env('MYSQL_DATABASE') ?: ncd_get_env('SERVICE_DATABASE_MYSQL') ?: 'default';
         if ($center) {
             $centerKey = 'DB_NAME_' . strtoupper($center);
             if (ncd_get_env($centerKey)) {
@@ -97,10 +97,9 @@ if (!function_exists('ncd_get_db_config')) {
 
         $username = ncd_get_env('DB_USER') ?: ncd_get_env('MYSQL_USER') ?: 'root';
 
-        if ($username === 'root' && ncd_get_env('DB_ROOT_PASSWORD')) {
-            $password = ncd_get_env('DB_ROOT_PASSWORD');
-        } else {
-            $password = ncd_get_env('DB_PASSWORD') ?: ncd_get_env('MYSQL_PASSWORD') ?: ncd_get_env('DB_ROOT_PASSWORD') ?: 'Kirub@2001';
+        $password = ncd_get_env('DB_PASSWORD') ?: ncd_get_env('DB_ROOT_PASSWORD') ?: ncd_get_env('MYSQL_PASSWORD') ?: 'Kirub@2001';
+        if ($username === 'root' && ($password === 'reyHLHjuIytl0fuwPJa9FUKKgALZQRPun37MSq5s9mFzhr8Dncg1ORktoLbQcTyg' || empty($password))) {
+            $password = 'Kirub@2001';
         }
 
         return [
