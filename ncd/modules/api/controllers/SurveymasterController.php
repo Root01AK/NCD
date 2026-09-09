@@ -76,12 +76,38 @@ class SurveymasterController extends Controller
         return $payload ?: [];
     }
 
+    private function ensureTablesExist()
+    {
+        try {
+            $db = Yii::$app->db;
+            $db->open();
+            $tables = $db->createCommand('SHOW TABLES LIKE "cms_surveymaster"')->queryColumn();
+            if (empty($tables)) {
+                $candidates = [
+                    Yii::getAlias('@app/DB/ncd.sql'),
+                    dirname(__DIR__, 3) . '/DB/ncd.sql',
+                    '/var/www/html/DB/ncd.sql'
+                ];
+                foreach ($candidates as $sqlFile) {
+                    if (file_exists($sqlFile)) {
+                        $sql = file_get_contents($sqlFile);
+                        $db->pdo->exec($sql);
+                        break;
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            Yii::error("Surveymaster auto-table check: " . $e->getMessage());
+        }
+    }
+
     /**
      * GET /api/v1/surveymaster/index
      * Returns all active surveys
      */
     public function actionIndex()
     {
+        $this->ensureTablesExist();
         try {
             $surveys = Surveymaster::find()
                 ->where(['status' => '1'])
@@ -107,6 +133,7 @@ class SurveymasterController extends Controller
     public function actionCreate()
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
+        $this->ensureTablesExist();
 
         try {
             $payload = $this->getPayload();
