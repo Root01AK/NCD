@@ -88,11 +88,16 @@ class AuthController extends Controller
             $rolesMap = [
                 'admin_user'  => ['pass' => 'admin123', 'id' => 1, 'username' => 'Admin User', 'role_id' => 1, 'role_name' => 'Admin'],
                 'admin'       => ['pass' => 'admin123', 'id' => 1, 'username' => 'Admin User', 'role_id' => 1, 'role_name' => 'Admin'],
-                'deo'         => ['pass' => 'deo', 'id' => 2, 'username' => 'DEO (Field Supervisor)', 'role_id' => 2, 'role_name' => 'Field Supervisor'],
-                'nurse'       => ['pass' => 'nurse', 'id' => 3, 'username' => 'Staff Nurse (Clinical)', 'role_id' => 3, 'role_name' => 'Staff Nurse'],
-                'doctor'      => ['pass' => 'doctor', 'id' => 4, 'username' => 'Doctor (Clinical Exams)', 'role_id' => 4, 'role_name' => 'Doctor'],
-                'counselor'   => ['pass' => 'counselor', 'id' => 5, 'username' => 'Counselor (Mental Health)', 'role_id' => 5, 'role_name' => 'Counselor'],
-                'coordinator' => ['pass' => 'coordinator', 'id' => 6, 'username' => 'Case Coordinator', 'role_id' => 6, 'role_name' => 'Case Management Coordinator'],
+                'deo'         => ['pass' => 'deo', 'id' => 2, 'username' => 'FS001 (Field Supervisor)', 'role_id' => 2, 'role_name' => 'Field Supervisor'],
+                'fs001'       => ['pass' => 'fsadmin123', 'id' => 2, 'username' => 'FS001 (Field Supervisor)', 'role_id' => 2, 'role_name' => 'Field Supervisor'],
+                'nurse'       => ['pass' => 'nurse', 'id' => 3, 'username' => 'SN001 (Staff Nurse)', 'role_id' => 3, 'role_name' => 'Staff Nurse'],
+                'sn001'       => ['pass' => 'snadmin123', 'id' => 3, 'username' => 'SN001 (Staff Nurse)', 'role_id' => 3, 'role_name' => 'Staff Nurse'],
+                'doctor'      => ['pass' => 'doctor', 'id' => 4, 'username' => 'D001 (Doctor)', 'role_id' => 4, 'role_name' => 'Doctor'],
+                'd001'        => ['pass' => 'dadmin123', 'id' => 4, 'username' => 'D001 (Doctor)', 'role_id' => 4, 'role_name' => 'Doctor'],
+                'counselor'   => ['pass' => 'counselor', 'id' => 5, 'username' => 'C001 (Counselor)', 'role_id' => 5, 'role_name' => 'Counselor'],
+                'c001'        => ['pass' => 'cadmin123', 'id' => 5, 'username' => 'C001 (Counselor)', 'role_id' => 5, 'role_name' => 'Counselor'],
+                'coordinator' => ['pass' => 'coordinator', 'id' => 6, 'username' => 'CMC001 (Case Management Coordinator)', 'role_id' => 6, 'role_name' => 'Case Management Coordinator'],
+                'cmc001'      => ['pass' => 'cmcadmin123', 'id' => 6, 'username' => 'CMC001 (Case Management Coordinator)', 'role_id' => 6, 'role_name' => 'Case Management Coordinator'],
             ];
 
             $lowerUser = strtolower(trim((string)$username));
