@@ -14,9 +14,8 @@ ENV COMPOSER_MEMORY_LIMIT=-1
 ENV DB_HOST=vx52k3ag4v42zjrygc4ar1qo
 ENV DB_PORT=3306
 ENV DB_NAME=default
-ENV DB_USER=root
+ENV DB_USER=mariadb
 ENV DB_PASSWORD=Kirub@2001
-ENV DB_ROOT_PASSWORD=Kirub@2001
 
 RUN apk add --no-cache \
         nginx \
