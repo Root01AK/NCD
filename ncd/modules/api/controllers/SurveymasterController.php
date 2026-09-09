@@ -81,8 +81,37 @@ class SurveymasterController extends Controller
         try {
             $db = Yii::$app->db;
             $db->open();
-            $tables = $db->createCommand('SHOW TABLES LIKE "cms_surveymaster"')->queryColumn();
-            if (empty($tables)) {
+            
+            // 1. Direct DDL to guarantee cms_surveymaster exists
+            $createTableSql = "CREATE TABLE IF NOT EXISTS `cms_surveymaster` (
+              `sur_id` int(11) NOT NULL AUTO_INCREMENT,
+              `sur_code` varchar(50) NOT NULL,
+              `sur_title` text NOT NULL,
+              `sur_url` longtext NOT NULL,
+              `sur_onlne_id` text NOT NULL,
+              `sur_pri_db_name` text NOT NULL,
+              `sur_pri_db_server` text NOT NULL,
+              `sur_pri_db_usrnme` text NOT NULL,
+              `sur_pri_db_paswrd` blob NOT NULL,
+              `sur_sec_db_name` text,
+              `sur_sec_db_server` text,
+              `sur_sec_db_usrnme` text,
+              `sur_sec_db_paswrd` blob,
+              `status` varchar(1) DEFAULT '1',
+              `create_time` int(11) DEFAULT NULL,
+              `create_user` smallint(6) DEFAULT NULL,
+              `update_time` int(11) DEFAULT NULL,
+              `update_user` smallint(6) DEFAULT NULL,
+              `record_date` int(11) DEFAULT NULL,
+              PRIMARY KEY (`sur_id`),
+              KEY `sur_code` (`sur_code`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8;";
+            
+            $db->createCommand($createTableSql)->execute();
+
+            // 2. Also ensure other core tables exist from SQL file if empty
+            $usersTable = $db->createCommand('SHOW TABLES LIKE "cms_users"')->queryColumn();
+            if (empty($usersTable)) {
                 $candidates = [
                     Yii::getAlias('@app/DB/ncd.sql'),
                     dirname(__DIR__, 3) . '/DB/ncd.sql',
@@ -90,14 +119,22 @@ class SurveymasterController extends Controller
                 ];
                 foreach ($candidates as $sqlFile) {
                     if (file_exists($sqlFile)) {
-                        $sql = file_get_contents($sqlFile);
-                        $db->pdo->exec($sql);
+                        $sqlContent = file_get_contents($sqlFile);
+                        $queries = explode(";\n", $sqlContent);
+                        foreach ($queries as $q) {
+                            $q = trim($q);
+                            if ($q && strpos($q, '/*') !== 0 && strpos($q, '--') !== 0) {
+                                try {
+                                    $db->createCommand($q)->execute();
+                                } catch (\Throwable $ignored) {}
+                            }
+                        }
                         break;
                     }
                 }
             }
         } catch (\Throwable $e) {
-            Yii::error("Surveymaster auto-table check: " . $e->getMessage());
+            Yii::error("Surveymaster table create: " . $e->getMessage());
         }
     }
 

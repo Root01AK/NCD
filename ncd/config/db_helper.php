@@ -123,7 +123,8 @@ if (!function_exists('ncd_get_db_config')) {
                     'charset' => 'utf8',
                     'tablePrefix' => 'cms_',
                     'attributes' => [
-                        1002 => "SET sql_mode = ''"
+                        1002 => "SET sql_mode = ''",
+                        1013 => true
                     ]
                 ];
             }
@@ -153,7 +154,8 @@ if (!function_exists('ncd_get_db_config')) {
             'charset' => 'utf8', 
             'tablePrefix' => 'cms_',
             'attributes' => [
-                1002 => "SET sql_mode = ''"
+                1002 => "SET sql_mode = ''",
+                1013 => true
             ]
         ];
     }
