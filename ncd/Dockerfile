@@ -11,11 +11,6 @@ FROM php:8.2-fpm-alpine3.19
 
 ENV COMPOSER_ALLOW_SUPERUSER=1
 ENV COMPOSER_MEMORY_LIMIT=-1
-ENV DB_HOST=vx52k3ag4v42zjrygc4ar1qo
-ENV DB_PORT=3306
-ENV DB_NAME=default
-ENV DB_USER=mariadb
-ENV DB_PASSWORD=Kirub@2001
 
 RUN apk add --no-cache \
         nginx \
