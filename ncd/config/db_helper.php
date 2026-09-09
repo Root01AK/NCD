@@ -65,9 +65,9 @@ if (!function_exists('ncd_get_db_config')) {
             if ($parsed) {
                 $host = $parsed['host'] ?? '127.0.0.1';
                 $port = $parsed['port'] ?? 3306;
-                $username = $parsed['user'] ?? 'root';
-                $password = $parsed['pass'] ?? '';
-                $dbname = isset($parsed['path']) ? ltrim($parsed['path'], '/') : 'ncd';
+                $username = isset($parsed['user']) ? urldecode($parsed['user']) : 'root';
+                $password = isset($parsed['pass']) ? urldecode($parsed['pass']) : '';
+                $dbname = isset($parsed['path']) ? ltrim($parsed['path'], '/') : 'default';
 
                 return [
                     'class' => 'yii\db\Connection',
