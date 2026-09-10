@@ -231,7 +231,16 @@ const DEFAULT_SURVEY_QUESTIONS = [
   { id: "q61", title: "Q61. GAD-7 Total Score (Auto-calculated)", type: "number", required: false, section: 8 },
   { id: "q63", title: "Q63. Over the last 2 weeks, how often have you been bothered by any of the following depression symptoms?", type: "dropdown", options: [{ label: "0 - Not at all (Code 0)", code: "0" }, { label: "1 - Several days (Code 1)", code: "1" }, { label: "2 - More than half the days (Code 2)", code: "2" }, { label: "3 - Nearly every day (Code 3)", code: "3" }, { label: "4 - Almost daily (Code 4)", code: "4" }], required: false, section: 8 },
   { id: "q64", title: "Q64. Patient Health Questionnaire (PHQ-9) (Matrix)", type: "matrix", required: false, section: 8 },
-  { id: "q65", title: "Q65. PHQ-9 Total Score (Auto-calculated)", type: "number", required: false, section: 8 }
+  { id: "q65", title: "Q65. PHQ-9 Total Score (Auto-calculated)", type: "number", required: false, section: 8 },
+
+  // Section 16: Community Perceptions (Field Supervisor)
+  { id: "sec_16", title: "SECTION 16 · COMMUNITY PERCEPTIONS — FIELD SUPERVISOR", type: "section_header", section: 16 },
+  { id: "q112", title: "Q112. What are the biggest health problems in your community? (check all that apply)", type: "multi_choice", options: ["Malnutrition", "Obesity", "Pollution", "Stress and mental health", "Diabetes", "Heart disease", "High blood pressure", "Tuberculosis", "Alcohol and substance use", "Poor sanitation and water", "Lack of access to healthcare", "Cost of healthcare", "Mosquito-borne illness", "Cannot say"], required: false, section: 16 },
+  { id: "q113", title: "Q113. Do you have access to clean drinking water and sanitation?", type: "single_choice", options: ["Yes", "No", "Partially"], required: false, section: 16 },
+  { id: "q114", title: "Q114. If a free NCD screening camp were held in your area, what would prevent you or your neighbours from attending? (check all that apply)", type: "multi_choice", options: ["Not knowing it is happening", "Cannot take time from work", "Cannot take time from family duties", "Distance to the camp", "Cost of travel", "Need family permission", "Stigma or fear of what others will say", "Fear of the diagnosis itself", "Do not trust free camps", "Physical difficulty attending", "Nothing would prevent attendance"], required: false, section: 16 },
+  { id: "q115", title: "Q115. How do you prefer to receive health information? (check all that apply)", type: "multi_choice", options: ["WhatsApp", "Community health worker in person", "Local community meetings", "Pamphlets", "Instagram", "Facebook", "YouTube", "Public address system", "Health facility staff", "Television or radio", "Religious or community leader", "No preference"], required: false, section: 16 },
+  { id: "q116", title: "Q116. How easy is it for you to prioritise your own health?", type: "single_choice", options: ["Very easy", "Somewhat easy", "Neither easy nor difficult", "Somewhat difficult", "Very difficult"], required: false, section: 16 },
+  { id: "q117", title: "Q117. What would most help you look after your health better? (check all that apply)", type: "multi_choice", options: ["Care closer to home", "Free or cheaper medicines", "Services open outside working hours", "Someone to remind and follow up", "Better information about my condition", "Support from family", "Help with travel", "Shorter waiting times", "Staff who speak my language", "Nothing would change things"], required: false, section: 16 }
 ];
 
 
@@ -1209,16 +1218,6 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       else if (qNum >= 107 && qNum <= 111) qSec = 15;
       else if (qNum >= 112) qSec = 16;
     } else if (
-      idx < 8 ||
-      titleLower.includes("age") || 
-      titleLower.includes("gender") || 
-      titleLower.includes("site") || 
-      titleLower.includes("location") || 
-      titleLower.includes("marital") || 
-      titleLower.includes("education") || 
-      titleLower.includes("occupation") || 
-      titleLower.includes("housing") || 
-      titleLower.includes("perception") || 
       titleLower.includes("demographic")
     ) {
       qSec = 1;
@@ -1229,6 +1228,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       if (match) secTracker = parseInt(match[1]);
       else if (q.section) secTracker = parseInt(q.section);
       qSec = secTracker;
+    } else if (q.section) {
+      qSec = parseInt(q.section, 10);
     }
 
     if (isQuestionSkipped(q, customQuestions, data)) {
@@ -1301,8 +1302,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     if (!q) return false;
     const qIdLower = String(q.id || "").toLowerCase().trim();
     const titleLower = String(q.title || "").toLowerCase().trim();
-    if (qIdLower === "contact_number" || qIdLower === "mobile" || qIdLower === "mobile_number" || qIdLower === "phone" || qIdLower === "q_mobile" || qIdLower === "q8") return true;
-    if (titleLower.includes("mobile number") || titleLower.includes("contact number") || titleLower.includes("phone number")) return true;
+    if (qIdLower === "contact_number" || qIdLower === "mobile" || qIdLower === "mobile_number" || qIdLower === "phone" || qIdLower === "q_mobile" || qIdLower === "contact_no") return true;
+    if (titleLower.includes("mobile number") || titleLower.includes("contact number") || titleLower.includes("phone number") || (titleLower.includes("mobile") && !titleLower.includes("automobile"))) return true;
     return false;
   };
 
@@ -2548,8 +2549,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                     
                     {/* Column 1: Participant ID */}
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 font-mono flex items-center gap-1.5">
-                        <User size={13} className="text-amber-600" /> Participant ID *
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 font-mono flex items-center gap-1.5 h-5">
+                        <UserCheck size={13} className="text-amber-600" /> Participant ID *
                       </label>
                       <input 
                         type="text" 
@@ -2569,7 +2570,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
                     {/* Column 2: Screening Date */}
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 font-mono flex items-center gap-1.5">
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 font-mono flex items-center gap-1.5 h-5">
                         <Calendar size={13} className="text-amber-600" /> Screening Date *
                       </label>
                       <div className="flex items-center justify-between bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 shadow-2xs relative">
@@ -2592,39 +2593,36 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
                     {/* Column 3: Contact Number */}
                     <div>
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center justify-between mb-2 h-5">
                         <label className="text-xs font-bold text-slate-700 uppercase tracking-wider font-mono flex items-center gap-1.5">
                           <Phone size={13} className="text-amber-600" /> Contact Number *
                         </label>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const nextVal = !data.is_family_number;
-                              set("is_family_number")(nextVal);
-                              set("is_shared_family_no")(nextVal ? 1 : 0);
-                              set("family_contact_flag")(nextVal ? "Yes" : "No");
-                              if (fieldErrors.contact_number) {
-                                setFieldErrors(prev => {
-                                  const c = { ...prev };
-                                  delete c.contact_number;
-                                  return c;
-                                });
-                              }
-                              notify("info", nextVal ? "Family-No Mode Enabled" : "Family-No Mode Disabled", nextVal ? "Shared family contact number permitted for this record." : "Individual contact number mode.");
-                            }}
-                            className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black font-mono transition-all flex items-center gap-1 cursor-pointer border ${
-                              data.is_family_number
-                                ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-2xs'
-                                : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-300'
-                            }`}
-                            title="Enable if an entire family shares one mobile number"
-                          >
-                            <Users size={11} className={data.is_family_number ? 'text-slate-950' : 'text-slate-500'} />
-                            <span>Family-No {data.is_family_number ? '(ON)' : '(OFF)'}</span>
-                          </button>
-                          <span className="text-amber-900 font-bold text-[10px] font-mono">(10 Digits)</span>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextVal = !data.is_family_number;
+                            set("is_family_number")(nextVal);
+                            set("is_shared_family_no")(nextVal ? 1 : 0);
+                            set("family_contact_flag")(nextVal ? "Yes" : "No");
+                            if (fieldErrors.contact_number) {
+                              setFieldErrors(prev => {
+                                const c = { ...prev };
+                                delete c.contact_number;
+                                return c;
+                              });
+                            }
+                            notify("info", nextVal ? "Family-No Mode Enabled" : "Family-No Mode Disabled", nextVal ? "Shared family contact number permitted for this record." : "Individual contact number mode.");
+                          }}
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-black font-mono transition-all flex items-center gap-1 cursor-pointer border ${
+                            data.is_family_number
+                              ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-2xs'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-300'
+                          }`}
+                          title="Enable if an entire family shares one mobile number"
+                        >
+                          <Users size={11} className={data.is_family_number ? 'text-slate-950' : 'text-slate-500'} />
+                          <span>Family-No {data.is_family_number ? '(ON)' : '(OFF)'}</span>
+                        </button>
                       </div>
                       <input 
                         type="tel" 
@@ -2640,7 +2638,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                           }
                           set("contact_number")(digitsOnly.slice(0, 10));
                         }}
-                        placeholder="Enter 10-digit number"
+                        placeholder="Enter 10-digit mobile number"
                         maxLength={10}
                         className={`w-full bg-white border text-slate-900 font-mono text-sm outline-none px-3.5 py-2.5 rounded-xl shadow-2xs focus:border-amber-500 ${
                           data.is_family_number ? 'border-amber-400 bg-amber-50/20' : 'border-slate-300'
