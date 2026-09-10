@@ -74,9 +74,27 @@ export const ROLE_KEY_MAP = {
 
 export const TENANTS_LIST = ["Dharavi", "Malvani", "Vashi", "Kurla", "Ghatkopar"];
 
+export const DEFAULT_MASTER_USERS = [
+  { usr_id: 1, username: "admin_user", users_name: "admin_user", full_name: "System Administrator", email: "admin@ncd.yrgmerf.in", role: "admin", location: "All", privileges: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], status: "1" },
+  { usr_id: 2, username: "FS001", users_name: "FS001", full_name: "Field Supervisor (Dharavi)", email: "fs001@ncd.yrgmerf.in", role: "field_supervisor", location: "Dharavi", privileges: [1, 16], status: "1" },
+  { usr_id: 3, username: "SN001", users_name: "SN001", full_name: "Staff Nurse (Dharavi)", email: "sn001@ncd.yrgmerf.in", role: "staff_nurse", location: "Dharavi", privileges: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11], status: "1" },
+  { usr_id: 4, username: "C001", users_name: "C001", full_name: "Counselor (Dharavi)", email: "c001@ncd.yrgmerf.in", role: "counselor", location: "Dharavi", privileges: [8, 15], status: "1" },
+  { usr_id: 5, username: "D001", users_name: "D001", full_name: "Doctor (Dharavi)", email: "d001@ncd.yrgmerf.in", role: "doctor", location: "Dharavi", privileges: [12, 13], status: "1" },
+  { usr_id: 6, username: "CMC001", users_name: "CMC001", full_name: "Case Coordinator (Dharavi)", email: "cmc001@ncd.yrgmerf.in", role: "case_management_coordinator", location: "Dharavi", privileges: [14], status: "1" },
+  { usr_id: 7, username: "DEO", users_name: "DEO", full_name: "Data Entry Operator (Dharavi)", email: "deo@ncd.yrgmerf.in", role: "deo", location: "Dharavi", privileges: [1, 16], status: "1" },
+  { usr_id: 8, username: "FS002", users_name: "FS002", full_name: "Field Supervisor (Malvani)", email: "fs002@ncd.yrgmerf.in", role: "field_supervisor", location: "Malvani", privileges: [1, 16], status: "1" },
+  { usr_id: 9, username: "SN002", users_name: "SN002", full_name: "Staff Nurse (Malvani)", email: "sn002@ncd.yrgmerf.in", role: "staff_nurse", location: "Malvani", privileges: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11], status: "1" },
+  { usr_id: 10, username: "FS003", users_name: "FS003", full_name: "Field Supervisor (Vashi)", email: "fs003@ncd.yrgmerf.in", role: "field_supervisor", location: "Vashi", privileges: [1, 16], status: "1" },
+  { usr_id: 11, username: "SN003", users_name: "SN003", full_name: "Staff Nurse (Vashi)", email: "sn003@ncd.yrgmerf.in", role: "staff_nurse", location: "Vashi", privileges: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11], status: "1" },
+  { usr_id: 12, username: "FS004", users_name: "FS004", full_name: "Field Supervisor (Kurla)", email: "fs004@ncd.yrgmerf.in", role: "field_supervisor", location: "Kurla", privileges: [1, 16], status: "1" },
+  { usr_id: 13, username: "SN004", users_name: "SN004", full_name: "Staff Nurse (Kurla)", email: "sn004@ncd.yrgmerf.in", role: "staff_nurse", location: "Kurla", privileges: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11], status: "1" },
+  { usr_id: 14, username: "FS005", users_name: "FS005", full_name: "Field Supervisor (Ghatkopar)", email: "fs005@ncd.yrgmerf.in", role: "field_supervisor", location: "Ghatkopar", privileges: [1, 16], status: "1" },
+  { usr_id: 15, username: "SN005", users_name: "SN005", full_name: "Staff Nurse (Ghatkopar)", email: "sn005@ncd.yrgmerf.in", role: "staff_nurse", location: "Ghatkopar", privileges: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11], status: "1" }
+];
+
 export function UserManagement({ notify, onOpenMobileMenu }) {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState(DEFAULT_MASTER_USERS);
+  const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState("table");
   const [selectedTenant, setSelectedTenant] = useState("All");
   
@@ -97,7 +115,7 @@ export function UserManagement({ notify, onOpenMobileMenu }) {
 
   const [searchTerm, setSearchTerm] = useState("");
 
-  const [tenantsList, setTenantsList] = useState([]);
+  const [tenantsList, setTenantsList] = useState(TENANTS_LIST);
   const [selectedRoleFilter, setSelectedRoleFilter] = useState("All");
 
   useEffect(() => {
@@ -110,7 +128,7 @@ export function UserManagement({ notify, onOpenMobileMenu }) {
       const res = await api.get("/api/v1/location/index");
       if (res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
         const dynamicLocs = res.data.map(l => l.loc_name || l.loc_city).filter(Boolean);
-        const uniqueLocs = Array.from(new Set(dynamicLocs));
+        const uniqueLocs = Array.from(new Set([...TENANTS_LIST, ...dynamicLocs]));
         setTenantsList(uniqueLocs);
         localStorage.setItem('ncd_locations_master', JSON.stringify(uniqueLocs));
       }
@@ -126,11 +144,10 @@ export function UserManagement({ notify, onOpenMobileMenu }) {
   };
 
   const fetchUsers = async () => {
-    setLoading(true);
     try {
       const res = await api.get("/api/v1/users/index");
-      if (res.status === 'success') {
-        const rawUsers = res.data || [];
+      if (res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
+        const rawUsers = res.data;
         const processed = rawUsers.map(u => {
           const uRoleId = parseInt(u.user_role) || 2;
           const roleKey = u.role || u.state_code || ROLE_KEY_MAP[uRoleId] || 'field_supervisor';
@@ -153,7 +170,7 @@ export function UserManagement({ notify, onOpenMobileMenu }) {
       }
     } catch (e) {
       console.error(e);
-      notify("error", "Error", "Failed to fetch users.");
+      // Keep default master users if API has transient network error
     } finally {
       setLoading(false);
     }

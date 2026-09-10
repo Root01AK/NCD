@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { FileText, ChevronLeft, ChevronDown, Check, Calendar, Phone, User, Users, ShieldCheck, Shield, Clock, PlusCircle, ArrowRight, Save, MapPin, Activity, Stethoscope, HeartPulse, Brain, Link2, CheckCircle2, UserCheck, AlertCircle, AlertTriangle, LayoutGrid, CheckSquare, ListFilter, X, PauseCircle, Play, Trash2, Bookmark, Layers, LayoutList } from "lucide-react";
 import { T } from "../../lib/theme";
 import { saveToQueue, getQueue } from "../../lib/db";
@@ -354,62 +354,78 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
   const [availableParticipants, setAvailableParticipants] = useState([]);
 
-  // Dynamically load queued / completed participants from local sync queue & API
-  useEffect(() => {
-    const loadQueueParticipants = async () => {
-      let list = [];
-      try {
-        const queue = await getQueue();
-        if (Array.isArray(queue) && queue.length > 0) {
-          queue.forEach(item => {
-            let raw = {};
-            if (item.mem_scrn_q30) {
-              try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
-            }
-            const pid = item.participant_id || item.mem_scrn_part_id || raw.participant_id || 'N/A';
-            const age = item.age || raw.age || item.mem_scrn_q1 || "45";
-            const gender = item.gender || raw.gender || (item.mem_scrn_q2 == "1" ? "Male" : "Female");
-            const loc = item.location || raw.location || item.mem_scrn_q17 || "Dharavi";
+  // Dynamically load queued / initiated participants from local storage, IndexedDB & server API
+  const loadQueueParticipants = useCallback(async () => {
+    const recordMap = new Map();
 
-            if (pid && pid !== 'N/A' && !list.some(x => x.id === pid)) {
-              list.push({
-                id: pid,
-                age: String(age),
-                gender: gender,
-                location: loc,
-                rawPayload: { ...item, ...raw }
-              });
-            }
-          });
-        }
-      } catch (e) { console.error(e); }
-
-      // Also try fetching from API queue endpoint
-      try {
-        const res = await api.get("/api/v1/screening/queue");
-        if (res && res.status === "success" && Array.isArray(res.data)) {
-          res.data.forEach(item => {
-            const pid = item.participant_id || item.mem_scrn_part_id || 'N/A';
-            if (pid && pid !== 'N/A' && !list.some(x => x.id === pid)) {
-              list.push({
-                id: pid,
-                age: String(item.age || item.mem_scrn_q1 || "45"),
-                gender: item.gender || (item.mem_scrn_q2 == "1" ? "Male" : "Female"),
-                location: item.location || item.mem_scrn_q17 || "Dharavi",
-                rawPayload: item
-              });
-            }
-          });
-        }
-      } catch (e) {}
-
-      if (list.length > 0) {
-        setAvailableParticipants(list);
+    const addOrMergeRecord = (item, rawExtra = {}) => {
+      if (!item) return;
+      let raw = rawExtra;
+      if (item.mem_scrn_q30) {
+        try {
+          const parsed = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30;
+          raw = { ...raw, ...parsed };
+        } catch (e) {}
       }
+      const full = { ...raw, ...item };
+      const pid = full.participant_id || full.mem_scrn_part_id || item.participant_id || item.mem_scrn_part_id;
+      if (!pid || pid === 'N/A') return;
+
+      const prev = recordMap.get(pid);
+      const mergedPayload = prev ? { ...prev.rawPayload, ...full } : full;
+
+      recordMap.set(pid, {
+        id: pid,
+        name: mergedPayload.fullName || mergedPayload.mem_scrn_q16 || pid,
+        age: String(mergedPayload.age || mergedPayload.mem_scrn_q1 || "45"),
+        gender: mergedPayload.gender || (mergedPayload.mem_scrn_q2 == "1" ? "Male" : "Female"),
+        location: mergedPayload.location || mergedPayload.mem_scrn_q17 || "Dharavi",
+        rawPayload: mergedPayload
+      });
     };
 
-    loadQueueParticipants();
+    // 1. IndexedDB local queue
+    try {
+      const queue = await getQueue();
+      if (Array.isArray(queue)) {
+        queue.forEach(item => addOrMergeRecord(item));
+      }
+    } catch (e) {}
+
+    // 2. LocalStorage initiated records
+    try {
+      const localInitStr = localStorage.getItem('ncd_local_initiated_participants');
+      if (localInitStr) {
+        const parsed = JSON.parse(localInitStr);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(item => addOrMergeRecord(item));
+        }
+      }
+    } catch (e) {}
+
+    // 3. API screening list & queue
+    try {
+      const res = await api.get("/api/v1/dashboard/screeninglist");
+      if (res && res.status === "success" && Array.isArray(res.data)) {
+        res.data.forEach(item => addOrMergeRecord(item));
+      }
+    } catch (e) {}
+
+    try {
+      const resQueue = await api.get("/api/v1/screening/queue");
+      if (resQueue && resQueue.status === "success" && Array.isArray(resQueue.data)) {
+        resQueue.data.forEach(item => addOrMergeRecord(item));
+      }
+    } catch (e) {}
+
+    const mergedList = Array.from(recordMap.values());
+    setAvailableParticipants(mergedList);
   }, []);
+
+  // Initial load & whenever returning to Step 0 (Participant Selection)
+  useEffect(() => {
+    loadQueueParticipants();
+  }, [loadQueueParticipants, step]);
   
   const getActiveLocation = () => {
     try {
@@ -2156,37 +2172,44 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
     try {
       const userRoleStr = (data.user_role || activeUser?.role_name || "").toLowerCase();
-      const isCounselorSubmission = userRoleStr.includes("counselor");
+      const isNurseSubmission = userRoleStr.includes("nurse");
+      const isDoctorSubmission = userRoleStr.includes("doctor");
       const isCoordinatorSubmission = userRoleStr.includes("coordinator");
-
-      let cSec8Done = Boolean(data.counselor_section_completed);
-      let cSec15Req = Boolean(data.counselor_sec15_required);
-      let cSec15Done = Boolean(data.counselor_sec15_completed);
-      let statusVal = data.status || "Clinical Entry Completed";
-      let queueVal = data.current_queue || "Active Pipeline";
-      let nextSec = data.section || 2;
-
-      if (isCounselorSubmission) {
-        if (data.counselor_sec15_required || qPage >= 13) {
-          cSec15Done = true;
-          statusVal = "Section 15 Health Counseling Completed";
-          queueVal = "Completed";
-          nextSec = 16;
-        } else {
-          cSec8Done = true;
-          statusVal = "Section 8 Counseling Completed - Ready for Nurse (Sec 9)";
-          queueVal = "Staff Nurse Queue";
-          nextSec = 9;
-        }
-      } else if (isCoordinatorSubmission) {
-        cSec15Req = true;
-        cSec15Done = false;
-        statusVal = "Section 14 Completed - Counselor Queue for Sec 15";
-        queueVal = "Counselor Queue (Sec 15)";
-        nextSec = 15;
-      }
-
+      const isCounselorSubmission = userRoleStr.includes("counselor");
       const isSec16Submission = Boolean(data.section_16_mode || data.start_section === 16 || participant?.section_16_mode);
+
+      let staffNurseCompleted = Boolean(data.staff_nurse_completed || data.completed_by_staff_nurse || isNurseSubmission);
+      let doctorCompleted = Boolean(data.doctor_completed || data.completed_by_doctor || isDoctorSubmission);
+      let coordinatorCompleted = Boolean(data.coordinator_completed || data.completed_by_coordinator || isCoordinatorSubmission);
+      let counselorCompleted = Boolean(data.counselor_sec15_completed || data.completed_by_counselor || (isCounselorSubmission && (data.counselor_sec15_required || qPage >= 13)));
+      let sec16Completed = Boolean(isSec16Submission || data.section_16_completed || data.completed_by_section16);
+      let demographicsCompleted = true;
+
+      let statusVal = "Demographics Initiated (Sec 1 Done)";
+      let currentStageVal = "Staff Nurse Queue";
+      let currentQueueVal = "Staff Nurse Queue";
+
+      if (sec16Completed) {
+        statusVal = "Completed (All 16 Sections Done)";
+        currentStageVal = "Fully Completed";
+        currentQueueVal = "Completed";
+      } else if (counselorCompleted) {
+        statusVal = "Counseling Completed (Sec 15 Done)";
+        currentStageVal = "Section 16 Queue (Field Supervisor)";
+        currentQueueVal = "Section 16 Queue";
+      } else if (coordinatorCompleted) {
+        statusVal = "Linkages Completed (Sec 14 Done)";
+        currentStageVal = "Counselor Queue (Sec 15)";
+        currentQueueVal = "Counselor Queue";
+      } else if (doctorCompleted) {
+        statusVal = "Doctor Clinical Exam Done (Sec 12-13 Done)";
+        currentStageVal = "Case Coordinator Queue (Sec 14)";
+        currentQueueVal = "Case Coordinator Queue";
+      } else if (staffNurseCompleted) {
+        statusVal = "Clinical Screening Done (Sec 2-11 Done)";
+        currentStageVal = "Doctor Review Queue (Sec 12-13)";
+        currentQueueVal = "Doctor Queue";
+      }
 
       const payload = {
         ...data,
@@ -2195,20 +2218,26 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         mem_scrn_q1: parseInt(data.age) || 0,
         mem_scrn_q2: data.gender === "Male" ? "1" : "2",
         mem_scrn_q17: data.location,
-        submitted_by_role: data.user_role,
+        submitted_by_role: data.user_role || (isFieldSupervisor ? "Field Supervisor" : "Staff User"),
         submitted_at: new Date().toISOString(),
         is_family_number: Boolean(data.is_family_number || data.is_shared_family_no),
         is_shared_family_no: data.is_family_number ? 1 : 0,
         family_contact_flag: data.is_family_number ? "Yes" : "No",
-        section_16_completed: isSec16Submission ? true : Boolean(data.section_16_completed),
-        community_perception_completed: isSec16Submission ? true : Boolean(data.community_perception_completed),
-        sec_16_done: isSec16Submission ? true : Boolean(data.sec_16_done),
-        counselor_section_completed: cSec8Done,
-        counselor_sec15_required: cSec15Req,
-        counselor_sec15_completed: cSec15Done,
-        status: isSec16Submission ? "Completed (Section 16 Done)" : statusVal,
-        current_queue: isSec16Submission ? "Completed" : queueVal,
-        section: isSec16Submission ? 16 : nextSec
+        demographics_completed: demographicsCompleted,
+        staff_nurse_completed: staffNurseCompleted,
+        completed_by_staff_nurse: staffNurseCompleted,
+        doctor_completed: doctorCompleted,
+        completed_by_doctor: doctorCompleted,
+        coordinator_completed: coordinatorCompleted,
+        completed_by_coordinator: coordinatorCompleted,
+        counselor_sec15_completed: counselorCompleted,
+        completed_by_counselor: counselorCompleted,
+        section_16_completed: sec16Completed,
+        completed_by_section16: sec16Completed,
+        status: statusVal,
+        current_stage: currentStageVal,
+        current_queue: currentQueueVal,
+        section: isSec16Submission ? 16 : (counselorCompleted ? 16 : (coordinatorCompleted ? 15 : (doctorCompleted ? 14 : (staffNurseCompleted ? 12 : 2))))
       };
 
       await saveToQueue(payload);
@@ -2233,6 +2262,23 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
           console.warn("API submission deferred to queue", apiErr);
         }
       }
+
+      // Immediately update in-memory React state so completed participant is filtered out without requiring page refresh
+      setAvailableParticipants(prev => {
+        return prev.map(p => {
+          if (p.id === payload.participant_id) {
+            return {
+              ...p,
+              rawPayload: { ...p.rawPayload, ...payload }
+            };
+          }
+          return p;
+        });
+      });
+
+      try {
+        await loadQueueParticipants();
+      } catch (e) {}
 
       const succMsg = isSec16Submission
         ? `Section 16 (Community Perception) completed for Participant ${data.participant_id}!`
@@ -2438,27 +2484,45 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
               <button
                 onClick={async () => {
-                  const nextId = await fetchNextParticipantIDFromDB(data.location || "Dharavi");
                   setIsSubmitted(false);
                   setStep(0);
                   setQPage(0);
-                  setData({
-                    participant_id: nextId,
-                    screening_date: currentDateFormatted,
-                    raw_date: new Date().toISOString().split('T')[0],
-                    contact_number: "",
-                    fullName: "",
-                    age: "",
-                    gender: "Male",
-                    location: data.location || "Dharavi",
-                    user_name: data.user_name || "",
-                    user_role: data.user_role || "Field Supervisor"
-                  });
+                  await loadQueueParticipants();
+                  if (isFieldSupervisor) {
+                    const nextId = await fetchNextParticipantIDFromDB(data.location || "Dharavi");
+                    setData({
+                      participant_id: nextId,
+                      screening_date: currentDateFormatted,
+                      raw_date: new Date().toISOString().split('T')[0],
+                      contact_number: "",
+                      is_family_number: false,
+                      is_shared_family_no: 0,
+                      family_contact_flag: "No",
+                      fullName: "",
+                      age: "",
+                      gender: "Male",
+                      location: data.location || "Dharavi",
+                      user_name: data.user_name || "",
+                      user_role: data.user_role || "Field Supervisor"
+                    });
+                  } else {
+                    setData(prev => ({
+                      ...prev,
+                      participant_id: "",
+                      contact_number: "",
+                      is_family_number: false,
+                      is_shared_family_no: 0,
+                      family_contact_flag: "No",
+                      fullName: "",
+                      age: "",
+                      gender: "Male"
+                    }));
+                  }
                 }}
                 className="w-full sm:w-1/2 py-3.5 px-6 rounded-2xl bg-white hover:bg-slate-50 text-slate-900 font-bold text-xs transition-all border border-slate-300 shadow-2xs cursor-pointer flex items-center justify-center gap-2"
               >
                 <PlusCircle size={16} className="text-amber-600" />
-                <span>Initiate Next Participant Screening</span>
+                <span>{isFieldSupervisor ? "Initiate Next Participant Screening" : "Select Next Initiated Participant"}</span>
               </button>
             </div>
 
@@ -2483,9 +2547,12 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
               {/* PARTICIPANT DROPDOWN SELECTOR FOR NON-SUPERVISOR ROLES ONLY */}
               {!isFieldSupervisor && (() => {
                 const isCounselorLogin = (data.user_role || activeUser?.role_name || "").toLowerCase().includes("counselor");
+                const isNurseLogin = (data.user_role || activeUser?.role_name || "").toLowerCase().includes("nurse");
+                const isDoctorLogin = (data.user_role || activeUser?.role_name || "").toLowerCase().includes("doctor");
+                const isCoordinatorLogin = (data.user_role || activeUser?.role_name || "").toLowerCase().includes("coordinator");
 
                 const filteredParticipantsByLocation = availableParticipants.filter(p => {
-                  // Location Filter
+                  // 1. Center Location Filter
                   if (data.location && data.location !== "All") {
                     const pLoc = String(p.location || "").toLowerCase().trim();
                     const selLoc = String(data.location || "").toLowerCase().trim();
@@ -2506,6 +2573,119 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
                     if (!locMatch) return false;
                   }
+
+                  // 2. Role-specific completion filter: Do NOT show records the current role has already finished!
+                  const raw = p.rawPayload || {};
+                  const isNurseDone = Boolean(
+                    raw.staff_nurse_completed === true || 
+                    raw.completed_by_staff_nurse === true || 
+                    raw.sections_2_8_completed === true || 
+                    raw.current_queue === "Doctor Queue" ||
+                    raw.current_queue === "Case Coordinator Queue" ||
+                    raw.current_queue === "Counselor Queue" ||
+                    raw.current_queue === "Section 16 Queue" ||
+                    raw.current_queue === "Completed" ||
+                    raw.current_stage === "Doctor Review Queue (Sec 12-13)" ||
+                    raw.current_stage === "Case Coordinator Queue (Sec 14)" ||
+                    raw.current_stage === "Counselor Queue (Sec 15)" ||
+                    raw.current_stage === "Section 16 Queue (Field Supervisor)" ||
+                    raw.current_stage === "Fully Completed" ||
+                    String(raw.status || "").toLowerCase().includes("clinical screening done") ||
+                    String(raw.status || "").toLowerCase().includes("doctor") ||
+                    String(raw.status || "").toLowerCase().includes("counsel") ||
+                    String(raw.status || "").toLowerCase().includes("completed") ||
+                    raw.q9 !== undefined ||
+                    raw.q17 !== undefined ||
+                    raw.q25 !== undefined ||
+                    raw.q58 !== undefined ||
+                    raw.q59 !== undefined ||
+                    raw.q60 !== undefined ||
+                    raw.bp_systolic !== undefined ||
+                    raw.bp_sys !== undefined
+                  );
+
+                  const isDoctorDone = Boolean(
+                    raw.doctor_completed === true || 
+                    raw.completed_by_doctor === true || 
+                    raw.sections_9_15_completed === true || 
+                    raw.current_queue === "Case Coordinator Queue" ||
+                    raw.current_queue === "Counselor Queue" ||
+                    raw.current_queue === "Section 16 Queue" ||
+                    raw.current_queue === "Completed" ||
+                    raw.current_stage === "Case Coordinator Queue (Sec 14)" ||
+                    raw.current_stage === "Counselor Queue (Sec 15)" ||
+                    raw.current_stage === "Section 16 Queue (Field Supervisor)" ||
+                    raw.current_stage === "Fully Completed" ||
+                    String(raw.status || "").toLowerCase().includes("doctor clinical exam done") ||
+                    raw.q89 !== undefined ||
+                    raw.q90 !== undefined ||
+                    raw.q93 !== undefined ||
+                    raw.cvd_risk_assessment !== undefined ||
+                    raw.overall_risk_rating !== undefined
+                  );
+
+                  const isCoordinatorDone = Boolean(
+                    raw.coordinator_completed === true || 
+                    raw.completed_by_coordinator === true || 
+                    raw.current_queue === "Counselor Queue" ||
+                    raw.current_queue === "Section 16 Queue" ||
+                    raw.current_queue === "Completed" ||
+                    raw.current_stage === "Counselor Queue (Sec 15)" ||
+                    raw.current_stage === "Section 16 Queue (Field Supervisor)" ||
+                    raw.current_stage === "Fully Completed" ||
+                    String(raw.status || "").toLowerCase().includes("linkages completed") ||
+                    raw.q97 !== undefined ||
+                    raw.q104 !== undefined
+                  );
+
+                  const isCounselorDone = Boolean(
+                    raw.counselor_sec15_completed === true || 
+                    raw.completed_by_counselor === true || 
+                    raw.current_queue === "Section 16 Queue" ||
+                    raw.current_queue === "Completed" ||
+                    raw.current_stage === "Section 16 Queue (Field Supervisor)" ||
+                    raw.current_stage === "Fully Completed" ||
+                    String(raw.status || "").toLowerCase().includes("counseling completed") ||
+                    raw.q107 !== undefined
+                  );
+
+                  const isSec16Done = Boolean(
+                    raw.section_16_completed === true || 
+                    raw.completed_by_section16 === true || 
+                    raw.sec_16_done === true ||
+                    raw.current_queue === "Completed" ||
+                    raw.current_stage === "Fully Completed" ||
+                    String(raw.status || "").toLowerCase().includes("all 16 sections") ||
+                    raw.q112 !== undefined
+                  );
+
+                  // Staff Nurse: Hide if Nurse has already finished Sec 2-11
+                  if (isNurseLogin || isNurse) {
+                    if (isNurseDone) return false;
+                    return true;
+                  }
+
+                  // Doctor: Show only if Nurse finished, and Doctor has NOT finished Sec 12-13
+                  if (isDoctorLogin || isDoctor) {
+                    if (!isNurseDone) return false;
+                    if (isDoctorDone) return false;
+                    return true;
+                  }
+
+                  // Case Coordinator: Show only if Doctor finished, and Coordinator has NOT finished Sec 14
+                  if (isCoordinatorLogin || isCoordinator) {
+                    if (!isDoctorDone) return false;
+                    if (isCoordinatorDone) return false;
+                    return true;
+                  }
+
+                  // Counselor: Show only if Coordinator/Doctor finished, and Counselor has NOT finished Sec 15
+                  if (isCounselorLogin || isCounselor) {
+                    if (!isCoordinatorDone && !isDoctorDone) return false;
+                    if (isCounselorDone) return false;
+                    return true;
+                  }
+
                   return true;
                 });
 

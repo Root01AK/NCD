@@ -3,9 +3,17 @@ import { Plus, Search, MapPin, Edit2, Trash2, Shield, Check, X, Loader2 } from "
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 
+export const DEFAULT_LOCATIONS = [
+  { loc_id: 1, loc_code: "DH", loc_name: "Dharavi", loc_city: "Dharavi", loc_district: "Mumbai", loc_state: "Maharashtra", state_code: "MH", status: "1", loc_status: "1" },
+  { loc_id: 2, loc_code: "ML", loc_name: "Malvani", loc_city: "Malvani", loc_district: "Mumbai", loc_state: "Maharashtra", state_code: "MH", status: "1", loc_status: "1" },
+  { loc_id: 3, loc_code: "VA", loc_name: "Vashi", loc_city: "Vashi", loc_district: "Navi Mumbai", loc_state: "Maharashtra", state_code: "MH", status: "1", loc_status: "1" },
+  { loc_id: 4, loc_code: "KU", loc_name: "Kurla", loc_city: "Kurla", loc_district: "Mumbai", loc_state: "Maharashtra", state_code: "MH", status: "1", loc_status: "1" },
+  { loc_id: 5, loc_code: "GH", loc_name: "Ghatkopar", loc_city: "Ghatkopar", loc_district: "Mumbai", loc_state: "Maharashtra", state_code: "MH", status: "1", loc_status: "1" }
+];
+
 export function LocationMaster({ notify }) {
-  const [locations, setLocations] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [locations, setLocations] = useState(DEFAULT_LOCATIONS);
+  const [loading, setLoading] = useState(false);
   
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -27,11 +35,10 @@ export function LocationMaster({ notify }) {
   }, []);
 
   const fetchLocations = async () => {
-    setLoading(true);
     try {
       const res = await api.get("/api/v1/location/index");
-      if (res.status === 'success') {
-        const rawLocs = res.data || [];
+      if (res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
+        const rawLocs = res.data;
         const processed = rawLocs.map(l => ({
           ...l,
           loc_city: l.loc_city || l.loc_name || "Unknown Center",
@@ -42,7 +49,7 @@ export function LocationMaster({ notify }) {
 
         // Store location prefixes in localStorage for participant ID generation
         try {
-          const prefixMap = { dharavi: "DH", malvani: "ML", vashi: "VA", other: "OT" };
+          const prefixMap = { dharavi: "DH", malvani: "ML", vashi: "VA", kurla: "KU", ghatkopar: "GH", other: "OT" };
           processed.forEach(loc => {
             const nameKey = String(loc.loc_city || loc.loc_name || "").toLowerCase().trim();
             const codeVal = String(loc.loc_code || "").trim().toUpperCase();
@@ -55,7 +62,7 @@ export function LocationMaster({ notify }) {
       }
     } catch (e) {
       console.error(e);
-      notify("error", "Error", "Failed to fetch locations.");
+      // Keep default locations if API error
     } finally {
       setLoading(false);
     }

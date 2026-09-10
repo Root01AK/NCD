@@ -54,19 +54,36 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get list of all screenings from cms_mdhl table
+     * Get list of all screenings from cms_screening / cms_mdhl table
      */
     public function actionScreeninglist()
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
 
         try {
-            $query = (new \yii\db\Query())->from('{{%mdhl}}')->orderBy(["mem_scrn_part_id" => SORT_DESC]);
-            $screenings = $query->all();
-            
+            $db = Yii::$app->db;
+            $rows = (new \yii\db\Query())
+                ->from('cms_screening')
+                ->orderBy(['mem_scrn_id' => SORT_DESC])
+                ->all($db);
+
+            if (empty($rows)) {
+                $rows = (new \yii\db\Query())->from('{{%mdhl}}')->orderBy(["mem_scrn_part_id" => SORT_DESC])->all($db);
+            }
+
+            $data = [];
+            foreach ($rows as $r) {
+                $extra = [];
+                if (!empty($r['mem_scrn_q30'])) {
+                    $extra = is_string($r['mem_scrn_q30']) ? json_decode($r['mem_scrn_q30'], true) : $r['mem_scrn_q30'];
+                    if (!is_array($extra)) $extra = [];
+                }
+                $data[] = array_merge($r, $extra);
+            }
+
             return [
                 'status' => 'success',
-                'data' => $screenings
+                'data' => $data
             ];
         } catch (\Throwable $e) {
             return [

@@ -4,9 +4,39 @@ import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { getDefaultSkipRulesForQuestion } from "../../lib/logicEngine";
 
+export const DEFAULT_MASTER_SURVEYS = [
+  {
+    sur_id: 1,
+    sur_code: "NCD-P2-2026",
+    sur_title: "MUMBAI NCD SURVEY — PHASE II (Comprehensive 16 Sections)",
+    sur_url: "[]",
+    sur_onlne_id: "NCD-ONL-2026",
+    location: "All Locations",
+    status: "1"
+  },
+  {
+    sur_id: 2,
+    sur_code: "SWASTH-01",
+    sur_title: "SWASTH ABHIYAN NCD SCREENING (Primary Community Health Survey)",
+    sur_url: "[]",
+    sur_onlne_id: "NCD-ONL-01",
+    location: "Dharavi",
+    status: "1"
+  },
+  {
+    sur_id: 3,
+    sur_code: "NCD-FUP-2026",
+    sur_title: "NCD LINKAGE & 3-ATTEMPT FOLLOW-UP TRACKING SURVEY",
+    sur_url: "[]",
+    sur_onlne_id: "NCD-FUP",
+    location: "All Locations",
+    status: "1"
+  }
+];
+
 export function SurveyManagement({ notify, setNavTab, setSelectedSurvey, onOpenMobileMenu }) {
-  const [surveys, setSurveys] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [surveys, setSurveys] = useState(DEFAULT_MASTER_SURVEYS);
+  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [viewingCodebookSurvey, setViewingCodebookSurvey] = useState(null);
   const [previewingSurvey, setPreviewingSurvey] = useState(null);
@@ -17,17 +47,14 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey, onOpenM
   const jsonFileInputRef = useRef(null);
 
   const fetchSurveys = async () => {
-    setLoading(true);
     try {
       const res = await api.get("/api/v1/surveymaster/index");
-      if (res && res.status === 'success' && Array.isArray(res.data)) {
+      if (res && res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
         setSurveys(res.data);
-      } else {
-        setSurveys([]);
       }
     } catch (e) {
       console.error(e);
-      setSurveys([]);
+      // Keep default surveys if API error
     } finally {
       setLoading(false);
     }

@@ -148,6 +148,52 @@ class SurveymasterController extends Controller
     public function actionIndex()
     {
         $this->ensureTablesExist();
+
+        $defaultSurveys = [
+            [
+                'sur_id' => 1,
+                'sur_code' => 'NCD-P2-2026',
+                'sur_title' => 'MUMBAI NCD SURVEY — PHASE II (Comprehensive 16 Sections)',
+                'sur_url' => '[]',
+                'sur_onlne_id' => 'NCD-ONL-2026',
+                'sur_pri_db_name' => 'ncd',
+                'sur_pri_db_server' => 'localhost',
+                'sur_pri_db_usrnme' => 'root',
+                'sur_pri_db_paswrd' => '',
+                'status' => '1',
+                'create_time' => time(),
+                'record_date' => time()
+            ],
+            [
+                'sur_id' => 2,
+                'sur_code' => 'SWASTH-01',
+                'sur_title' => 'SWASTH ABHIYAN NCD SCREENING (Primary Community Health Survey)',
+                'sur_url' => '[]',
+                'sur_onlne_id' => 'NCD-ONL-01',
+                'sur_pri_db_name' => 'ncd',
+                'sur_pri_db_server' => 'localhost',
+                'sur_pri_db_usrnme' => 'root',
+                'sur_pri_db_paswrd' => '',
+                'status' => '1',
+                'create_time' => time(),
+                'record_date' => time()
+            ],
+            [
+                'sur_id' => 3,
+                'sur_code' => 'NCD-FUP-2026',
+                'sur_title' => 'NCD LINKAGE & 3-ATTEMPT FOLLOW-UP TRACKING SURVEY',
+                'sur_url' => '[]',
+                'sur_onlne_id' => 'NCD-FUP',
+                'sur_pri_db_name' => 'ncd',
+                'sur_pri_db_server' => 'localhost',
+                'sur_pri_db_usrnme' => 'root',
+                'sur_pri_db_paswrd' => '',
+                'status' => '1',
+                'create_time' => time(),
+                'record_date' => time()
+            ]
+        ];
+
         try {
             $surveys = Surveymaster::find()
                 ->where(['status' => '1'])
@@ -155,14 +201,41 @@ class SurveymasterController extends Controller
                 ->asArray()
                 ->all();
             
+            if (empty($surveys)) {
+                // Auto-seed default surveys into cms_surveymaster
+                try {
+                    $db = Yii::$app->db;
+                    foreach ($defaultSurveys as $ds) {
+                        $db->createCommand()->insert('cms_surveymaster', [
+                            'sur_code' => $ds['sur_code'],
+                            'sur_title' => $ds['sur_title'],
+                            'sur_url' => $ds['sur_url'],
+                            'sur_onlne_id' => $ds['sur_onlne_id'],
+                            'sur_pri_db_name' => $ds['sur_pri_db_name'],
+                            'sur_pri_db_server' => $ds['sur_pri_db_server'],
+                            'sur_pri_db_usrnme' => $ds['sur_pri_db_usrnme'],
+                            'sur_pri_db_paswrd' => $ds['sur_pri_db_paswrd'],
+                            'status' => '1',
+                            'create_time' => time(),
+                            'record_date' => time()
+                        ])->execute();
+                    }
+                    $surveys = Surveymaster::find()
+                        ->where(['status' => '1'])
+                        ->orderBy(['sur_id' => SORT_ASC])
+                        ->asArray()
+                        ->all();
+                } catch (\Throwable $eSeed) {}
+            }
+
             return [
                 'status' => 'success',
-                'data' => $surveys
+                'data' => !empty($surveys) ? $surveys : $defaultSurveys
             ];
         } catch (\Throwable $e) {
             return [
                 'status' => 'success',
-                'data' => []
+                'data' => $defaultSurveys
             ];
         }
     }

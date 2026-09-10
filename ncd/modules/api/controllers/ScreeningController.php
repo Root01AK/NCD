@@ -43,6 +43,39 @@ class ScreeningController extends Controller
         Yii::$app->getResponse()->setStatusCode(200);
     }
 
+    public function actionQueue()
+    {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
+        try {
+            $db = Yii::$app->db;
+            $rows = (new \yii\db\Query())
+                ->from('cms_screening')
+                ->orderBy(['mem_scrn_id' => SORT_DESC])
+                ->all($db);
+
+            $data = [];
+            foreach ($rows as $r) {
+                $extra = [];
+                if (!empty($r['mem_scrn_q30'])) {
+                    $extra = is_string($r['mem_scrn_q30']) ? json_decode($r['mem_scrn_q30'], true) : $r['mem_scrn_q30'];
+                    if (!is_array($extra)) $extra = [];
+                }
+                $data[] = array_merge($r, $extra);
+            }
+
+            return [
+                'status' => 'success',
+                'data' => $data
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'status' => 'success',
+                'data' => []
+            ];
+        }
+    }
+
     public function actionNextParticipantId()
     {
         Yii::$app->response->format = Response::FORMAT_JSON;

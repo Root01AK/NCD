@@ -250,34 +250,143 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
     }, 1200);
   };
 
-  // Completed Phase II records for assigned center (fresh & clean)
+  // Completed records for assigned center (fetches from IndexedDB queue, LocalStorage, and Server API)
   const [completedRecords, setCompletedRecords] = useState([]);
 
   useEffect(() => {
-    const loadSubmitted = () => {
-      api.get("/api/v1/dashboard/screeninglist").then(res => {
-        if (res.status === 'success' && Array.isArray(res.data)) {
-          const phase2List = res.data.filter(p => p.phase === 2 || p.phase === 'phase2' || p.mem_scrn_phase === '2' || p.submitted_by_role);
-          
-          const mapped = phase2List.map(p => ({
-            participant_id: p.mem_scrn_part_id || (p.mem_scrn_id ? `NCD-MUM-${p.mem_scrn_id}` : `NCD-MUM-P2`),
-            fullName: p.mem_scrn_q16 || "Participant Record",
-            age: p.mem_scrn_q1 || "45",
-            gender: p.mem_scrn_q2 === "1" ? "Male" : "Female",
-            date: p.record_date ? new Date(p.record_date * 1000).toLocaleDateString() : new Date().toLocaleDateString(),
-            location: p.mem_scrn_q17 || user.assigned_location || "Dharavi",
-            status: "Synced to Admin",
-            risk: p.mem_scrn_q24 == 1 ? "High Risk Flagged" : "Standard Risk"
-          }));
-          setCompletedRecords(mapped);
+    const loadSubmitted = async () => {
+      const recordMap = new Map();
+
+      const addCandidate = (item) => {
+        if (!item) return;
+        let raw = {};
+        if (item.mem_scrn_q30) {
+          try {
+            raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30;
+          } catch (e) {}
         }
-      }).catch(e => console.error("Error loading completed records", e));
+        const full = { ...item, ...raw };
+        const pid = full.participant_id || full.mem_scrn_part_id || item.participant_id || item.mem_scrn_part_id;
+        if (!pid || pid === 'N/A') return;
+
+        // Check if this record is completed by current role (or general completed)
+        const isNurseDone = Boolean(
+          full.staff_nurse_completed || 
+          full.completed_by_staff_nurse || 
+          full.sections_2_8_completed || 
+          full.current_queue === "Doctor Queue" ||
+          full.current_queue === "Case Coordinator Queue" ||
+          full.current_queue === "Counselor Queue" ||
+          full.current_queue === "Section 16 Queue" ||
+          full.current_queue === "Completed" ||
+          full.current_stage === "Doctor Review Queue (Sec 12-13)" ||
+          full.current_stage === "Case Coordinator Queue (Sec 14)" ||
+          full.current_stage === "Counselor Queue (Sec 15)" ||
+          full.current_stage === "Section 16 Queue (Field Supervisor)" ||
+          full.current_stage === "Fully Completed" ||
+          full.q9 !== undefined || 
+          full.q17 !== undefined ||
+          full.q25 !== undefined ||
+          full.bp_systolic !== undefined ||
+          full.bp_sys !== undefined
+        );
+
+        const isDoctorDone = Boolean(
+          full.doctor_completed || 
+          full.completed_by_doctor || 
+          full.sections_9_15_completed || 
+          full.q89 !== undefined ||
+          full.q90 !== undefined ||
+          full.q93 !== undefined
+        );
+
+        const isCoordDone = Boolean(full.coordinator_completed || full.completed_by_coordinator || full.q97 !== undefined);
+        const isCounselDone = Boolean(full.counselor_sec15_completed || full.completed_by_counselor || full.q107 !== undefined);
+        const isSec16Done = Boolean(full.section_16_completed || full.sec_16_done || full.q112 !== undefined);
+
+        const isSupervisor = (user.role_name || user.role || "").toLowerCase().includes("supervisor");
+        const isNurseRole = (user.role_name || user.role || "").toLowerCase().includes("nurse");
+        const isDoctorRole = (user.role_name || user.role || "").toLowerCase().includes("doctor");
+        const isCoordRole = (user.role_name || user.role || "").toLowerCase().includes("coordinator");
+        const isCounselRole = (user.role_name || user.role || "").toLowerCase().includes("counselor");
+
+        let isCompletedForThisRole = false;
+        if (isNurseRole) {
+          isCompletedForThisRole = isNurseDone;
+        } else if (isDoctorRole) {
+          isCompletedForThisRole = isDoctorDone;
+        } else if (isCoordRole) {
+          isCompletedForThisRole = isCoordDone;
+        } else if (isCounselRole) {
+          isCompletedForThisRole = isCounselDone;
+        } else if (isSupervisor) {
+          isCompletedForThisRole = isSec16Done || isNurseDone || Boolean(full.demographics_completed);
+        } else {
+          isCompletedForThisRole = isNurseDone || isDoctorDone || isSec16Done;
+        }
+
+        if (!isCompletedForThisRole) return;
+
+        const prev = recordMap.get(pid);
+        const merged = prev ? { ...prev.raw, ...full } : full;
+
+        let statusText = "Completed";
+        if (isSec16Done) statusText = "Fully Completed (All 16 Sec)";
+        else if (isCounselDone) statusText = "Counseling Completed";
+        else if (isCoordDone) statusText = "Linkages Completed";
+        else if (isDoctorDone) statusText = "Doctor Review Completed";
+        else if (isNurseDone) statusText = "Staff Nurse Screening Done";
+
+        recordMap.set(pid, {
+          participant_id: pid,
+          fullName: merged.fullName || merged.mem_scrn_q16 || pid,
+          age: String(merged.age || merged.mem_scrn_q1 || "45"),
+          gender: merged.gender || (merged.mem_scrn_q2 === "1" ? "Male" : "Female"),
+          date: merged.screening_date || (merged.record_date ? new Date(merged.record_date * 1000).toLocaleDateString() : new Date().toLocaleDateString()),
+          location: merged.location || merged.mem_scrn_q17 || user.assigned_location || "Dharavi",
+          status: statusText,
+          risk: merged.overall_risk_rating || (merged.mem_scrn_q24 == 1 ? "High Risk Flagged" : "Standard Risk"),
+          raw: merged
+        });
+      };
+
+      // 1. IndexedDB local sync queue
+      try {
+        const queue = await getQueue();
+        if (Array.isArray(queue)) queue.forEach(addCandidate);
+      } catch (e) {}
+
+      // 2. LocalStorage initiated / submitted records
+      try {
+        const localStr = localStorage.getItem('ncd_local_initiated_participants');
+        if (localStr) {
+          const parsed = JSON.parse(localStr);
+          if (Array.isArray(parsed)) parsed.forEach(addCandidate);
+        }
+      } catch (e) {}
+
+      // 3. API screening list & queue
+      try {
+        const res = await api.get("/api/v1/dashboard/screeninglist");
+        if (res && res.status === 'success' && Array.isArray(res.data)) {
+          res.data.forEach(addCandidate);
+        }
+      } catch (e) {}
+
+      try {
+        const resQ = await api.get("/api/v1/screening/queue");
+        if (resQ && resQ.status === 'success' && Array.isArray(resQ.data)) {
+          resQ.data.forEach(addCandidate);
+        }
+      } catch (e) {}
+
+      setCompletedRecords(Array.from(recordMap.values()));
     };
 
     loadSubmitted();
-    const interval = setInterval(loadSubmitted, 15000);
+    const interval = setInterval(loadSubmitted, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user.role, user.role_name, user.assigned_location, syncQueue]);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -363,21 +472,8 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
           })}
         </div>
 
-        {/* Right: Network Status + Logout + Mobile Hamburger Button */}
+        {/* Right: Logout + Mobile Hamburger Button */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setOnline(!online)}
-            className="hidden sm:flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all cursor-pointer shadow-2xs border"
-            style={{
-              background: online ? '#ecfdf5' : '#fef2f2',
-              color: online ? '#065f46' : '#991b1b',
-              borderColor: online ? '#a7f3d0' : '#fecaca'
-            }}
-            title={online ? "Live Online Sync Active" : "Offline Storage Mode"}
-          >
-            {online ? <Wifi size={13} /> : <WifiOff size={13} />}
-            <span className="font-mono text-[11px]">{online ? "Online" : "Offline"}</span>
-          </button>
 
           <button
             onClick={logout}
@@ -435,20 +531,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
             })}
           </div>
 
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-            <button
-              onClick={() => setOnline(!online)}
-              className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold border"
-              style={{
-                background: online ? '#ecfdf5' : '#fef2f2',
-                color: online ? '#065f46' : '#991b1b',
-                borderColor: online ? '#a7f3d0' : '#fecaca'
-              }}
-            >
-              {online ? <Wifi size={13} /> : <WifiOff size={13} />}
-              <span className="font-mono text-[11px]">{online ? "Live Online" : "Offline Mode"}</span>
-            </button>
-
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
             <button
               onClick={logout}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-red-700 bg-red-50 border border-red-200 cursor-pointer"
@@ -683,7 +766,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                 <p className="text-xs text-slate-500 mt-0.5 font-medium">Completed participant screenings recorded for {user.assigned_location || "Dharavi"} Center.</p>
               </div>
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-900 text-white font-mono shadow-2xs">
-                Total Completed: {completedRecords.length} {completedRecords.length === 1 ? 'Record' : 'Records'}
+                Total Completed: {completedRecords.filter(matchesActiveCenter).length} {completedRecords.filter(matchesActiveCenter).length === 1 ? 'Record' : 'Records'}
               </span>
             </div>
 
@@ -701,14 +784,14 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {completedRecords.length === 0 ? (
+                  {completedRecords.filter(matchesActiveCenter).length === 0 ? (
                     <tr>
                       <td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-mono font-medium">
-                        No completed screening records found for {user.assigned_location || "Dharavi"} Center yet.
+                        No completed screening records found for {activeLocation || user.assigned_location || "Dharavi"} Center yet.
                       </td>
                     </tr>
                   ) : (
-                    completedRecords.map((r, i) => (
+                    completedRecords.filter(matchesActiveCenter).map((r, i) => (
                       <tr key={i} className="hover:bg-slate-50/60 transition-colors">
                         <td className="px-6 py-4 font-mono font-bold text-slate-900">{r.participant_id}</td>
                         <td className="px-6 py-4 font-bold text-slate-800">{r.fullName}</td>
@@ -716,8 +799,8 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                         <td className="px-6 py-4 font-mono text-slate-500">{r.date}</td>
                         <td className="px-6 py-4 text-slate-700">{r.location}</td>
                         <td className="px-6 py-4">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${r.risk.includes('High') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
-                            {r.risk}
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${r.risk && r.risk.includes('High') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
+                            {r.risk || "Standard Risk"}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
