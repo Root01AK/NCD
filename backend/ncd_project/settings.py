@@ -89,7 +89,7 @@ UNFOLD = {
         "show_all_applications": True,
         "navigation": [
             {
-                "title": "Platform Management",
+                "title": "Super Admin Privileges",
                 "items": [
                     {
                         "title": "Dashboard",
@@ -97,22 +97,7 @@ UNFOLD = {
                         "link": "/",
                     },
                     {
-                        "title": "User Control",
-                        "icon": "person",
-                        "link": "/authentication/cmsusers/",
-                    },
-                    {
-                        "title": "User Roles",
-                        "icon": "badge",
-                        "link": "/authentication/cmsuserrole/",
-                    },
-                ],
-            },
-            {
-                "title": "Data & Research",
-                "items": [
-                    {
-                        "title": "Surveys",
+                        "title": "Survey Management",
                         "icon": "poll",
                         "link": "/surveys/cmssurveymaster/",
                     },
@@ -122,18 +107,43 @@ UNFOLD = {
                         "link": "/screening/cmsscreening/",
                     },
                     {
-                        "title": "Location Centers",
+                        "title": "Location Master",
                         "icon": "location_on",
                         "link": "/locations/cmslocationmaster/",
+                    },
+                    {
+                        "title": "Data Export",
+                        "icon": "download",
+                        "link": "/api/v1/database/export-csv",
+                    },
+                    {
+                        "title": "User Management",
+                        "icon": "manage_accounts",
+                        "link": "/authentication/cmsusers/",
+                    },
+                    {
+                        "title": "My Profile",
+                        "icon": "account_circle",
+                        "link": "/password_change/",
                     },
                 ],
             },
             {
-                "title": "Global System Settings",
+                "title": "System Settings & Roles",
                 "items": [
                     {
-                        "title": "Survey Fields",
-                        "icon": "settings",
+                        "title": "User Roles",
+                        "icon": "badge",
+                        "link": "/authentication/cmsuserrole/",
+                    },
+                    {
+                        "title": "Menu Privileges",
+                        "icon": "lock_person",
+                        "link": "/authentication/cmsmenuprivileges/",
+                    },
+                    {
+                        "title": "Survey Fields Master",
+                        "icon": "tune",
                         "link": "/surveys/cmsfieldmaster/",
                     },
                     {
