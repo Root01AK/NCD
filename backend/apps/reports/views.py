@@ -4,9 +4,9 @@ import io
 from django.http import HttpResponse, StreamingHttpResponse
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from apps.screening.models import CmsScreening
-from apps.screening.services import ScreeningSubmissionService
-from apps.clinical.models import CmsCchv
+from ..screening.models import CmsScreening
+from ..screening.services import ScreeningSubmissionService
+from ..clinical.models import CmsCchv
 
 class Echo:
     """An object that implements just the write method of the file-like interface."""

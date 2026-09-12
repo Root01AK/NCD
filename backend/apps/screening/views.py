@@ -6,7 +6,8 @@ from django.db import connection
 from django.db.models import Q
 from .models import CmsScreening
 from .services import ParticipantIdService, ScreeningSubmissionService
-from apps.clinical.models import CmsMdhl
+
+from ..clinical.models import CmsMdhl
 
 class QueueView(APIView):
     """

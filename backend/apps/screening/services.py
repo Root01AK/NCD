@@ -1,11 +1,14 @@
 import re
 import time
 import json
+import sys
+from pathlib import Path
 from django.db import connection, transaction
 from .models import CmsScreening
-from apps.clinical.models import CmsMdhl
-from apps.clinical.validators import ClinicalValidator
-from apps.clinical.skip_logic import SkipLogicEngine
+
+from ..clinical.models import CmsMdhl
+from ..clinical.validators import ClinicalValidator
+from ..clinical.skip_logic import SkipLogicEngine
 
 class ParticipantIdService:
     """
