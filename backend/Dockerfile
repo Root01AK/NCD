@@ -21,11 +21,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy project files
 COPY . /app/
 
-# Collect static files for Unfold Django Admin
-RUN python manage.py collectstatic --noinput || true
+# Make entrypoint script executable
+RUN chmod +x /app/entrypoint.sh
 
 # Expose port
 EXPOSE 8080
+
+ENTRYPOINT ["/app/entrypoint.sh"]
 
 # Run gunicorn entrypoint
 CMD ["gunicorn", "ncd_project.wsgi:application", "--bind", "0.0.0.0:8080", "--workers", "4", "--timeout", "120"]

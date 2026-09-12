@@ -97,7 +97,7 @@ services:
       - MYSQL_PASSWORD=${DB_PASSWORD:-ncd@2@26Yrg}
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./ncd/DB/ncd.sql:/docker-entrypoint-initdb.d/01-ncd.sql:ro
+      - ./ncd/DB:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-rootchangeme}"]
       interval: 10s
