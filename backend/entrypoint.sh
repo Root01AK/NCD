@@ -7,6 +7,7 @@ echo "=== Starting NCD Django Application ==="
 echo "Applying database migrations..."
 python manage.py migrate --noinput || true
 
+
 # Collect static files for Django Unfold Admin
 echo "Collecting static files..."
 python manage.py collectstatic --noinput || true
