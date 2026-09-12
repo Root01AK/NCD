@@ -42,4 +42,5 @@ def test_export_csv():
     res_csv = client.get('/api/v1/reports/export/screening/csv')
     assert res_csv.status_code == 200
     assert res_csv['Content-Type'] == 'text/csv'
-    assert b'Participant_ID' in res_csv.content
+    csv_bytes = res_csv.getvalue() if hasattr(res_csv, 'getvalue') else b''.join(res_csv.streaming_content)
+    assert b'Participant_ID' in csv_bytes

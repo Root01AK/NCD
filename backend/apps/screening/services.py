@@ -1,7 +1,7 @@
 import re
 import time
 import json
-from django.db import connection
+from django.db import connection, transaction
 from .models import CmsScreening
 from apps.clinical.models import CmsMdhl
 from apps.clinical.validators import ClinicalValidator
@@ -11,6 +11,7 @@ class ParticipantIdService:
     """
     Generates location-aware deterministic participant sequence IDs
     following the protocol specification: NCD{LOC}{SEQ:04d} (e.g. NCDDH0001).
+    Optimized for 15,000+ records using indexed reverse-order lookups.
     """
     @classmethod
     def get_location_prefix(cls, location_name):
@@ -37,13 +38,13 @@ class ParticipantIdService:
         prefix = cls.get_location_prefix(location_name)
         prefix_key = f"NCD{prefix}"
 
-        # Query highest sequence number in cms_screening
+        # Query recent sequence numbers in cms_screening using index
         max_seq = 0
         screening_pids = []
         try:
             screening_pids = list(CmsScreening.objects.filter(
                 mem_scrn_part_id__istartswith=prefix_key
-            ).values_list('mem_scrn_part_id', flat=True))
+            ).order_by('-mem_scrn_id')[:250].values_list('mem_scrn_part_id', flat=True))
         except Exception:
             pass
 
@@ -56,9 +57,9 @@ class ParticipantIdService:
 
         # Check cms_mdhl table as fallback
         try:
-            mdhl_pids = CmsMdhl.objects.filter(
+            mdhl_pids = list(CmsMdhl.objects.filter(
                 mem_scrn_part_id__istartswith=prefix_key
-            ).values_list('mem_scrn_part_id', flat=True)
+            ).order_by('-mem_scrn_id')[:250].values_list('mem_scrn_part_id', flat=True))
             for pid in mdhl_pids:
                 match = re.match(rf'^NCD{prefix}(\d+)$', str(pid).strip(), re.IGNORECASE)
                 if match:
@@ -85,7 +86,7 @@ class ScreeningSubmissionService:
     """
     Handles end-to-end participant screening section submissions,
     safety validation, skip logic evaluation, auto-calculated indices,
-    and cumulative JSON state merging.
+    and cumulative JSON state merging. Optimized for 15,000+ volume.
     """
     @classmethod
     def process_submission(cls, payload):
@@ -169,6 +170,42 @@ class ScreeningSubmissionService:
         }
 
     @classmethod
+    def process_batch(cls, items):
+        """
+        Processes a batch of survey submissions in a single atomic transaction.
+        Ideal for high-concurrency offline sync of 50-500 surveys at once.
+        """
+        if not isinstance(items, list):
+            raise ValueError("Expected a list of survey items for batch processing.")
+
+        cls.ensure_table_exists()
+        results = []
+        synced_count = 0
+        failed_count = 0
+
+        with transaction.atomic():
+            for item in items:
+                try:
+                    res = cls.process_submission(item)
+                    results.append(res)
+                    synced_count += 1
+                except Exception as e:
+                    results.append({
+                        'status': 'error',
+                        'participant_id': item.get('participant_id') or item.get('mem_scrn_part_id'),
+                        'error': str(e)
+                    })
+                    failed_count += 1
+
+        return {
+            'status': 'success' if failed_count == 0 else 'partial_success',
+            'total_items': len(items),
+            'synced_count': synced_count,
+            'failed_count': failed_count,
+            'results': results
+        }
+
+    @classmethod
     def ensure_table_exists(cls):
         with connection.cursor() as cursor:
             cursor.execute("""
@@ -191,6 +228,8 @@ class ScreeningSubmissionService:
                   `record_date` int(11) DEFAULT NULL,
                   PRIMARY KEY (`mem_scrn_id`),
                   KEY `idx_part_id` (`mem_scrn_part_id`),
-                  KEY `idx_loc` (`mem_scrn_loc`)
+                  KEY `idx_loc` (`mem_scrn_loc`),
+                  KEY `idx_status_loc` (`status`, `mem_scrn_loc`),
+                  KEY `idx_status_date` (`status`, `record_date`)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """)

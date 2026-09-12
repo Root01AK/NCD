@@ -52,4 +52,5 @@ export const api = {
   post: (endpoint, body) => api.request(endpoint, { method: "POST", body: JSON.stringify(body) }),
   put: (endpoint, body) => api.request(endpoint, { method: "PUT", body: JSON.stringify(body) }),
   delete: (endpoint) => api.request(endpoint, { method: "DELETE" }),
+  bulkSync: (items) => api.request("/api/v1/screening/bulk-sync", { method: "POST", body: JSON.stringify(items) }),
 };

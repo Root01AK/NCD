@@ -29,5 +29,5 @@ EXPOSE 8080
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 
-# Run gunicorn entrypoint
-CMD ["gunicorn", "ncd_project.wsgi:application", "--bind", "0.0.0.0:8080", "--workers", "4", "--timeout", "120"]
+# Run high-capacity gunicorn entrypoint (16 concurrent threads with request recycling)
+CMD ["gunicorn", "ncd_project.wsgi:application", "--bind", "0.0.0.0:8080", "--workers", "4", "--threads", "4", "--worker-class", "gthread", "--max-requests", "2000", "--max-requests-jitter", "100", "--timeout", "180"]

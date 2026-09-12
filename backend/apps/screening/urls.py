@@ -1,9 +1,11 @@
 from django.urls import path
-from .views import QueueView, NextParticipantIdView, SubmitView, DeleteView, ResetAllView, DetailView
+from .views import QueueView, NextParticipantIdView, SubmitView, DeleteView, ResetAllView, DetailView, BulkSyncView
 
 urlpatterns = [
     path('queue', QueueView.as_view(), name='screening-queue'),
     path('queue/', QueueView.as_view(), name='screening-queue-slash'),
+    path('bulk-sync', BulkSyncView.as_view(), name='screening-bulk-sync'),
+    path('bulk-sync/', BulkSyncView.as_view(), name='screening-bulk-sync-slash'),
     path('detail', DetailView.as_view(), name='screening-detail'),
     path('detail/', DetailView.as_view(), name='screening-detail-slash'),
     path('next-participant-id', NextParticipantIdView.as_view(), name='screening-next-id'),

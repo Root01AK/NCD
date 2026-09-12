@@ -125,9 +125,7 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
       let apiList = [];
       let apiResponded = false;
       try {
-        const apiPromise = api.get("/api/v1/dashboard/screeninglist");
-        const timeoutPromise = new Promise(res => setTimeout(() => res(null), 1000));
-        const res = await Promise.race([apiPromise, timeoutPromise]);
+        const res = await api.get("/api/v1/dashboard/screeninglist");
         if (res && res.status === 'success' && Array.isArray(res.data)) {
           apiResponded = true;
           apiList = res.data;

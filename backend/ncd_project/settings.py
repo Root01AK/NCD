@@ -215,10 +215,24 @@ DATABASES = {
         'PASSWORD': DB_PASSWORD,
         'HOST': DB_HOST,
         'PORT': DB_PORT,
+        'CONN_MAX_AGE': int(os.getenv('DB_CONN_MAX_AGE', '300')),
+        'CONN_HEALTH_CHECKS': True,
         'OPTIONS': {
             'charset': 'utf8mb4',
             'init_command': "SET sql_mode=''",
         },
+    }
+}
+
+# High-Performance In-Memory Cache
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'ncd-capacity-cache',
+        'TIMEOUT': 300,
+        'OPTIONS': {
+            'MAX_ENTRIES': 50000,
+        }
     }
 }
 
