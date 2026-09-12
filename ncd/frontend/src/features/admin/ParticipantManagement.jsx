@@ -1,10 +1,178 @@
 import React, { useState, useEffect } from "react";
-import { Search, MapPin, Eye, FileText, CheckCircle, AlertTriangle, Loader2, UserCheck, Stethoscope, HeartPulse, Brain, Link2, Trash2, Edit3, Save, X, Plus, Code, RefreshCw, SlidersHorizontal, Settings, Download } from "lucide-react";
+import { Search, MapPin, Eye, FileText, CheckCircle, AlertTriangle, Loader2, UserCheck, Stethoscope, HeartPulse, Brain, Link2, Trash2, Edit3, Save, X, Plus, Code, RefreshCw, SlidersHorizontal, Settings, Download, CheckCircle2, HelpCircle } from "lucide-react";
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { getQueue, deleteFromQueue } from "../../lib/db";
+import phase2Questions from "./phase2_questions.json";
 
 import { generateNextParticipantID } from "../../lib/participantIdGenerator";
+
+/**
+ * GenderBadge Component - Displays standard Male, Female, and Transgender icons
+ */
+export function GenderBadge({ gender, showText = true, className = "" }) {
+  const g = String(gender || "").toLowerCase().trim();
+  
+  if (g.includes("female") || g.includes("woman") || g === "2") {
+    return (
+      <span className={`inline-flex items-center gap-1 font-bold text-xs text-purple-700 font-mono ${className}`} title="Female">
+        <svg className="w-3.5 h-3.5 text-purple-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+          <circle cx="12" cy="9" r="5" />
+          <path d="M12 14v7M9 18h6" strokeLinecap="round" />
+        </svg>
+        {showText && <span>Female</span>}
+      </span>
+    );
+  }
+  
+  if (g.includes("trans") || g === "3" || g === "4") {
+    return (
+      <span className={`inline-flex items-center gap-1 font-bold text-xs text-amber-700 font-mono ${className}`} title="Transgender">
+        <svg className="w-3.5 h-3.5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 8V2M9 5h6M15 9l5-5M16 4h4v4M9 15l-5 5M4 16v4h4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        {showText && <span>{gender && !["3", "4"].includes(g) ? gender : "Transgender"}</span>}
+      </span>
+    );
+  }
+  
+  // Default to Male
+  return (
+    <span className={`inline-flex items-center gap-1 font-bold text-xs text-sky-700 font-mono ${className}`} title="Male">
+      <svg className="w-3.5 h-3.5 text-sky-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+        <circle cx="10" cy="14" r="5" />
+        <path d="M19 5l-5.5 5.5M14 5h5v5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      {showText && <span>Male</span>}
+    </span>
+  );
+}
+
+const SECTION_ROLES_MAP = {
+  1: "Field Supervisor",
+  2: "Staff Nurse",
+  3: "Staff Nurse",
+  4: "Staff Nurse",
+  5: "Staff Nurse",
+  6: "Staff Nurse",
+  7: "Staff Nurse",
+  8: "Counselor",
+  9: "Staff Nurse",
+  10: "Staff Nurse",
+  11: "Staff Nurse",
+  12: "Medical Officer / Doctor",
+  13: "Medical Officer / Doctor",
+  14: "Case Management Coordinator",
+  15: "Counselor",
+  16: "Field Supervisor"
+};
+
+/**
+ * Universal Answer Resolver: maps stored values to questions across all 117 items
+ */
+function resolveQuestionAnswer(q, data) {
+  if (!q || !data) return null;
+
+  const qCode = q.q_code || "";
+  const qNum = parseInt(qCode.replace(/\D/g, ""), 10);
+  const qCodeLower = qCode.toLowerCase();
+  const qId = q.id;
+
+  let rawObj = {};
+  if (data.raw_payload) {
+    if (typeof data.raw_payload === "string") {
+      try { rawObj = JSON.parse(data.raw_payload); } catch (e) {}
+    } else if (typeof data.raw_payload === "object") {
+      rawObj = data.raw_payload;
+    }
+  }
+
+  const answersDict = data.answers || rawObj.answers || {};
+  const sec16Dict = data.sec16_answers || rawObj.sec16_answers || {};
+
+  const getFromObj = (obj) => {
+    if (!obj || typeof obj !== "object") return undefined;
+    if (qId && obj[qId] !== undefined && obj[qId] !== null && obj[qId] !== "") return obj[qId];
+    if (qCodeLower && obj[qCodeLower] !== undefined && obj[qCodeLower] !== null && obj[qCodeLower] !== "") return obj[qCodeLower];
+    if (qCode && obj[qCode] !== undefined && obj[qCode] !== null && obj[qCode] !== "") return obj[qCode];
+    if (qCodeLower && obj[`custom_${qCodeLower}`] !== undefined && obj[`custom_${qCodeLower}`] !== null && obj[`custom_${qCodeLower}`] !== "") return obj[`custom_${qCodeLower}`];
+    return undefined;
+  };
+
+  let val = getFromObj(data);
+  if (val === undefined) val = getFromObj(answersDict);
+  if (val === undefined) val = getFromObj(sec16Dict);
+  if (val === undefined) val = getFromObj(rawObj);
+
+  // Specific aliases for Section 1 Demographics and other key clinical questions
+  if (val === undefined || val === null || val === "") {
+    if (qNum === 1) val = data.age || data.mem_scrn_q1 || rawObj.age || rawObj.mem_scrn_q1;
+    else if (qNum === 2) val = data.gender || data.mem_scrn_q2 || rawObj.gender || rawObj.mem_scrn_q2;
+    else if (qNum === 3) val = data.location || data.site || data.mem_scrn_q17 || rawObj.location || rawObj.site;
+    else if (qNum === 4) val = data.occupation || data.mem_scrn_q4 || rawObj.occupation || rawObj.mem_scrn_q4;
+    else if (qNum === 5) val = data.education || data.mem_scrn_q5 || rawObj.education || rawObj.mem_scrn_q5;
+    else if (qNum === 6) val = data.income || data.household_income || data.mem_scrn_q6 || rawObj.income || rawObj.mem_scrn_q6;
+    else if (qNum === 7) val = data.housing || data.housing_type || data.mem_scrn_q7 || rawObj.housing || rawObj.mem_scrn_q7;
+    else if (qNum === 8) val = data.stay_length || data.residence_duration || data.mem_scrn_q8 || rawObj.stay_length || rawObj.mem_scrn_q8;
+    else if (qNum === 9) val = data.known_diabetes || data.diabetes;
+    else if (qNum === 10) val = data.known_hypertension || data.hypertension;
+    else if (qNum === 27) val = data.alcohol_frequency;
+    else if (qNum === 30 || qNum === 32) val = data.audit_c_score !== undefined ? data.audit_c_score : data.audit_score;
+    else if (qNum === 61) val = data.gad7_score !== undefined ? data.gad7_score : data.gad_7;
+    else if (qNum === 65) val = data.phq9_score !== undefined ? data.phq9_score : data.phq_9;
+    else if (qNum === 67) val = data.height ? `${data.height} cm` : undefined;
+    else if (qNum === 68) val = data.weight ? `${data.weight} kg` : undefined;
+    else if (qNum === 69) val = data.bmi ? `${data.bmi} kg/m²` : undefined;
+    else if (qNum === 70) val = data.waist_circumference || data.waist ? `${data.waist_circumference || data.waist} cm` : undefined;
+    else if (qNum === 73 || qNum === 74) val = data.bp_sys || data.bp_systolic ? `${data.bp_sys || data.bp_systolic} mmHg` : undefined;
+    else if (qNum === 75) val = data.bp_dia || data.bp_diastolic ? `${data.bp_dia || data.bp_diastolic} mmHg` : undefined;
+    else if (qNum === 76) val = data.pulse_rate || data.pulse ? `${data.pulse_rate || data.pulse} bpm` : undefined;
+    else if (qNum === 79) val = data.rbs ? `${data.rbs} mg/dL` : undefined;
+    else if (qNum === 80) val = data.fbs ? `${data.fbs} mg/dL` : undefined;
+    else if (qNum === 90) val = data.cvd_risk_assessment || data.doctor_cvd_risk || data.q90;
+    else if (qNum === 91) val = data.referral_reason || data.q91;
+    else if (qNum === 92) val = data.referral_center || data.referral_facility || data.q92;
+    else if (qNum === 93) val = data.doctor_notes || data.diagnosis || data.q93;
+    else if (qNum === 97) val = data.referral_center || data.referral_facility;
+  }
+
+  if (val === undefined || val === null || (typeof val === "string" && val.trim() === "")) {
+    return null;
+  }
+
+  // Format array results (multi choice questions like Q112, Q114, Q115, Q117)
+  if (Array.isArray(val)) {
+    if (val.length === 0) return null;
+    return val.map(item => {
+      const itemStr = String(item).trim();
+      if (q.options && q.options.length > 0) {
+        const found = q.options.find(opt => {
+          const optStr = typeof opt === 'object' ? String(opt.label || opt.text || opt.value || '') : String(opt);
+          if (optStr.toLowerCase() === itemStr.toLowerCase()) return true;
+          const optPrefix = optStr.split(" ")[0];
+          return optPrefix === itemStr;
+        });
+        if (found) return typeof found === 'object' ? (found.label || found.text || found.value || itemStr) : found;
+      }
+      return itemStr;
+    });
+  }
+
+  // Format single choice numeric code or string to full label
+  const valStr = String(val).trim();
+  if (q.options && q.options.length > 0) {
+    const found = q.options.find(opt => {
+      const optStr = typeof opt === 'object' ? String(opt.label || opt.text || opt.value || '') : String(opt);
+      if (optStr.toLowerCase() === valStr.toLowerCase()) return true;
+      const optPrefix = optStr.split(" ")[0];
+      return optPrefix === valStr;
+    });
+    if (found) return typeof found === 'object' ? (found.label || found.text || found.value || valStr) : found;
+  }
+
+  return valStr;
+}
 
 function generateParticipantID(loc = "Dharavi") {
   return generateNextParticipantID(loc);
@@ -165,106 +333,239 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
         const combined = prev ? { ...prev.raw, ...merged } : merged;
 
         const roleName = combined.submitted_by_role || combined.user_role || "Field Supervisor";
-        const userName = combined.submitted_by_user || combined.user_name || "Staff User";
+        const userName = combined.submitted_by_user || combined.user_name || "FS001";
         const dateStr = combined.screening_date || (combined.record_date ? new Date(combined.record_date * 1000).toLocaleDateString() : new Date().toLocaleDateString());
 
+        // 1. Resolve real participant name cleanly (strip generic fallbacks like "Participant Record", "PR", "Unnamed")
+        const rawName = combined.fullName || combined.mem_scrn_q16 || combined.full_name || combined.name || "";
+        let cleanName = "";
+        if (typeof rawName === 'string') {
+          const t = rawName.trim();
+          const l = t.toLowerCase();
+          if (
+            t.length > 0 &&
+            l !== "participant record" &&
+            l !== "participant" &&
+            l !== "unnamed participant" &&
+            l !== "unnamed" &&
+            l !== "null" &&
+            l !== "undefined" &&
+            l !== "n/a" &&
+            l !== "na" &&
+            l !== "p"
+          ) {
+            cleanName = t;
+          }
+        }
+        const displayName = cleanName || pId;
+
+        // 2. Avatar Initials
+        let avatarInitials = "P";
+        if (cleanName) {
+          const parts = cleanName.split(/\s+/).filter(Boolean);
+          if (parts.length >= 2) avatarInitials = (parts[0][0] + parts[1][0]).toUpperCase();
+          else if (parts.length === 1 && parts[0].length >= 1) avatarInitials = parts[0].slice(0, 2).toUpperCase();
+        } else if (pId) {
+          const cleanId = String(pId).toUpperCase().replace(/[^A-Z0-9]/g, '');
+          avatarInitials = cleanId.length >= 2 ? cleanId.slice(-2) : "P";
+        }
+
+        // 3. REAL Section / Module Completion Checks based strictly on actual data
+        // Section 1: Demographics (Field Supervisor)
+        const isSec1Done = Boolean(
+          combined.demographics_completed === true ||
+          combined.mem_scrn_q1 !== undefined ||
+          combined.age !== undefined ||
+          pId
+        );
+
+        // Section 2-7, 9-11: Clinical Screening, Medical History, Vitals & POC Tests (Staff Nurse)
         const isNurseDone = Boolean(
           combined.staff_nurse_completed === true || 
           combined.completed_by_staff_nurse === true || 
-          combined.sections_2_8_completed === true || 
-          combined.current_queue === "Doctor Queue" ||
-          combined.current_queue === "Case Coordinator Queue" ||
-          combined.current_queue === "Counselor Queue" ||
-          combined.current_queue === "Section 16 Queue" ||
-          combined.current_queue === "Completed" ||
-          combined.current_stage === "Doctor Review Queue (Sec 12-13)" ||
-          combined.current_stage === "Case Coordinator Queue (Sec 14)" ||
-          combined.current_stage === "Counselor Queue (Sec 15)" ||
-          combined.current_stage === "Section 16 Queue (Field Supervisor)" ||
-          combined.current_stage === "Fully Completed" ||
-          combined.q9 !== undefined || 
-          combined.q17 !== undefined ||
-          combined.q25 !== undefined ||
-          combined.bp_systolic !== undefined ||
-          combined.bp_sys !== undefined
+          (combined.bp_sys && String(combined.bp_sys) !== '0') ||
+          (combined.bp_systolic && String(combined.bp_systolic) !== '0') ||
+          Boolean(combined.nurse_timestamp) ||
+          (combined.answers && (combined.answers.q9 || combined.answers.q67 || combined.answers.q73))
         );
 
+        // Section 8 & 15: Mental Health Screen (GAD-7, PHQ-9) & Health Counseling (Counselor)
+        const isSec8Done = Boolean(
+          combined.counselor_section_completed === true || 
+          combined.counselor_sec8_completed === true ||
+          (combined.gad7_score !== undefined && String(combined.gad7_score) !== "") ||
+          (combined.phq9_score !== undefined && String(combined.phq9_score) !== "") ||
+          (combined.answers && (combined.answers.q58 || combined.answers.q61 || combined.answers.q65))
+        );
+        const isSec15Done = Boolean(
+          combined.counselor_sec15_completed === true || 
+          combined.completed_by_counselor === true || 
+          Boolean(combined.counselor_timestamp) ||
+          (combined.counseling_notes && String(combined.counseling_notes).trim() !== "") ||
+          (combined.answers && (combined.answers.q107 || combined.answers.q108))
+        );
+        const isCounselorDone = Boolean(isSec8Done || isSec15Done);
+
+        // Section 12-13: Clinical Diagnosis, Exams & CVD Risk (Medical Officer / Doctor)
         const isDoctorDone = Boolean(
           combined.doctor_completed === true || 
           combined.completed_by_doctor === true || 
-          combined.sections_9_15_completed === true || 
-          combined.current_queue === "Case Coordinator Queue" ||
-          combined.current_queue === "Counselor Queue" ||
-          combined.current_queue === "Section 16 Queue" ||
-          combined.current_queue === "Completed" ||
-          combined.current_stage === "Case Coordinator Queue (Sec 14)" ||
-          combined.current_stage === "Counselor Queue (Sec 15)" ||
-          combined.current_stage === "Section 16 Queue (Field Supervisor)" ||
-          combined.current_stage === "Fully Completed" ||
-          combined.q89 !== undefined ||
-          combined.q90 !== undefined ||
-          combined.q93 !== undefined ||
-          combined.cvd_risk_assessment !== undefined
+          Boolean(combined.doctor_timestamp) ||
+          Boolean(combined.doctor_user) ||
+          (combined.doctor_notes && String(combined.doctor_notes).trim() !== "") ||
+          (combined.answers && (combined.answers.q81 || combined.answers.q88 || combined.answers.q89 || combined.answers.q91 || combined.answers.q92)) ||
+          (combined.cvd_risk_assessment && String(combined.cvd_risk_assessment).trim() !== "" && combined.cvd_risk_assessment !== "Standard Risk")
         );
 
+        // Section 14: Healthcare Linkages & Referral Follow-up (Case Coordinator)
         const isCoordinatorDone = Boolean(
           combined.coordinator_completed === true || 
           combined.completed_by_coordinator === true || 
-          combined.current_queue === "Counselor Queue" ||
-          combined.current_queue === "Section 16 Queue" ||
-          combined.current_queue === "Completed" ||
-          combined.current_stage === "Counselor Queue (Sec 15)" ||
-          combined.current_stage === "Section 16 Queue (Field Supervisor)" ||
-          combined.current_stage === "Fully Completed" ||
-          combined.q97 !== undefined
+          Boolean(combined.coordinator_timestamp) ||
+          (combined.linkage_status && String(combined.linkage_status).trim() !== "") ||
+          (combined.answers && (combined.answers.q97 || combined.answers.q98))
         );
 
-        const isCounselorDone = Boolean(
-          combined.counselor_sec15_completed === true || 
-          combined.completed_by_counselor === true || 
-          combined.current_queue === "Section 16 Queue" ||
-          combined.current_queue === "Completed" ||
-          combined.current_stage === "Section 16 Queue (Field Supervisor)" ||
-          combined.current_stage === "Fully Completed" ||
-          combined.q107 !== undefined
-        );
-
+        // Section 16: Community Perception Survey (Field Supervisor)
         const isSec16Done = Boolean(
           combined.section_16_completed === true || 
+          combined.completed_by_section16 === true || 
           combined.sec_16_done === true || 
-          combined.current_queue === "Completed" ||
-          combined.current_stage === "Fully Completed" ||
-          combined.q112 !== undefined
+          Boolean(combined.sec16_timestamp) ||
+          (combined.sec16_answers && Object.keys(combined.sec16_answers).length > 0) ||
+          (combined.answers && (combined.answers.q112 || combined.answers.q113 || combined.answers.q116 || combined.answers.q117))
         );
 
-        let currentPendingQueue = "With Staff Nurse Queue";
+        // 4. Real Pipeline Stage & Next Pending Queue
+        let currentPendingQueue = "With Staff Nurse (Pending Sec 2–7, 9–11 Screening)";
         let currentRole = "Staff Nurse";
+        let isFullyCompleted = false;
 
-        if (isSec16Done) {
+        if (isNurseDone && isDoctorDone && isCoordinatorDone && isCounselorDone && isSec16Done) {
+          isFullyCompleted = true;
           currentPendingQueue = "Fully Completed (All 16 Sections Verified)";
           currentRole = "Completed";
-        } else if (isCounselorDone) {
-          currentPendingQueue = "With Field Supervisor (Pending Section 16)";
-          currentRole = "Field Supervisor";
-        } else if (isCoordinatorDone) {
-          currentPendingQueue = "With Counselor (Pending Section 15)";
-          currentRole = "Counselor";
-        } else if (isDoctorDone) {
-          currentPendingQueue = "With Case Coordinator (Pending Section 14)";
-          currentRole = "Case Management Coordinator";
-        } else if (isNurseDone) {
-          currentPendingQueue = "With Doctor (Pending Clinical Exam Sec 12-13)";
-          currentRole = "Doctor";
-        } else {
-          currentPendingQueue = "With Staff Nurse Queue (Pending Clinical Screening Sec 2-11)";
+        } else if (!isNurseDone) {
+          if (isSec16Done) {
+            currentPendingQueue = "With Staff Nurse (Pending Sec 2–7, 9–11 Screening • Sec 16 Done)";
+          } else {
+            currentPendingQueue = "With Staff Nurse (Pending Sec 2–7, 9–11 Screening)";
+          }
           currentRole = "Staff Nurse";
+        } else if (!isDoctorDone) {
+          currentPendingQueue = "With Doctor (Pending Clinical Exam Sec 12–13)";
+          currentRole = "Doctor";
+        } else if (!isCoordinatorDone) {
+          currentPendingQueue = "With Case Coordinator (Pending Section 14 Linkages)";
+          currentRole = "Case Management Coordinator";
+        } else if (!isCounselorDone) {
+          currentPendingQueue = "With Counselor (Pending Section 8 & 15 Counseling)";
+          currentRole = "Counselor";
+        } else if (!isSec16Done) {
+          currentPendingQueue = "With Field Supervisor (Pending Section 16 Exit Perception)";
+          currentRole = "Field Supervisor";
+        }
+
+        // Real Module Breakdown List
+        const completedModuleBadges = [
+          isSec1Done && "Sec 1",
+          isNurseDone && "Sec 2–7, 9–11",
+          isCounselorDone && "Sec 8, 15",
+          isDoctorDone && "Sec 12–13",
+          isCoordinatorDone && "Sec 14",
+          isSec16Done && "Sec 16"
+        ].filter(Boolean);
+
+        const totalModulesCount = 6;
+        const completedCount = completedModuleBadges.length;
+        const progressPercent = Math.round((completedCount / totalModulesCount) * 100);
+
+        const flowSteps = [
+          { code: "FS", role: "Field Supervisor", section: "Sec 1", done: isSec1Done },
+          { code: "SN", role: "Staff Nurse", section: "Sec 2–7, 9–11", done: isNurseDone },
+          { code: "CO", role: "Counselor", section: "Sec 8, 15", done: isCounselorDone },
+          { code: "DR", role: "Doctor", section: "Sec 12–13", done: isDoctorDone },
+          { code: "CMC", role: "Case Coordinator", section: "Sec 14", done: isCoordinatorDone },
+          { code: "FS", role: "Field Supervisor Exit", section: "Sec 16", done: isSec16Done }
+        ];
+
+        const moduleStatus = [
+          { key: "sec1", label: "Sec 1", fullLabel: "Demographics", role: "Field Supervisor", done: isSec1Done },
+          { key: "nurse", label: "Sec 2–7, 9–11", fullLabel: "Clinical Screening & Vitals", role: "Staff Nurse", done: isNurseDone },
+          { key: "counselor", label: "Sec 8, 15", fullLabel: "Mental Health & Counseling", role: "Counselor", done: isCounselorDone },
+          { key: "doctor", label: "Sec 12–13", fullLabel: "Doctor Examination", role: "Doctor", done: isDoctorDone },
+          { key: "coord", label: "Sec 14", fullLabel: "Linkages & Referrals", role: "Case Coordinator", done: isCoordinatorDone },
+          { key: "sec16", label: "Sec 16", fullLabel: "Community Perception", role: "Field Supervisor", done: isSec16Done }
+        ];
+
+        // Real Audit Trail
+        const auditTrail = [];
+        if (isSec1Done) {
+          auditTrail.push({
+            role: "Field Supervisor",
+            action: "Initiated Participant & Completed Section 1 Demographics",
+            user: combined.submitted_by_user || combined.user_name || userName,
+            timestamp: dateStr,
+            status: "Section 1 Completed"
+          });
+        }
+        if (isNurseDone) {
+          auditTrail.push({
+            role: "Staff Nurse",
+            action: "Completed Vitals, Medical History & POC Screening (Sec 2–7, 9–11)",
+            user: combined.nurse_user || "Staff Nurse (SN001)",
+            timestamp: combined.nurse_timestamp || "Completed",
+            status: "Sections 2–7, 9–11 Completed"
+          });
+        }
+        if (isSec8Done || isSec15Done) {
+          auditTrail.push({
+            role: "Counselor",
+            action: isSec8Done && isSec15Done 
+              ? "Completed Mental Health & Health Counseling (Sec 8, 15)"
+              : isSec8Done 
+                ? "Completed Mental Health Assessment GAD-7 & PHQ-9 (Sec 8)"
+                : "Completed Health & Lifestyle Counseling (Sec 15)",
+            user: combined.counselor_user || "Counselor (CO001)",
+            timestamp: combined.counselor_timestamp || "Completed",
+            status: isSec8Done && isSec15Done ? "Sections 8, 15 Completed" : isSec8Done ? "Section 8 Completed" : "Section 15 Completed"
+          });
+        }
+        if (isDoctorDone) {
+          auditTrail.push({
+            role: "Medical Officer / Doctor",
+            action: "Completed Clinical Diagnosis & CVD Risk Categorisation (Sec 12–13)",
+            user: combined.doctor_user || "Medical Officer (D001)",
+            timestamp: combined.doctor_timestamp || "Completed",
+            status: "Sections 12–13 Completed"
+          });
+        }
+        if (isCoordinatorDone) {
+          auditTrail.push({
+            role: "Case Management Coordinator",
+            action: "Completed Healthcare Linkages & Referral Tracking (Sec 14)",
+            user: combined.coordinator_user || "Case Coordinator (CMC001)",
+            timestamp: combined.coordinator_timestamp || "Completed",
+            status: "Section 14 Completed"
+          });
+        }
+        if (isSec16Done) {
+          auditTrail.push({
+            role: "Field Supervisor",
+            action: "Completed Final Section 16 Community Perception Survey",
+            user: combined.sec16_user || combined.submitted_by_user || combined.user_name || userName,
+            timestamp: combined.sec16_timestamp || dateStr,
+            status: "Section 16 Completed"
+          });
         }
 
         recordMap.set(pId, {
           ...combined,
           local_id: combined.mem_scrn_id || idx,
           participant_id: pId,
-          fullName: (combined.fullName && combined.fullName !== "Unnamed Participant") ? combined.fullName : (combined.mem_scrn_q16 || pId),
+          fullName: displayName,
+          cleanName: cleanName,
+          avatarInitials: avatarInitials,
           age: String(combined.age || combined.mem_scrn_q1 || "45"),
           gender: combined.gender || (combined.mem_scrn_q2 === "1" ? "Male" : "Female"),
           location: combined.location || combined.mem_scrn_q17 || "Dharavi",
@@ -274,7 +575,14 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
           created_by_user: userName,
           current_stage: currentPendingQueue,
           current_user_role: currentRole,
-          is_fs_done: true,
+          is_fully_completed: isFullyCompleted,
+          completed_modules_count: completedCount,
+          total_modules_count: totalModulesCount,
+          completed_module_badges: completedModuleBadges,
+          module_status: moduleStatus,
+          flow_steps: flowSteps,
+          progress_percent: progressPercent,
+          is_fs_done: isSec1Done,
           is_nurse_done: isNurseDone,
           is_doctor_done: isDoctorDone,
           is_coordinator_done: isCoordinatorDone,
@@ -283,14 +591,7 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
           risk: combined.overall_risk_rating || (combined.mem_scrn_q24 == 1 ? "High Risk" : "Standard Risk"),
           raw_payload: combined,
           raw: combined,
-          audit_trail: [
-            { role: "Field Supervisor", action: "Initiated Participant & Completed Section 1 Demographics", user: userName, timestamp: dateStr, status: "Section 1 Completed" },
-            isNurseDone && { role: "Staff Nurse", action: "Completed Vitals, Medical History & POC Tests (Sec 2-11)", user: combined.nurse_user || "SN001 (Staff Nurse)", timestamp: "Completed", status: "Sections 2-11 Completed" },
-            isDoctorDone && { role: "Doctor", action: "Completed Clinical Exam & CVD Risk Categorisation (Sec 12-13)", user: combined.doctor_user || "D001 (Doctor)", timestamp: "Completed", status: "Sections 12-13 Completed" },
-            isCoordinatorDone && { role: "Case Coordinator", action: "Completed Healthcare Linkages & Follow-up Tracking (Sec 14)", user: combined.coordinator_user || "CMC001 (Coordinator)", timestamp: "Completed", status: "Section 14 Completed" },
-            isCounselorDone && { role: "Counselor", action: "Completed Health & Mental Health Counseling (Sec 15)", user: combined.counselor_user || "C001 (Counselor)", timestamp: "Completed", status: "Section 15 Completed" },
-            isSec16Done && { role: "Field Supervisor", action: "Completed Final Section 16 Community Perception Survey", user: combined.sec16_user || userName, timestamp: "Completed", status: "Section 16 Completed" }
-          ].filter(Boolean)
+          audit_trail: auditTrail
         });
       };
 
@@ -430,13 +731,15 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
 
   const filteredParticipants = participants
     .filter((p) => {
+      const q = searchTerm ? String(searchTerm).toLowerCase().trim() : "";
       const matchesSearch = 
-        !searchTerm ||
-        (p.fullName && p.fullName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (p.participant_id && p.participant_id.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (p.location && p.location.toLowerCase().includes(searchTerm.toLowerCase()));
+        !q ||
+        (p.fullName && String(p.fullName).toLowerCase().includes(q)) ||
+        (p.participant_id && String(p.participant_id).toLowerCase().includes(q)) ||
+        (p.location && String(p.location).toLowerCase().includes(q));
+      const selLoc = selectedLocation ? String(selectedLocation).toLowerCase().trim() : "all";
       const matchesLocation = 
-        selectedLocation === "All" || (p.location && p.location.toLowerCase().includes(selectedLocation.toLowerCase()));
+        selLoc === "all" || (p.location && String(p.location).toLowerCase().includes(selLoc));
       return matchesSearch && matchesLocation;
     })
     .sort((a, b) => {
@@ -564,7 +867,7 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
               </span>
               {locationsList.map(loc => {
                 const isSel = selectedLocation === loc;
-                const count = loc === "All" ? participants.length : participants.filter(p => (p.location || "").toLowerCase().includes(loc.toLowerCase())).length;
+                const count = loc === "All" ? participants.length : participants.filter(p => String(p.location || "").toLowerCase().includes(String(loc).toLowerCase())).length;
                 return (
                   <button
                     key={loc}
@@ -615,65 +918,141 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
                 return (
                   <div 
                     key={p.local_id || p.participant_id}
-                    className="rounded-2xl p-4 sm:p-5 border bg-white flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 transition-all hover:border-slate-400 shadow-2xs"
+                    className="rounded-2xl px-4 py-2.5 border bg-white flex flex-col gap-2 transition-all hover:border-slate-300 hover:shadow-2xs"
                     style={{ borderColor: T.line }}
                   >
-                    {/* Left: Participant Info with Fixed Avatar */}
-                    <div className="flex items-center gap-4 min-w-0">
-                      <div className="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-xs bg-slate-900 text-[#f5d40b] font-mono shrink-0 shadow-2xs">
-                        {p.fullName ? p.fullName.split(" ").map(w => w[0]).slice(0, 2).join("") : "P"}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="font-bold text-slate-900 text-sm sm:text-base font-mono truncate">{p.fullName || "Unnamed"}</h4>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-[#f5d40b]/15 text-slate-900 border border-[#f5d40b]/30 font-mono shrink-0">
-                            {p.location || "Dharavi"}
-                          </span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-mono shrink-0">
-                            {p.current_stage || "Pending Nurse"}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 font-mono mt-1">
-                          ID: <strong className="text-slate-900">{p.participant_id || "NA"}</strong> • Age: {p.age || "48"} yrs ({p.gender || "Female"}) • Date: <strong className="text-slate-800">{p.date_of_survey || "Today"}</strong> • Initiated by: <strong className="text-slate-900">{p.created_by_user || "FS001 (Field Supervisor)"}</strong>
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Right: Perfectly Aligned Fixed Horizontal Actions (No multi-line wrapping!) */}
-                    <div className="flex items-center gap-2.5 shrink-0 self-end lg:self-center flex-nowrap">
-                      <span className={`text-[11px] font-bold px-3 py-1.5 rounded-xl border font-mono whitespace-nowrap ${
-                        isHighRisk ? 'bg-red-50 text-red-700 border-red-200' : 'bg-slate-100 text-slate-700 border-slate-200'
-                      }`}>
-                        {p.risk || "Standard Risk"}
-                      </span>
-
-                      {/* Select / View Details Button */}
-                      <button 
-                        onClick={() => setSelectedParticipant(p)}
-                        className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 text-white hover:bg-black transition-colors flex items-center gap-2 cursor-pointer shadow-2xs font-mono whitespace-nowrap"
-                      >
-                        <Eye size={14} className="text-[#f5d40b]" />
-                        <span>Select & View Response</span>
-                      </button>
+                    {/* Main Row: Identity, Key Demographics, Risk & Action Buttons */}
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2">
                       
-                      {/* Edit Button */}
-                      <button 
-                        onClick={() => setEditingParticipant(p)}
-                        className="p-2 rounded-xl hover:bg-amber-50 border border-slate-200 text-slate-700 hover:text-amber-800 transition-colors cursor-pointer shrink-0"
-                        title="Edit Participant"
-                      >
-                        <Edit3 size={15} />
-                      </button>
+                      {/* Left: Avatar + Details in Single Clean Line */}
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs font-mono shrink-0 bg-slate-800 text-white border border-slate-900 shadow-2xs">
+                          {p.avatarInitials || "P"}
+                        </div>
+                        
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-bold text-slate-900 text-xs font-mono truncate">
+                              {p.cleanName || p.participant_id}
+                            </h4>
+                            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200/80 font-mono shrink-0">
+                              {p.location || "Dharavi"}
+                            </span>
+                            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full font-mono shrink-0 border ${
+                              p.is_fully_completed
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                : 'bg-blue-50 text-blue-800 border-blue-200'
+                            }`}>
+                              {p.is_fully_completed ? 'Fully Completed' : p.current_user_role || 'Staff Nurse'}
+                            </span>
+                            
+                            {/* Inline Metadata Details */}
+                            <span className="text-slate-300 hidden sm:inline">•</span>
+                            <span className="text-xs text-slate-500 font-mono">
+                              {p.age || "48"}y
+                            </span>
+                            <span className="text-slate-300 hidden sm:inline">•</span>
+                            <GenderBadge gender={p.gender} />
+                            <span className="text-slate-300 hidden md:inline">•</span>
+                            <span className="text-xs text-slate-400 font-mono hidden md:inline">
+                              {p.date_of_survey || "Today"}
+                            </span>
+                            <span className="text-slate-300 hidden lg:inline">•</span>
+                            <span className="text-xs text-slate-400 font-mono hidden lg:inline">
+                              By <strong className="text-slate-600">{p.created_by_user || "FS001"}</strong>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
 
-                      {/* Delete Button */}
-                      <button 
-                        onClick={() => handleDeleteParticipant(p.participant_id, p.local_id)}
-                        className="p-2 rounded-xl hover:bg-red-50 border border-slate-200 text-slate-700 hover:text-red-700 transition-colors cursor-pointer shrink-0"
-                        title="Delete Record"
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      {/* Right: Risk Badge & Compact Actions */}
+                      <div className="flex items-center gap-1.5 shrink-0 self-end lg:self-center">
+                        <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border font-mono whitespace-nowrap ${
+                          isHighRisk ? 'bg-red-50 text-red-700 border-red-200' : 'bg-slate-100 text-slate-700 border-slate-200'
+                        }`}>
+                          {p.risk || "Standard Risk"}
+                        </span>
+
+                        <button 
+                          onClick={() => setSelectedParticipant(p)}
+                          className="w-7 h-7 rounded-full bg-slate-900 text-[#f5d40b] hover:bg-black transition-colors flex items-center justify-center cursor-pointer shadow-2xs font-mono shrink-0"
+                          title="View Responses"
+                        >
+                          <Eye size={13} />
+                        </button>
+                        
+                        <button 
+                          onClick={() => setEditingParticipant(p)}
+                          className="w-7 h-7 rounded-full hover:bg-amber-50 border border-slate-200 text-slate-600 hover:text-amber-800 transition-colors flex items-center justify-center cursor-pointer shrink-0"
+                          title="Edit Participant"
+                        >
+                          <Edit3 size={13} />
+                        </button>
+
+                        <button 
+                          onClick={() => handleDeleteParticipant(p.participant_id, p.local_id)}
+                          className="w-7 h-7 rounded-full hover:bg-red-50 border border-slate-200 text-slate-600 hover:text-red-700 transition-colors flex items-center justify-center cursor-pointer shrink-0"
+                          title="Delete Record"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+
                     </div>
+
+                    {/* Bottom: Progressive Bar with User Flow with codes FS, SN, CO, DR, CMC, FS */}
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs font-mono">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Flow:</span>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {(p.flow_steps || [
+                            { code: "FS", role: "Field Supervisor", section: "Sec 1", done: Boolean(p.is_fs_done) },
+                            { code: "SN", role: "Staff Nurse", section: "Sec 2–7, 9–11", done: Boolean(p.is_nurse_done) },
+                            { code: "CO", role: "Counselor", section: "Sec 8, 15", done: Boolean(p.is_counselor_done) },
+                            { code: "DR", role: "Doctor", section: "Sec 12–13", done: Boolean(p.is_doctor_done) },
+                            { code: "CMC", role: "Case Coordinator", section: "Sec 14", done: Boolean(p.is_coordinator_done) },
+                            { code: "FS", role: "Field Supervisor", section: "Sec 16", done: Boolean(p.is_sec16_done) }
+                          ]).map((step, sIdx, arr) => (
+                            <React.Fragment key={step.code + sIdx}>
+                              <span 
+                                title={`${step.code}: ${step.role} (${step.section}) — ${step.done ? '✓ Completed' : 'Pending'}`}
+                                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold transition-all ${
+                                  step.done 
+                                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs' 
+                                    : 'bg-slate-100 text-slate-400 border border-slate-200'
+                                }`}
+                              >
+                                <span>{step.code}</span>
+                                {step.done ? <span className="text-[9px] text-emerald-600 font-black">✓</span> : null}
+                              </span>
+                              {sIdx < arr.length - 1 && (
+                                <span className={`text-[10px] select-none ${step.done ? 'text-emerald-500 font-bold' : 'text-slate-300'}`}>
+                                  →
+                                </span>
+                              )}
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Module Progress Bar & Summary */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200 hidden sm:block">
+                          <div 
+                            className="h-full bg-emerald-500 rounded-full transition-all" 
+                            style={{ width: `${p.progress_percent !== undefined ? p.progress_percent : Math.round(((p.completed_modules_count || 1) / 6) * 100)}%` }}
+                          />
+                        </div>
+                        <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full ${
+                          p.is_fully_completed
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                            : 'bg-slate-100 text-slate-600 border border-slate-200'
+                        }`}>
+                          {p.completed_modules_count || 1}/6 Done ({p.progress_percent !== undefined ? p.progress_percent : Math.round(((p.completed_modules_count || 1) / 6) * 100)}%)
+                        </span>
+                      </div>
+                    </div>
+
                   </div>
                 );
               })}
@@ -874,185 +1253,107 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
 
 /**
  * Full-Featured, Spacious Participant Response & Multi-Role Audit Modal
+ * Displays all 16 Sections and all 117 Questions (Q1 to Q117) dynamically against recorded responses.
  */
 function ParticipantResponseModal({ participant, onClose, onEdit, onDelete }) {
   const [activeTab, setActiveTab] = useState("sections"); // "sections", "audit", "raw"
   const [activeSectionId, setActiveSectionId] = useState("sec_1");
+  const [questionSearch, setQuestionSearch] = useState("");
 
   if (!participant) return null;
 
   let raw = {};
   if (participant.raw_payload) {
     try {
-      raw = typeof participant.raw_payload === 'string' ? JSON.parse(participant.raw_payload) : participant.raw_payload;
+      raw = typeof participant.raw_payload === "string" ? JSON.parse(participant.raw_payload) : participant.raw_payload;
     } catch (e) {}
   }
   const data = { ...participant, ...raw };
 
-  const isHighRisk = String(data.risk || data.overall_risk_rating || '').toLowerCase().includes('high');
+  const isHighRisk = String(data.risk || data.overall_risk_rating || "").toLowerCase().includes("high");
 
-  const sectionsConfig = [
-    {
-      id: "sec_1",
-      num: "1",
-      title: "Section 1: Socio-Demographics",
-      role: "Field Supervisor",
-      isCompleted: true,
-      items: [
-        { label: "Participant ID", val: data.participant_id || data.mem_scrn_part_id },
-        { label: "Full Name", val: data.fullName || data.mem_scrn_q16 },
-        { label: "Age (Q1)", val: `${data.age || data.mem_scrn_q1 || "45"} years` },
-        { label: "Gender (Q2)", val: data.gender || (data.mem_scrn_q2 == "1" ? "Male" : "Female") },
-        { label: "Center Location (Q17)", val: `${data.location || data.mem_scrn_q17 || "Dharavi"} Center` },
-        { label: "Contact Number (Q18)", val: data.contact_number || data.mem_scrn_q18 || "Not Provided" },
-        { label: "Screening Date", val: data.date_of_survey || data.screening_date || "Today" },
-        { label: "Initiating Operator", val: data.created_by_user || "FS001 (Field Supervisor)" }
-      ]
-    },
-    {
-      id: "sec_2",
-      num: "2",
-      title: "Section 2: Medical History & Chronic Conditions",
-      role: "Staff Nurse",
-      isCompleted: Boolean(data.sections_2_8_completed || data.staff_nurse_completed || data.q9 !== undefined),
-      items: [
-        { label: "Q9: Known Diabetes", val: data.q9 },
-        { label: "Q10: Known Hypertension", val: data.q10 },
-        { label: "Q11: Family History of NCDs", val: data.q11 },
-        { label: "Q12: Past CVD Events (Heart Attack)", val: data.q12 },
-        { label: "Q13: History of Stroke / TIA", val: data.q13 },
-        { label: "Q14: Chronic Kidney Disease", val: data.q14 },
-        { label: "Q15: Chronic Respiratory Condition", val: data.q15 },
-        { label: "Q16: Other Chronic Illnesses", val: data.q16 }
-      ]
-    },
-    {
-      id: "sec_3",
-      num: "3",
-      title: "Section 3: Tobacco & Substance Use",
-      role: "Staff Nurse",
-      isCompleted: Boolean(data.sections_2_8_completed || data.staff_nurse_completed || data.q17 !== undefined),
-      items: [
-        { label: "Q17: Smokeless Tobacco Use", val: data.q17 },
-        { label: "Q18: Smoking Tobacco (Beedi/Cigarettes)", val: data.q18 },
-        { label: "Q19: Daily Frequency of Tobacco Use", val: data.q19 },
-        { label: "Q20: Age of First Tobacco Use", val: data.q20 ? `${data.q20} yrs` : null },
-        { label: "Q21: Past Year Quit Attempts", val: data.q21 }
-      ]
-    },
-    {
-      id: "sec_4",
-      num: "4",
-      title: "Section 4: Alcohol Consumption (AUDIT-C)",
-      role: "Staff Nurse",
-      isCompleted: Boolean(data.sections_2_8_completed || data.staff_nurse_completed || data.q30 !== undefined || data.q27 !== undefined),
-      items: [
-        { label: "Q27: Drinking Frequency", val: data.q27 },
-        { label: "Q28: Typical Quantity (Standard Drinks)", val: data.q28 },
-        { label: "Q29: Binge Drinking Frequency (6+ Drinks)", val: data.q29 },
-        { label: "Q30: Total AUDIT-C Score", val: data.q30 !== undefined ? `${data.q30} Points` : data.audit_c_score ? `${data.audit_c_score} Points` : null },
-        { label: "Alcohol Risk Categorisation", val: data.q30 >= 4 || data.audit_c_score >= 4 ? "Hazardous / High-Risk Drinking" : "Low Risk Drinking" }
-      ]
-    },
-    {
-      id: "sec_5_7",
-      num: "5-7",
-      title: "Sections 5-7: Physical Measurements & Vitals",
-      role: "Staff Nurse",
-      isCompleted: Boolean(data.sections_2_8_completed || data.staff_nurse_completed || data.bp_sys !== undefined || data.q75 !== undefined),
-      items: [
-        { label: "Systolic Blood Pressure (BP Sys)", val: data.bp_sys || data.bp_systolic ? `${data.bp_sys || data.bp_systolic} mmHg` : null },
-        { label: "Diastolic Blood Pressure (BP Dia)", val: data.bp_dia || data.bp_diastolic ? `${data.bp_dia || data.bp_diastolic} mmHg` : null },
-        { label: "Pulse Rate", val: data.pulse_rate ? `${data.pulse_rate} bpm` : null },
-        { label: "Standing Height", val: data.height ? `${data.height} cm` : null },
-        { label: "Body Weight", val: data.weight ? `${data.weight} kg` : null },
-        { label: "Calculated Body Mass Index (BMI)", val: data.bmi ? `${data.bmi} kg/m²` : null },
-        { label: "Waist Circumference", val: data.waist_circumference ? `${data.waist_circumference} cm` : null }
-      ]
-    },
-    {
-      id: "sec_8",
-      num: "8",
-      title: "Section 8: Mental Health (PHQ-9 & GAD-7)",
-      role: "Staff Nurse",
-      isCompleted: Boolean(data.sections_2_8_completed || data.staff_nurse_completed || data.phq9_score !== undefined || data.q65 !== undefined || data.q63 !== undefined),
-      items: [
-        { label: "Q63: PHQ-9 Depression Screener", val: data.q63 || data.q58 },
-        { label: "Q64: PHQ-9 Item 1 (Little Interest)", val: data["q64_1"] || data.phq9_item_1 },
-        { label: "Q64: PHQ-9 Item 2 (Feeling Down/Depressed)", val: data["q64_2"] || data.phq9_item_2 },
-        { label: "Q64: PHQ-9 Item 3 (Sleep Issues)", val: data["q64_3"] || data.phq9_item_3 },
-        { label: "Q64: PHQ-9 Item 4 (Low Energy)", val: data["q64_4"] || data.phq9_item_4 },
-        { label: "Q64: PHQ-9 Item 5 (Poor Appetite)", val: data["q64_5"] || data.phq9_item_5 },
-        { label: "Q64: PHQ-9 Item 6 (Feeling Bad About Self)", val: data["q64_6"] || data.phq9_item_6 },
-        { label: "Q64: PHQ-9 Item 7 (Concentration Trouble)", val: data["q64_7"] || data.phq9_item_7 },
-        { label: "Q64: PHQ-9 Item 8 (Slow/Restless Movement)", val: data["q64_8"] || data.phq9_item_8 },
-        { label: "Q64: PHQ-9 Item 9 (Thoughts of Self-Harm)", val: data["q64_9"] || data.phq9_item_9 },
-        { label: "Q65: PHQ-9 Total Depression Score", val: data.q65 !== undefined ? `${data.q65} / 27 Points` : data.phq9_score !== undefined ? `${data.phq9_score} / 27 Points` : null },
-        { label: "Q59: GAD-7 Anxiety Screener", val: data.q59 },
-        { label: "Q61: GAD-7 Total Anxiety Score", val: data.q61 !== undefined ? `${data.q61} / 21 Points` : data.gad7_score !== undefined ? `${data.gad7_score} / 21 Points` : null }
-      ]
-    },
-    {
-      id: "sec_9_13",
-      num: "9-13",
-      title: "Sections 9-13: Laboratory Tests & Doctor Examination",
-      role: "Doctor",
-      isCompleted: Boolean(data.doctor_completed || data.sections_9_15_completed || data.overall_risk_rating || data.q93 !== undefined),
-      items: [
-        { label: "Random Blood Sugar (RBS)", val: data.rbs ? `${data.rbs} mg/dL` : null },
-        { label: "Fasting Blood Sugar (FBS)", val: data.fbs ? `${data.fbs} mg/dL` : null },
-        { label: "Glycated Hemoglobin (HbA1c)", val: data.hba1c ? `${data.hba1c} %` : null },
-        { label: "Total Serum Cholesterol", val: data.cholesterol ? `${data.cholesterol} mg/dL` : null },
-        { label: "WHO Cardiovascular (CVD) Risk Rating", val: data.overall_risk_rating || data.cvd_risk_assessment || data.risk },
-        { label: "Doctor Clinical Impression & Diagnosis", val: data.doctor_clinical_notes || data.diagnosis },
-        { label: "Prescribed Anti-Hypertensive / Anti-Diabetic Drugs", val: data.medication_prescribed },
-        { label: "Recommended Follow-up Visit Date (Q93)", val: data.q93 || data.followup_date }
-      ]
-    },
-    {
-      id: "sec_14",
-      num: "14",
-      title: "Section 14: Healthcare Linkages & Referral Tracking",
-      role: "Case Management Coordinator",
-      isCompleted: Boolean(data.coordinator_completed || data.q97 !== undefined),
-      items: [
-        { label: "Q97: Referral Health Center Facility", val: data.q97 || data.referral_center },
-        { label: "Q98: Transportation Support Arranged", val: data.q98 },
-        { label: "Q99: Referral Confirmation Date", val: data.q99 },
-        { label: "Q104: Follow-up Status Tracking", val: data.q104 || data.linkage_status }
-      ]
-    },
-    {
-      id: "sec_15",
-      num: "15",
-      title: "Section 15: Health & Lifestyle Counseling",
-      role: "Counselor",
-      isCompleted: Boolean(data.counselor_sec15_completed || data.q107 !== undefined),
-      items: [
-        { label: "Q107: Dietary Salt & Oil Reduction Counseling", val: data.q107 },
-        { label: "Q108: Daily Physical Activity Counseling", val: data.q108 },
-        { label: "Q109: Tobacco & Alcohol Cessation Counseling", val: data.q109 },
-        { label: "Q110: Medication Adherence Counseling", val: data.q110 },
-        { label: "Counselor Notes & Next Action Plan", val: data.counseling_notes || data.counselor_plan }
-      ]
-    },
-    {
-      id: "sec_16",
-      num: "16",
-      title: "Section 16: Community Perception & Feedback",
-      role: "Field Supervisor",
-      isCompleted: Boolean(data.section_16_completed || data.sec_16_done || data.q112 !== undefined),
-      items: [
-        { label: "Q112: Top Priority Health Issues in Locality", val: Array.isArray(data.q112) ? data.q112.join(", ") : data.q112 },
-        { label: "Q113: Water & Environmental Sanitation Rating", val: data.q113 },
-        { label: "Q114: Community Barriers to Health Camp Access", val: Array.isArray(data.q114) ? data.q114.join(", ") : data.q114 },
-        { label: "Q115: Preferred Health Communication Channels", val: Array.isArray(data.q115) ? data.q115.join(", ") : data.q115 }
-      ]
-    }
-  ];
+  // Dynamically build all 16 sections from phase2Questions
+  const allSections = React.useMemo(() => {
+    const list = [];
+    let cur = null;
+    (phase2Questions || []).forEach(item => {
+      if (item.type === "section_header") {
+        if (cur) list.push(cur);
+        cur = {
+          id: item.id || `sec_${item.section}`,
+          num: item.section,
+          title: item.title,
+          role: SECTION_ROLES_MAP[item.section] || "Screening Staff",
+          questions: []
+        };
+      } else if (item.q_code) {
+        if (!cur) {
+          cur = {
+            id: `sec_${item.section || 1}`,
+            num: item.section || 1,
+            title: `Section ${item.section || 1}`,
+            role: SECTION_ROLES_MAP[item.section || 1] || "Screening Staff",
+            questions: []
+          };
+        }
+        cur.questions.push(item);
+      }
+    });
+    if (cur) list.push(cur);
+    return list;
+  }, []);
 
-  const currentSection = sectionsConfig.find(s => s.id === activeSectionId) || sectionsConfig[0];
-  const populatedItems = currentSection.items.filter(it => it.val !== undefined && it.val !== null && String(it.val).trim() !== "");
+  const sectionsWithStatus = React.useMemo(() => {
+    return allSections.map(sec => {
+      const qsWithAnswers = sec.questions.map(q => {
+        const ans = resolveQuestionAnswer(q, data);
+        return {
+          ...q,
+          resolvedAnswer: ans,
+          hasAnswer: ans !== null && ans !== undefined
+        };
+      });
+
+      const answeredCount = qsWithAnswers.filter(q => q.hasAnswer).length;
+
+      let isDone = false;
+      if (sec.num === 1) {
+        isDone = true;
+      } else if (sec.num >= 2 && sec.num <= 11) {
+        isDone = Boolean(data.staff_nurse_completed || data.completed_by_staff_nurse || Boolean(data.nurse_timestamp) || (answeredCount > 0 && qsWithAnswers.some(q => q.hasAnswer)));
+      } else if (sec.num >= 12 && sec.num <= 13) {
+        isDone = Boolean(data.doctor_completed || data.completed_by_doctor || Boolean(data.doctor_timestamp) || (answeredCount > 0 && qsWithAnswers.some(q => q.hasAnswer)));
+      } else if (sec.num === 14) {
+        isDone = Boolean(data.coordinator_completed || data.completed_by_coordinator || Boolean(data.coordinator_timestamp) || (answeredCount > 0 && qsWithAnswers.some(q => q.hasAnswer)));
+      } else if (sec.num === 15) {
+        isDone = Boolean(data.counselor_sec15_completed || data.completed_by_counselor || Boolean(data.counselor_timestamp) || (answeredCount > 0 && qsWithAnswers.some(q => q.hasAnswer)));
+      } else if (sec.num === 16) {
+        isDone = Boolean(data.section_16_completed || data.completed_by_section16 || data.sec_16_done || Boolean(data.sec16_timestamp) || (answeredCount > 0 && qsWithAnswers.some(q => q.hasAnswer)));
+      } else {
+        isDone = answeredCount > 0;
+      }
+
+      return {
+        ...sec,
+        questionsWithAnswers: qsWithAnswers,
+        answeredCount,
+        totalCount: sec.questions.length,
+        isCompleted: isDone
+      };
+    });
+  }, [allSections, data]);
+
+  const currentSection = sectionsWithStatus.find(s => s.id === activeSectionId) || sectionsWithStatus[0];
+
+  // Search/filter questions inside active section
+  const displayQuestions = (currentSection.questionsWithAnswers || []).filter(q => {
+    if (!questionSearch.trim()) return true;
+    const term = questionSearch.toLowerCase();
+    const qCode = String(q.q_code || "").toLowerCase();
+    const qTitle = String(q.title || "").toLowerCase();
+    const qAns = Array.isArray(q.resolvedAnswer) ? q.resolvedAnswer.join(" ").toLowerCase() : String(q.resolvedAnswer || "").toLowerCase();
+    return qCode.includes(term) || qTitle.includes(term) || qAns.includes(term);
+  });
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden animate-in fade-in duration-200">
@@ -1071,13 +1372,19 @@ function ParticipantResponseModal({ participant, onClose, onEdit, onDelete }) {
               <span className="text-xs font-bold px-3 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono border border-slate-700">
                 {data.location || "Dharavi"} Center
               </span>
-              <span className={`text-xs font-bold px-3 py-0.5 rounded-full font-mono ${isHighRisk ? 'bg-red-500 text-white' : 'bg-emerald-600 text-white'}`}>
+              <span className={`text-xs font-bold px-3 py-0.5 rounded-full font-mono ${isHighRisk ? "bg-red-500 text-white" : "bg-emerald-600 text-white"}`}>
                 {data.risk || "Standard Risk"}
               </span>
             </div>
-            <p className="text-xs text-slate-400 font-mono mt-1.5">
-              Age: <strong className="text-white">{data.age || "48"} yrs</strong> • Gender: <strong className="text-white">{data.gender || "Female"}</strong> • Date: <strong className="text-white">{data.date_of_survey || "Today"}</strong> • Current Stage: <strong className="text-[#f5d40b]">{data.current_stage || "Pending Nurse"}</strong>
-            </p>
+            <div className="flex items-center gap-2 flex-wrap text-xs text-slate-400 font-mono mt-1.5">
+              <span>Age: <strong className="text-white">{data.age || "48"} yrs</strong></span>
+              <span>•</span>
+              <span className="inline-flex items-center gap-1">Gender: <GenderBadge gender={data.gender} className="text-purple-300" /></span>
+              <span>•</span>
+              <span>Date: <strong className="text-white">{data.date_of_survey || "Today"}</strong></span>
+              <span>•</span>
+              <span>Current Stage: <strong className="text-[#f5d40b]">{data.current_stage || "Pending Nurse"}</strong></span>
+            </div>
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-auto">
@@ -1108,7 +1415,7 @@ function ParticipantResponseModal({ participant, onClose, onEdit, onDelete }) {
               }`}
             >
               <FileText size={15} className="text-amber-600" />
-              <span>Survey Responses (All 16 Sections)</span>
+              <span>Survey Responses (All 16 Sections • 117 Questions)</span>
             </button>
 
             <button
@@ -1134,88 +1441,242 @@ function ParticipantResponseModal({ participant, onClose, onEdit, onDelete }) {
         </div>
 
         {/* Modal Body Content */}
-        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50">
           
-          {/* TAB 1: ALL 16 SECTIONS RESPONSES */}
+          {/* TAB 1: ALL 16 SECTIONS RESPONSES (Q1 to Q117) */}
           {activeTab === "sections" && (
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 h-full">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-5 h-full">
               
-              {/* Left Column: Section Selector Pills */}
-              <div className="md:col-span-4 lg:col-span-3 space-y-1.5 overflow-y-auto pr-1">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 font-mono block px-2 pb-1">
-                  16 Screening Sections
-                </span>
-                {sectionsConfig.map(sec => {
+              {/* Left Column: 16 Section Selector Pills */}
+              <div className="md:col-span-4 lg:col-span-4 xl:col-span-3 space-y-1.5 overflow-y-auto pr-1">
+                <div className="flex items-center justify-between px-2 pb-1.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+                    16 Screening Sections
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-mono">
+                    117 Qs Total
+                  </span>
+                </div>
+
+                {sectionsWithStatus.map(sec => {
                   const isSelected = activeSectionId === sec.id;
                   return (
                     <button
                       key={sec.id}
-                      onClick={() => setActiveSectionId(sec.id)}
-                      className={`w-full text-left px-4 py-3 rounded-2xl transition-all cursor-pointer flex items-center justify-between border ${
+                      onClick={() => {
+                        setActiveSectionId(sec.id);
+                        setQuestionSearch("");
+                      }}
+                      className={`w-full text-left px-3.5 py-2.5 rounded-2xl transition-all cursor-pointer flex items-center justify-between border ${
                         isSelected 
-                          ? 'bg-slate-900 text-white border-slate-900 shadow-sm' 
-                          : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-200'
+                          ? "bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20" 
+                          : "bg-white text-slate-700 hover:bg-slate-100 border-slate-200"
                       }`}
                     >
                       <div className="truncate pr-2">
                         <p className="text-xs font-black truncate">{sec.title}</p>
-                        <p className={`text-[10px] font-mono mt-0.5 ${isSelected ? 'text-amber-300' : 'text-slate-400'}`}>
-                          Role: {sec.role}
+                        <p className={`text-[10px] font-mono mt-0.5 flex items-center gap-1.5 ${isSelected ? "text-amber-300" : "text-slate-400"}`}>
+                          <span>{sec.role}</span>
+                          <span>•</span>
+                          <span>{sec.answeredCount}/{sec.totalCount} Qs</span>
                         </p>
                       </div>
-                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full font-mono shrink-0 ${
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-mono shrink-0 ${
                         sec.isCompleted 
-                          ? isSelected ? 'bg-emerald-500 text-white' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                          : isSelected ? 'bg-amber-400 text-slate-950' : 'bg-slate-100 text-slate-500'
+                          ? isSelected ? "bg-emerald-500 text-white" : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                          : isSelected ? "bg-amber-400 text-slate-950" : "bg-slate-100 text-slate-500"
                       }`}>
-                        {sec.isCompleted ? '✓ Done' : 'Pending'}
+                        {sec.isCompleted ? "✓ Done" : "Pending"}
                       </span>
                     </button>
                   );
                 })}
               </div>
 
-              {/* Right Column: Active Section Details Card (Wide 2-column layout!) */}
-              <div className="md:col-span-8 lg:col-span-9 bg-white rounded-3xl p-7 border border-slate-200 shadow-2xs space-y-6 flex flex-col justify-between overflow-y-auto">
+              {/* Right Column: Active Section Details & Question Inspector */}
+              <div className="md:col-span-8 lg:col-span-8 xl:col-span-9 bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-2xs space-y-5 flex flex-col justify-between overflow-y-auto">
                 <div className="space-y-5">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
+                  
+                  {/* Section Top Header & Search Bar */}
+                  <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 border-b border-slate-100 pb-4">
                     <div>
-                      <h4 className="text-lg font-black text-slate-900">{currentSection.title}</h4>
-                      <p className="text-xs text-slate-500 font-mono mt-0.5">Assigned Screening Operator: <strong className="text-slate-800">{currentSection.role}</strong></p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-lg font-black text-slate-900">{currentSection.title}</h4>
+                        <span className={`text-xs font-bold px-3 py-0.5 rounded-xl font-mono border ${
+                          currentSection.isCompleted 
+                            ? "bg-emerald-50 text-emerald-800 border-emerald-200" 
+                            : "bg-amber-50 text-amber-900 border-amber-200"
+                        }`}>
+                          {currentSection.isCompleted ? "✓ Recorded & Completed" : "Pending Entry"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 font-mono mt-1">
+                        Assigned Role: <strong className="text-slate-800">{currentSection.role}</strong> • Status: <strong className="text-slate-800">{currentSection.answeredCount} of {currentSection.totalCount} Questions Answered</strong>
+                      </p>
                     </div>
-                    <span className={`text-xs font-bold px-3.5 py-1.5 rounded-xl font-mono border ${
-                      currentSection.isCompleted 
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
-                        : 'bg-amber-50 text-amber-900 border-amber-200'
-                    }`}>
-                      {currentSection.isCompleted ? '✓ Completed & Recorded' : 'Pending Entry'}
-                    </span>
+
+                    {/* Quick Question Filter */}
+                    <div className="relative w-full lg:w-64 shrink-0">
+                      <Search className="absolute left-3 top-2.5 text-slate-400" size={14} />
+                      <input 
+                        type="text"
+                        placeholder="Search question code / text..."
+                        value={questionSearch}
+                        onChange={(e) => setQuestionSearch(e.target.value)}
+                        className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs font-mono outline-none focus:border-slate-800 bg-slate-50 focus:bg-white transition-all"
+                      />
+                      {questionSearch && (
+                        <button 
+                          onClick={() => setQuestionSearch("")}
+                          className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  {populatedItems.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                      {populatedItems.map((item, idx) => (
-                        <div key={idx} className="flex flex-col justify-between p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100/80 transition-colors border border-slate-100 gap-2 font-mono">
-                          <span className="font-bold text-slate-600 text-xs">{item.label}</span>
-                          <span className="font-black text-slate-950 text-xs px-3 py-1.5 rounded-xl bg-white border border-slate-200 shadow-2xs break-words">
-                            {String(item.val)}
+                  {/* SECTION 1 SPECIAL PROFILE OVERVIEW */}
+                  {currentSection.num === 1 && (
+                    <div className="bg-gradient-to-r from-amber-50/70 via-slate-50 to-amber-50/40 rounded-2xl p-4 sm:p-5 border border-amber-200/70 shadow-2xs space-y-3">
+                      <div className="flex items-center justify-between border-b border-amber-200/60 pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                            <UserCheck size={14} className="text-amber-600" />
+                            <span>Master Registration Profile</span>
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-200/80 text-amber-950 font-mono">
+                            Field Supervisor Initiation
                           </span>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-20 text-slate-400 font-mono space-y-3">
-                      <FileText size={40} className="mx-auto text-slate-300 stroke-1" />
-                      <p className="text-sm font-bold">
-                        {currentSection.isCompleted 
-                          ? "Section completed with default screening indicators." 
-                          : `No responses recorded for ${currentSection.title} yet.`}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        {currentSection.isCompleted ? "" : `This section will populate when ${currentSection.role} submits their modules.`}
-                      </p>
+                        <span className="text-[11px] font-mono text-slate-500">
+                          Recorded: <strong className="text-slate-800">{data.date_of_survey || data.screening_date || "Today"}</strong>
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                          <span className="text-[10px] text-slate-400 block font-bold">Participant ID</span>
+                          <span className="font-black text-slate-900 text-xs">{data.participant_id || data.mem_scrn_part_id}</span>
+                        </div>
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                          <span className="text-[10px] text-slate-400 block font-bold">Full Name</span>
+                          <span className="font-bold text-slate-900 text-xs truncate block">{data.fullName || data.mem_scrn_q16 || "Participant"}</span>
+                        </div>
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                          <span className="text-[10px] text-slate-400 block font-bold">Age & Gender</span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="font-bold text-slate-900 text-xs">{data.age || "48"} yrs</span>
+                            <GenderBadge gender={data.gender} />
+                          </div>
+                        </div>
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                          <span className="text-[10px] text-slate-400 block font-bold">Center Location</span>
+                          <span className="font-bold text-slate-900 text-xs">{data.location || data.mem_scrn_q17 || "Dharavi"} Center</span>
+                        </div>
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                          <span className="text-[10px] text-slate-400 block font-bold">Contact Number</span>
+                          <span className="font-bold text-slate-900 text-xs">{data.contact_number || data.mem_scrn_q18 || "Not Provided"}</span>
+                        </div>
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                          <span className="text-[10px] text-slate-400 block font-bold">Family Status</span>
+                          <span className="font-bold text-slate-900 text-xs">
+                            {data.family_member_number ? (data.is_family_head ? "Head of Family" : `Member #${data.family_member_number}`) : "Individual / Head"}
+                          </span>
+                        </div>
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                          <span className="text-[10px] text-slate-400 block font-bold">Initiating Operator</span>
+                          <span className="font-bold text-slate-900 text-xs truncate block">{data.created_by_user || "FS001 (Field Supervisor)"}</span>
+                        </div>
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                          <span className="text-[10px] text-slate-400 block font-bold">Overall Risk</span>
+                          <span className={`font-black text-xs ${isHighRisk ? "text-rose-700" : "text-emerald-700"}`}>
+                            {data.risk || "Standard Risk"}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   )}
+
+                  {/* ALL QUESTIONS (Q1 to Q117) IN THE SECTION - COMPACT CODE & ANSWER ONLY */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between pb-1 font-mono">
+                      <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        {currentSection.title} Items ({displayQuestions.length})
+                      </h5>
+                      <span className="text-[11px] font-mono text-slate-400">
+                        {currentSection.answeredCount} / {currentSection.totalCount} Recorded
+                      </span>
+                    </div>
+
+                    {displayQuestions.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 font-mono">
+                        {displayQuestions.map((q) => {
+                          const isAnswered = q.hasAnswer;
+                          return (
+                            <div 
+                              key={q.id || q.q_code}
+                              className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-2.5 ${
+                                isAnswered 
+                                  ? "bg-slate-50/90 border-slate-200/90 hover:border-slate-300 shadow-2xs" 
+                                  : "bg-white border-slate-200/60 opacity-80"
+                              }`}
+                            >
+                              {/* Top: Question Number & Code */}
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="px-2.5 py-0.5 rounded-lg bg-slate-900 text-amber-300 font-black text-xs shadow-2xs shrink-0">
+                                    {q.q_code || "Q"}
+                                  </span>
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-200 text-slate-700">
+                                    Code: {q.id || q.q_code}
+                                  </span>
+                                </div>
+                                {q.required && (
+                                  <span className="text-[9px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded">
+                                    Required
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Bottom: Answer & Code Value */}
+                              <div className="pt-0.5">
+                                {isAnswered ? (
+                                  Array.isArray(q.resolvedAnswer) ? (
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {q.resolvedAnswer.map((ansItem, aIdx) => (
+                                        <span 
+                                          key={aIdx} 
+                                          className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-950 border border-emerald-300 text-xs font-black shadow-2xs flex items-center gap-1 break-words"
+                                        >
+                                          <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
+                                          <span>{ansItem}</span>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="px-3 py-1.5 rounded-xl bg-slate-900 text-emerald-400 font-black text-xs shadow-2xs border border-slate-800 break-words flex items-center gap-1.5">
+                                      <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+                                      <span>{String(q.resolvedAnswer)}</span>
+                                    </div>
+                                  )
+                                ) : (
+                                  <div className="px-3 py-1.5 rounded-xl bg-slate-100/70 border border-dashed border-slate-200 text-slate-400 text-xs italic">
+                                    Not answered / Skipped
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-center py-12 text-slate-400 font-mono space-y-2">
+                        <HelpCircle size={32} className="mx-auto text-slate-300 stroke-1" />
+                        <p className="text-xs font-bold">No questions matching "{questionSearch}" in {currentSection.title}.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400 font-mono">

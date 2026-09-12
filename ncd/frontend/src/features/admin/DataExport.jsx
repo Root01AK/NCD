@@ -51,7 +51,7 @@ export function DataExport({ notify, phase = "phase2" }) {
         // Filter by location if not 'all'
         if (selectedLocation !== "all") {
           const selectedLocObj = locations.find(l => String(l.loc_id) === String(selectedLocation));
-          const targetLocName = selectedLocObj ? selectedLocObj.loc_city.toLowerCase() : "";
+          const targetLocName = selectedLocObj ? String(selectedLocObj.loc_city || selectedLocObj.loc_name || "").toLowerCase() : "";
           
           records = records.filter(r => {
             if (String(r.mem_scrn_camp_loc_id) === String(selectedLocation)) return true;

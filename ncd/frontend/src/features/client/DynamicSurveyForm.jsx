@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { FileText, ChevronLeft, ChevronDown, Check, Calendar, Phone, User, Users, ShieldCheck, Shield, Clock, PlusCircle, ArrowRight, Save, MapPin, Activity, Stethoscope, HeartPulse, Brain, Link2, CheckCircle2, UserCheck, AlertCircle, AlertTriangle, LayoutGrid, CheckSquare, ListFilter, X, PauseCircle, Play, Trash2, Bookmark, Layers, LayoutList } from "lucide-react";
 import { T } from "../../lib/theme";
 import { saveToQueue, getQueue } from "../../lib/db";
@@ -205,6 +205,15 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
   const [openSingleDropdowns, setOpenSingleDropdowns] = useState({});
   const [openMultiDropdowns, setOpenMultiDropdowns] = useState({});
 
+  const mainContainerRef = useRef(null);
+
+  useEffect(() => {
+    if (mainContainerRef.current) {
+      mainContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [qPage, step, isSubmitted]);
+
   const [formPageMode, setFormPageMode] = useState(() => {
     return localStorage.getItem('ncd_form_page_mode') || 'one_section';
   });
@@ -383,20 +392,65 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
   const activeCenterLoc = getActiveLocation();
   
-  const [data, setData] = useState({
-    participant_id: generateParticipantID(activeCenterLoc),
-    screening_date: currentDateFormatted,
-    raw_date: new Date().toISOString().split('T')[0],
-    contact_number: "",
-    is_family_number: false,
-    is_shared_family_no: 0,
-    family_contact_flag: "No",
-    fullName: "",
-    age: "",
-    gender: "Male",
-    location: activeCenterLoc,
-    user_name: "",
-    user_role: "Staff Nurse"
+  const [data, setData] = useState(() => {
+    const isParticipantProvided = Boolean(participant && (participant.participant_id || participant.mem_scrn_part_id));
+    const pid = isParticipantProvided ? (participant.participant_id || participant.mem_scrn_part_id) : generateParticipantID(activeCenterLoc);
+    const loc = (participant && (participant.location || participant.mem_scrn_q17)) || activeCenterLoc;
+    const isSec16 = Boolean(participant && (participant.section_16_mode || participant.start_section === 16));
+    const isFamNo = Boolean(participant && (participant.is_family_number || participant.is_shared_family_no || participant.family_contact_flag === "Yes"));
+
+    let surData = {};
+    if (participant?.survey_data) {
+      try {
+        surData = typeof participant.survey_data === 'string' ? JSON.parse(participant.survey_data) : (participant.survey_data || {});
+      } catch (e) {}
+    }
+    let q30Data = {};
+    if (participant?.mem_scrn_q30) {
+      try {
+        q30Data = typeof participant.mem_scrn_q30 === 'string' ? JSON.parse(participant.mem_scrn_q30) : (participant.mem_scrn_q30 || {});
+      } catch (e) {}
+    }
+
+    const rawG = participant?.gender || participant?.mem_scrn_q2;
+    let cleanG = "Male";
+    if (rawG) {
+      const gStr = String(rawG).toLowerCase().trim();
+      if (gStr.includes("female") || gStr === "2") cleanG = "Female";
+      else if (gStr.includes("trans") || gStr === "3") cleanG = "Transgender";
+      else if (gStr.includes("male") || gStr === "1") cleanG = "Male";
+      else cleanG = String(rawG);
+    }
+
+    const effectiveRole = activeUser?.role_name || activeUser?.role || (isSec16 ? "Field Supervisor" : "Field Supervisor");
+    const effectiveUserName = activeUser?.username || activeUser?.user_name || activeUser?.user_code || "";
+
+    const rawNameCandidate = (participant && (participant.fullName || participant.mem_scrn_q16 || participant.full_name || participant.name)) || "";
+    const cleanInitialName = (typeof rawNameCandidate === 'string' && !['participant record', 'participant', 'unnamed participant', 'unnamed', 'null', 'undefined', 'n/a', 'na'].includes(rawNameCandidate.trim().toLowerCase()))
+      ? rawNameCandidate.trim()
+      : "";
+
+    return {
+      participant_id: pid,
+      screening_date: (participant && (participant.screening_date || participant.date_of_survey)) || currentDateFormatted,
+      raw_date: (participant && participant.raw_date) || new Date().toISOString().split('T')[0],
+      contact_number: (participant && (participant.contact_number || participant.mem_scrn_q18)) || "",
+      is_family_number: isFamNo,
+      is_shared_family_no: isFamNo ? 1 : 0,
+      family_contact_flag: isFamNo ? "Yes" : "No",
+      fullName: cleanInitialName,
+      age: (participant && (participant.age || participant.mem_scrn_q1)) || "",
+      gender: cleanG,
+      location: loc,
+      user_name: effectiveUserName,
+      user_role: effectiveRole,
+      start_section: isSec16 ? 16 : undefined,
+      section_16_mode: isSec16,
+      ...(participant || {}),
+      ...q30Data,
+      ...surData,
+      participant_id: pid
+    };
   });
 
   useEffect(() => {
@@ -405,19 +459,52 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
       const loc = participant.location || participant.mem_scrn_q17 || getActiveLocation();
       const isSec16 = Boolean(participant.section_16_mode || participant.start_section === 16);
 
+      let surData = {};
+      if (participant.survey_data) {
+        try {
+          surData = typeof participant.survey_data === 'string' ? JSON.parse(participant.survey_data) : (participant.survey_data || {});
+        } catch (e) {}
+      }
+      let q30Data = {};
+      if (participant.mem_scrn_q30) {
+        try {
+          q30Data = typeof participant.mem_scrn_q30 === 'string' ? JSON.parse(participant.mem_scrn_q30) : (participant.mem_scrn_q30 || {});
+        } catch (e) {}
+      }
+
+      const rawG = participant.gender || participant.mem_scrn_q2;
+      let cleanG = "Male";
+      if (rawG) {
+        const gStr = String(rawG).toLowerCase().trim();
+        if (gStr.includes("female") || gStr === "2") cleanG = "Female";
+        else if (gStr.includes("trans") || gStr === "3") cleanG = "Transgender";
+        else if (gStr.includes("male") || gStr === "1") cleanG = "Male";
+        else cleanG = String(rawG);
+      }
+
       const isFamNo = Boolean(participant.is_family_number || participant.is_shared_family_no || participant.family_contact_flag === "Yes");
       setData(prev => ({
         ...prev,
         ...participant,
+        ...q30Data,
+        ...surData,
         participant_id: pid,
         contact_number: participant.contact_number || participant.mem_scrn_q18 || prev.contact_number,
         is_family_number: isFamNo,
         is_shared_family_no: isFamNo ? 1 : 0,
         family_contact_flag: isFamNo ? "Yes" : "No",
-        fullName: participant.fullName || participant.mem_scrn_q16 || prev.fullName,
+        fullName: (() => {
+          const raw = participant.fullName || participant.mem_scrn_q16 || participant.full_name || participant.name || prev.fullName || "";
+          if (typeof raw === 'string' && !['participant record', 'participant', 'unnamed participant', 'unnamed', 'null', 'undefined', 'n/a', 'na'].includes(raw.trim().toLowerCase())) {
+            return raw.trim();
+          }
+          return "";
+        })(),
         age: participant.age || participant.mem_scrn_q1 || prev.age,
-        gender: participant.gender || (participant.mem_scrn_q2 == "1" ? "Male" : "Female") || prev.gender,
+        gender: cleanG || prev.gender,
         location: loc,
+        user_name: activeUser?.username || prev.user_name || "",
+        user_role: activeUser?.role_name || (isSec16 ? "Field Supervisor" : prev.user_role || "Field Supervisor"),
         start_section: participant.start_section || (isSec16 ? 16 : prev.start_section),
         section_16_mode: isSec16 || prev.section_16_mode
       }));
@@ -429,11 +516,14 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     } else {
       const loc = getActiveLocation();
       fetchNextParticipantIDFromDB(loc).then(freshId => {
-        setData(prev => ({
-          ...prev,
-          location: loc,
-          participant_id: freshId || generateParticipantID(loc)
-        }));
+        setData(prev => {
+          if (participant && (participant.participant_id || participant.mem_scrn_part_id)) return prev;
+          return {
+            ...prev,
+            location: loc,
+            participant_id: freshId || generateParticipantID(loc)
+          };
+        });
       });
     }
   }, [participant]);
@@ -522,7 +612,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
     }
   }, [data.contact_number, data.participant_id]);
 
-  const roleLowerCheck = (data.user_role || activeUser?.role_name || activeUser?.role || "").toLowerCase();
+  const roleLowerCheck = String(data.user_role || activeUser?.role_name || activeUser?.role || "").toLowerCase();
   const isStaffNurseRole = roleLowerCheck.includes("nurse") || roleLowerCheck.includes("staff nurse");
 
   const handleCompleteSelf = () => {
@@ -989,15 +1079,12 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         const u = JSON.parse(userString);
         const role = u.role_name || "Field Supervisor";
         const loc = u.assigned_location || "Dharavi";
-        fetchNextParticipantIDFromDB(loc).then(freshId => {
-          setData(d => ({
-            ...d,
-            user_name: u.username || "DEO",
-            user_role: role,
-            location: loc,
-            participant_id: freshId || `NCD${getlocationPrefix(loc)}0001`
-          }));
-        });
+        setData(d => ({
+          ...d,
+          user_name: d.user_name || u.username || "DEO",
+          user_role: d.user_role || role,
+          location: d.location || loc
+        }));
       } catch (e) {}
     }
 
@@ -1049,14 +1136,6 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         });
         localStorage.setItem('ncd_used_participant_ids', JSON.stringify(Array.from(usedSet)));
       } catch (e) {}
-
-      const activeLoc = data.location || activeCenterLoc || "Dharavi";
-      fetchNextParticipantIDFromDB(activeLoc).then(freshParticipantId => {
-        setData(d => ({
-          ...d,
-          participant_id: freshParticipantId
-        }));
-      });
 
       allRecords.forEach((r, idx) => {
         let rawPayload = {};
@@ -2147,7 +2226,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         currentStageVal = "Case Coordinator Queue (Sec 14)";
         currentQueueVal = "Case Coordinator Queue";
       } else if (staffNurseCompleted) {
-        statusVal = "Clinical Screening Done (Sec 2-11 Done)";
+        statusVal = "Clinical Screening Done (Sec 2-7, 9-11 Done)";
         currentStageVal = "Doctor Review Queue (Sec 12-13)";
         currentQueueVal = "Doctor Queue";
       }
@@ -2189,6 +2268,13 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         const updatedList = [payload, ...existingList.filter(p => (p.participant_id || p.mem_scrn_part_id) !== payload.participant_id)];
         localStorage.setItem('ncd_local_initiated_participants', JSON.stringify(updatedList));
         localStorage.setItem('ncd_offline_queue', JSON.stringify(updatedList));
+
+        if (sec16Completed || isSec16Submission) {
+          const completedPidsRaw = localStorage.getItem('ncd_sec16_completed_pids');
+          const completedPids = new Set(completedPidsRaw ? JSON.parse(completedPidsRaw) : []);
+          completedPids.add(String(data.participant_id).toUpperCase().trim());
+          localStorage.setItem('ncd_sec16_completed_pids', JSON.stringify(Array.from(completedPids)));
+        }
       } catch (err) {}
 
       const contactDigits = String(data.contact_number || "").replace(/\D/g, "");
@@ -2226,7 +2312,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         : isFieldSupervisor 
           ? `Participant ${data.participant_id} demographics saved & sent to Staff Nurse queue.`
         : isCounselorSubmission
-          ? cSec15Done
+          ? counselorCompleted
             ? `Section 15 Health Counseling completed for Participant ${data.participant_id}!`
             : `Section 8 Counseling completed! Participant ${data.participant_id} moved back to Staff Nurse Queue for Section 9.`
           : isCoordinatorSubmission
@@ -2259,7 +2345,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
 
           <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-slate-200">
             <span className="text-xs font-extrabold text-slate-900 font-mono tracking-tight">
-              {data.user_role} • {activeUser?.user_code || activeUser?.username || activeUser?.user_name || data.user_name || "SN001"}
+              {data.user_role || activeUser?.role_name || "Field Supervisor"} • {activeUser?.user_code || activeUser?.username || activeUser?.user_name || data.user_name || "FS001"}
             </span>
           </div>
         </div>
@@ -2267,11 +2353,11 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
         {/* Assigned Location Pill, Operator & Exit Button */}
         <div className="flex items-center gap-2 sm:gap-3">
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200 font-mono shadow-2xs">
-            <MapPin size={11} className="text-amber-600 shrink-0" /> Center: {data.location || "Dharavi"}
+            <MapPin size={11} className="text-amber-600 shrink-0" /> Center: {data.location || activeUser?.assigned_location || "Dharavi"}
           </span>
 
           <span className="hidden md:inline-block text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full border border-slate-200 font-mono">
-            Operator: <strong>{data.user_name}</strong>
+            Operator: <strong>{data.user_name || activeUser?.username || activeUser?.user_code || "FS001"}</strong>
           </span>
 
           <button 
@@ -2289,19 +2375,23 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
           <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${step === 0 ? 'bg-amber-500 text-slate-950' : 'bg-slate-900 text-white'}`}>
             1
           </span>
-          <span>PARTICIPANT SELECTION</span>
+          <span>{isFieldSupervisor ? "PARTICIPANT SELECTION & DEMOGRAPHICS" : "PARTICIPANT SELECTION"}</span>
         </div>
         <span className="text-slate-300">───</span>
         <div className={`flex items-center gap-2 ${step >= 1 ? 'text-slate-900' : 'text-slate-400'}`}>
           <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${step === 1 ? 'bg-amber-500 text-slate-950' : 'bg-slate-300 text-slate-600'}`}>
             2
           </span>
-          <span>{data.user_role.toUpperCase()} CLINICAL MODULES</span>
+          <span>
+            {isFieldSupervisor 
+              ? (data.section_16_mode ? "FIELD SUPERVISOR OBSERVATIONS (SEC 16)" : "FIELD SUPERVISOR DEMOGRAPHIC MODULES") 
+              : `${(data.user_role || activeUser?.role_name || "STAFF NURSE").toUpperCase()} CLINICAL MODULES`}
+          </span>
         </div>
       </div>
 
       {/* Main Form Body */}
-      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 pb-20">
+      <main ref={mainContainerRef} className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 pb-20">
         {isSubmitted ? (
           <div className="max-w-3xl mx-auto py-8 px-2 animate-in zoom-in-95 duration-300 space-y-6">
             
@@ -2333,85 +2423,179 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                     {isFieldSupervisor ? "Screening Initiated Successfully!" : "Clinical Entry Transmitted!"}
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-800 font-semibold leading-relaxed">
-                    Participant Record <span className="font-mono font-black text-[#f5d40b] bg-slate-900 px-2.5 py-0.5 rounded-lg shadow-2xs">{data.participant_id}</span> has been processed and saved.
+                    Participant <span className="font-mono font-black text-[#f5d40b] bg-slate-900 px-2.5 py-0.5 rounded-lg shadow-2xs">{data.participant_id}</span> has been processed and saved.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Summary Metadata Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">Participant ID</span>
-                <p className="text-sm font-black text-slate-900 font-mono truncate">{data.participant_id}</p>
-              </div>
+            {(() => {
+              const roleLower = (data.user_role || activeUser?.role_name || "").toLowerCase();
+              const isNurseRole = roleLower.includes("nurse");
+              const isDoctorRole = roleLower.includes("doctor");
+              const isCoordinatorRole = roleLower.includes("coordinator");
+              const isCounselorRole = roleLower.includes("counselor");
+              const isSec16Submission = Boolean(data.section_16_mode || data.start_section === 16 || participant?.section_16_mode || data.section_16_completed);
 
-              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">Screening Center</span>
-                <p className="text-sm font-bold text-slate-900 truncate">{data.location || "Dharavi"} Center</p>
-              </div>
+              const isSec1Done = true;
+              const isSecNurseDone = Boolean(data.staff_nurse_completed || isNurseRole || isDoctorRole || isCoordinatorRole || isCounselorRole || isSec16Submission);
+              const isSecDoctorDone = Boolean(data.doctor_completed || isDoctorRole || isCoordinatorRole || isCounselorRole || isSec16Submission);
+              const isSecCoordDone = Boolean(data.coordinator_completed || isCoordinatorRole || isCounselorRole || isSec16Submission);
+              const isSecCounselDone = Boolean(data.counselor_sec15_completed || isCounselorRole || isSec16Submission);
+              const isSec16Done = Boolean(data.section_16_completed || isSec16Submission);
 
-              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">Submitted By</span>
-                <p className="text-sm font-bold text-slate-900 truncate">{data.user_role}</p>
-              </div>
+              let currentQueueDisplay = "Staff Nurse Queue";
+              let completedStageCount = 1;
 
-              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">Current Queue</span>
-                <p className="text-xs font-black text-[#4a4a4c] bg-[#f5d40b]/30 px-2 py-1 rounded-lg border border-[#f5d40b]/50 inline-block font-mono truncate">
-                  {isFieldSupervisor ? "Staff Nurse Queue" : "Active Pipeline"}
-                </p>
-              </div>
-            </div>
+              if (isSec16Done) {
+                currentQueueDisplay = "Completed (All 16 Sections Done)";
+                completedStageCount = 4;
+              } else if (isSecCounselDone || isSecCoordDone) {
+                currentQueueDisplay = "Section 16 Queue (Field Supervisor)";
+                completedStageCount = 3;
+              } else if (isSecDoctorDone) {
+                currentQueueDisplay = "Case Coordinator Queue (Sec 14)";
+                completedStageCount = 3;
+              } else if (isSecNurseDone) {
+                currentQueueDisplay = "Doctor Review Queue (Sec 12-13)";
+                completedStageCount = 2;
+              }
 
-            {/* Multi-Role Clinical Pipeline Progress Tracker */}
-            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-2xs space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <Shield size={16} className="text-amber-600" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 font-mono">
-                    Participant Workflow Pipeline Progression
-                  </h3>
-                </div>
-                <span className="text-[11px] font-bold text-emerald-600 font-mono">Stage 1 of 4 Completed</span>
-              </div>
+              return (
+                <>
+                  {/* Summary Metadata Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">Participant ID</span>
+                      <p className="text-sm font-black text-slate-900 font-mono truncate">{data.participant_id}</p>
+                    </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1">
-                <div className="p-3.5 rounded-2xl bg-emerald-50/80 border border-emerald-300 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase text-emerald-800 font-mono">Stage 1</span>
-                    <CheckCircle2 size={14} className="text-emerald-600" />
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">Screening Center</span>
+                      <p className="text-sm font-bold text-slate-900 truncate">{data.location || "Dharavi"} Center</p>
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">Submitted By</span>
+                      <p className="text-sm font-bold text-slate-900 truncate">{data.user_role}</p>
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">Current Queue</span>
+                      <p className="text-xs font-black text-[#4a4a4c] bg-[#f5d40b]/30 px-2 py-1 rounded-lg border border-[#f5d40b]/50 inline-block font-mono truncate">
+                        {currentQueueDisplay}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-xs font-black text-emerald-950">Field Supervisor</p>
-                  <p className="text-[10px] font-bold text-emerald-700 font-mono">Demographics Completed</p>
-                </div>
 
-                <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-300 space-y-1 shadow-2xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase text-amber-800 font-mono">Stage 2</span>
-                    <Clock size={14} className="text-amber-600 animate-pulse" />
-                  </div>
-                  <p className="text-xs font-black text-amber-950">Staff Nurse</p>
-                  <p className="text-[10px] font-bold text-amber-800 font-mono">Queued (Sections 2-7)</p>
-                </div>
+                  {/* Multi-Role Clinical Pipeline Progress Tracker */}
+                  <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-2xs space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Shield size={16} className="text-amber-600" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 font-mono">
+                          Participant Workflow Pipeline Progression
+                        </h3>
+                      </div>
+                      <span className="text-[11px] font-bold text-emerald-600 font-mono">
+                        Stage {completedStageCount} of 4 Completed
+                      </span>
+                    </div>
 
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1 opacity-60">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase text-slate-400 font-mono">Stage 3</span>
-                  </div>
-                  <p className="text-xs font-bold text-slate-700">Doctor Exam</p>
-                  <p className="text-[10px] font-medium text-slate-500 font-mono">Pending (Sections 8-11)</p>
-                </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1">
+                      {/* Stage 1: Field Supervisor */}
+                      <div className="p-3.5 rounded-2xl bg-emerald-50/80 border border-emerald-300 space-y-1 shadow-2xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase text-emerald-800 font-mono">Stage 1</span>
+                          <CheckCircle2 size={14} className="text-emerald-600" />
+                        </div>
+                        <p className="text-xs font-black text-emerald-950">Field Supervisor</p>
+                        <p className="text-[10px] font-bold text-emerald-700 font-mono">Demographics Completed (Sec 1)</p>
+                      </div>
 
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1 opacity-60">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase text-slate-400 font-mono">Stage 4</span>
+                      {/* Stage 2: Staff Nurse */}
+                      {isSecNurseDone ? (
+                        <div className="p-3.5 rounded-2xl bg-emerald-50/80 border border-emerald-300 space-y-1 shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black uppercase text-emerald-800 font-mono">Stage 2</span>
+                            <CheckCircle2 size={14} className="text-emerald-600" />
+                          </div>
+                          <p className="text-xs font-black text-emerald-950">Staff Nurse</p>
+                          <p className="text-[10px] font-bold text-emerald-700 font-mono">Screening Done (Sec 2–7, 9–11)</p>
+                        </div>
+                      ) : (
+                        <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-300 space-y-1 shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black uppercase text-amber-800 font-mono">Stage 2</span>
+                            <Clock size={14} className="text-amber-600 animate-pulse" />
+                          </div>
+                          <p className="text-xs font-black text-amber-950">Staff Nurse</p>
+                          <p className="text-[10px] font-bold text-amber-800 font-mono">Queued (Sections 2–7, 9–11)</p>
+                        </div>
+                      )}
+
+                      {/* Stage 3: Doctor Exam */}
+                      {isSecDoctorDone ? (
+                        <div className="p-3.5 rounded-2xl bg-emerald-50/80 border border-emerald-300 space-y-1 shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black uppercase text-emerald-800 font-mono">Stage 3</span>
+                            <CheckCircle2 size={14} className="text-emerald-600" />
+                          </div>
+                          <p className="text-xs font-black text-emerald-950">Doctor Exam</p>
+                          <p className="text-[10px] font-bold text-emerald-700 font-mono">Clinical Exam Done (Sec 12–13)</p>
+                        </div>
+                      ) : isSecNurseDone ? (
+                        <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-300 space-y-1 shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black uppercase text-amber-800 font-mono">Stage 3</span>
+                            <Clock size={14} className="text-amber-600 animate-pulse" />
+                          </div>
+                          <p className="text-xs font-black text-amber-950">Doctor Exam</p>
+                          <p className="text-[10px] font-bold text-amber-800 font-mono">Queued (Sections 12–13)</p>
+                        </div>
+                      ) : (
+                        <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1 opacity-60">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 font-mono">Stage 3</span>
+                          </div>
+                          <p className="text-xs font-bold text-slate-700">Doctor Exam</p>
+                          <p className="text-[10px] font-medium text-slate-500 font-mono">Pending (Sections 12–13)</p>
+                        </div>
+                      )}
+
+                      {/* Stage 4: Counselor / Linkage / Exit Perception */}
+                      {isSec16Done || (isSecCounselDone && isSecCoordDone) ? (
+                        <div className="p-3.5 rounded-2xl bg-emerald-50/80 border border-emerald-300 space-y-1 shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black uppercase text-emerald-800 font-mono">Stage 4</span>
+                            <CheckCircle2 size={14} className="text-emerald-600" />
+                          </div>
+                          <p className="text-xs font-black text-emerald-950">Counselor / Linkage</p>
+                          <p className="text-[10px] font-bold text-emerald-700 font-mono">Counseling &amp; Exit Done (Sec 8, 14–16)</p>
+                        </div>
+                      ) : isSecDoctorDone ? (
+                        <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-300 space-y-1 shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black uppercase text-amber-800 font-mono">Stage 4</span>
+                            <Clock size={14} className="text-amber-600 animate-pulse" />
+                          </div>
+                          <p className="text-xs font-black text-amber-950">Counselor / Linkage</p>
+                          <p className="text-[10px] font-bold text-amber-800 font-mono">Queued (Sections 8, 14–16)</p>
+                        </div>
+                      ) : (
+                        <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1 opacity-60">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 font-mono">Stage 4</span>
+                          </div>
+                          <p className="text-xs font-bold text-slate-700">Counselor / Linkage</p>
+                          <p className="text-[10px] font-medium text-slate-500 font-mono">Pending (Sections 8, 14–16)</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-xs font-bold text-slate-700">Counselor / Linkage</p>
-                  <p className="text-[10px] font-medium text-slate-500 font-mono">Pending (Sections 12-16)</p>
-                </div>
-              </div>
-            </div>
+                </>
+              );
+            })()}
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
@@ -2520,87 +2704,49 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                   const isNurseDone = Boolean(
                     raw.staff_nurse_completed === true || 
                     raw.completed_by_staff_nurse === true || 
-                    raw.sections_2_8_completed === true || 
-                    raw.current_queue === "Doctor Queue" ||
-                    raw.current_queue === "Case Coordinator Queue" ||
-                    raw.current_queue === "Counselor Queue" ||
-                    raw.current_queue === "Section 16 Queue" ||
-                    raw.current_queue === "Completed" ||
-                    raw.current_stage === "Doctor Review Queue (Sec 12-13)" ||
-                    raw.current_stage === "Case Coordinator Queue (Sec 14)" ||
-                    raw.current_stage === "Counselor Queue (Sec 15)" ||
-                    raw.current_stage === "Section 16 Queue (Field Supervisor)" ||
-                    raw.current_stage === "Fully Completed" ||
-                    String(raw.status || "").toLowerCase().includes("clinical screening done") ||
-                    String(raw.status || "").toLowerCase().includes("doctor") ||
-                    String(raw.status || "").toLowerCase().includes("counsel") ||
-                    String(raw.status || "").toLowerCase().includes("completed") ||
-                    raw.q9 !== undefined ||
-                    raw.q17 !== undefined ||
-                    raw.q25 !== undefined ||
-                    raw.q58 !== undefined ||
-                    raw.q59 !== undefined ||
-                    raw.q60 !== undefined ||
-                    raw.bp_systolic !== undefined ||
-                    raw.bp_sys !== undefined
+                    Boolean(raw.nurse_timestamp) ||
+                    (raw.bp_sys && String(raw.bp_sys) !== '0' && raw.height)
                   );
 
                   const isDoctorDone = Boolean(
                     raw.doctor_completed === true || 
                     raw.completed_by_doctor === true || 
-                    raw.sections_9_15_completed === true || 
-                    raw.current_queue === "Case Coordinator Queue" ||
-                    raw.current_queue === "Counselor Queue" ||
-                    raw.current_queue === "Section 16 Queue" ||
-                    raw.current_queue === "Completed" ||
-                    raw.current_stage === "Case Coordinator Queue (Sec 14)" ||
-                    raw.current_stage === "Counselor Queue (Sec 15)" ||
-                    raw.current_stage === "Section 16 Queue (Field Supervisor)" ||
-                    raw.current_stage === "Fully Completed" ||
-                    String(raw.status || "").toLowerCase().includes("doctor clinical exam done") ||
-                    raw.q89 !== undefined ||
-                    raw.q90 !== undefined ||
-                    raw.q93 !== undefined ||
-                    raw.cvd_risk_assessment !== undefined ||
-                    raw.overall_risk_rating !== undefined
+                    Boolean(raw.doctor_timestamp) ||
+                    Boolean(raw.doctor_user) ||
+                    (raw.doctor_notes && String(raw.doctor_notes).trim() !== "") ||
+                    (raw.cvd_risk_assessment && String(raw.cvd_risk_assessment).trim() !== "" && raw.cvd_risk_assessment !== "Standard Risk")
                   );
 
                   const isCoordinatorDone = Boolean(
                     raw.coordinator_completed === true || 
                     raw.completed_by_coordinator === true || 
-                    raw.current_queue === "Counselor Queue" ||
-                    raw.current_queue === "Section 16 Queue" ||
-                    raw.current_queue === "Completed" ||
-                    raw.current_stage === "Counselor Queue (Sec 15)" ||
-                    raw.current_stage === "Section 16 Queue (Field Supervisor)" ||
-                    raw.current_stage === "Fully Completed" ||
-                    String(raw.status || "").toLowerCase().includes("linkages completed") ||
-                    raw.q97 !== undefined ||
-                    raw.q104 !== undefined
+                    Boolean(raw.coordinator_timestamp) ||
+                    (raw.linkage_status && String(raw.linkage_status).trim() !== "")
+                  );
+
+                  const isSec8Done = Boolean(
+                    raw.counselor_section_completed === true || 
+                    raw.counselor_sec8_completed === true ||
+                    (raw.gad7_score !== undefined && String(raw.gad7_score) !== "") ||
+                    (raw.phq9_score !== undefined && String(raw.phq9_score) !== "")
                   );
 
                   const isCounselorDone = Boolean(
                     raw.counselor_sec15_completed === true || 
                     raw.completed_by_counselor === true || 
-                    raw.current_queue === "Section 16 Queue" ||
-                    raw.current_queue === "Completed" ||
-                    raw.current_stage === "Section 16 Queue (Field Supervisor)" ||
-                    raw.current_stage === "Fully Completed" ||
-                    String(raw.status || "").toLowerCase().includes("counseling completed") ||
-                    raw.q107 !== undefined
+                    Boolean(raw.counselor_timestamp) ||
+                    (raw.counseling_notes && String(raw.counseling_notes).trim() !== "") ||
+                    isSec8Done
                   );
 
                   const isSec16Done = Boolean(
                     raw.section_16_completed === true || 
                     raw.completed_by_section16 === true || 
                     raw.sec_16_done === true ||
-                    raw.current_queue === "Completed" ||
-                    raw.current_stage === "Fully Completed" ||
-                    String(raw.status || "").toLowerCase().includes("all 16 sections") ||
-                    raw.q112 !== undefined
+                    Boolean(raw.sec16_timestamp)
                   );
 
-                  // Staff Nurse: Hide if Nurse has already finished Sec 2-11
+                  // Staff Nurse: Show all initiated participants whose Staff Nurse screening (Sec 2-11) is NOT done
                   if (isNurseLogin || isNurse) {
                     if (isNurseDone) return false;
                     return true;
@@ -2620,9 +2766,8 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                     return true;
                   }
 
-                  // Counselor: Show only if Coordinator/Doctor finished, and Counselor has NOT finished Sec 15
+                  // Counselor: Show only if Counselor has NOT finished Sec 15
                   if (isCounselorLogin || isCounselor) {
-                    if (!isCoordinatorDone && !isDoctorDone) return false;
                     if (isCounselorDone) return false;
                     return true;
                   }
@@ -2828,7 +2973,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                   onClick={handleProceedNext}
                   className="px-7 py-3 rounded-full text-xs font-black bg-[#f5d40b] text-[#4a4a4c] hover:bg-[#e0c20a] transition-all flex items-center gap-2.5 shadow-sm cursor-pointer border border-[#e5c40a]"
                 >
-                  <span>Proceed to {data.user_role} Modules</span>
+                  <span>Proceed to {isFieldSupervisor ? "Field Supervisor" : (data.user_role || activeUser?.role_name || "Screening")} Modules</span>
                   <ArrowRight size={15} className="text-[#4a4a4c]" />
                 </button>
               </div>
@@ -2851,7 +2996,7 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
               <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900">
-                    {data.user_role} • {activeUser?.user_code || activeUser?.username || activeUser?.user_name || data.user_name || "SN001"}
+                    {data.user_role || activeUser?.role_name || "Field Supervisor"} • {activeUser?.user_code || activeUser?.username || activeUser?.user_name || data.user_name || "FS001"}
                   </h2>
                   <p className="text-xs text-slate-500 mt-1 font-medium font-mono">
                     Participant ID: <strong className="text-slate-900 font-bold">{data.participant_id}</strong> {data.age ? `• Age: ${data.age}` : ''} {data.gender ? `• ${data.gender}` : ''}
@@ -4080,77 +4225,43 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                                             const colVal = getOptionLabel(col);
                                             const colCode = getOptionCode(col, cIdx);
                                             const isChecked = String(curRowVal).trim() === String(colVal).trim() || String(curRowVal).trim() === String(colCode).trim();
+                                            const inputId = `matrix_${q.id}_${rowKey}_${cIdx}`;
 
-                                            const isNotAtAllCol = cIdx === 0 || String(colVal).toLowerCase().includes('not at all') || String(colVal).toLowerCase().includes('normal') || String(colVal).toLowerCase().includes('no loss') || String(colCode) === '0' || String(colCode) === '1';
+                                            const handleSelectMatrixCell = () => {
+                                              updateCustomField({ id: matrixValKey }, colVal);
+                                              setData(prev => {
+                                                const curObj = (typeof prev[q.id] === 'object' && prev[q.id] !== null) ? { ...prev[q.id] } : {};
+                                                curObj[rowKey] = colVal;
+                                                return {
+                                                  ...prev,
+                                                  [matrixValKey]: colVal,
+                                                  [q.id]: curObj
+                                                };
+                                              });
+                                            };
 
                                             return (
-                                              <td key={cIdx} className="py-3.5 px-3 text-center">
+                                              <td 
+                                                key={cIdx} 
+                                                className="py-3.5 px-3 text-center cursor-pointer"
+                                                onClick={handleSelectMatrixCell}
+                                              >
                                                 <label 
-                                                  onClick={() => {
-                                                    if (isNotAtAllCol) {
-                                                      if (isChecked) {
-                                                        // Toggle off if clicking already checked "Not at all" / "Normal (No loss)"
-                                                        updateCustomField({ id: matrixValKey }, '');
-                                                        setData(prev => {
-                                                          const curObj = (typeof prev[q.id] === 'object' && prev[q.id] !== null) ? { ...prev[q.id] } : {};
-                                                          delete curObj[rowKey];
-                                                          const updated = { ...prev, [matrixValKey]: '', [q.id]: curObj };
-                                                          delete updated[matrixValKey];
-                                                          return updated;
-                                                        });
-                                                      } else {
-                                                        // Select "Not at all" for current row & clear "Not at all" from all other rows in this matrix
-                                                        updateCustomField({ id: matrixValKey }, colVal);
-                                                        setData(prev => {
-                                                          const curObj = (typeof prev[q.id] === 'object' && prev[q.id] !== null) ? { ...prev[q.id] } : {};
-                                                          const updated = { ...prev };
-
-                                                          mRows.forEach((r, idx) => {
-                                                            const rKey = typeof r === 'object' ? r.id || `row_${idx + 1}` : `row_${idx + 1}`;
-                                                            const rValKey = `${q.id}_${rKey}`;
-                                                            const existingVal = String(prev[rValKey] || (prev[q.id] && prev[q.id][rKey]) || '').toLowerCase().trim();
-
-                                                            if (rKey !== rowKey && (existingVal.includes('not at all') || existingVal.includes('normal') || existingVal.includes('no loss') || existingVal === '0' || existingVal === '1' || existingVal === 'code 0' || existingVal === 'code 1')) {
-                                                              delete updated[rValKey];
-                                                              delete curObj[rKey];
-                                                              updateCustomField({ id: rValKey }, '');
-                                                            }
-                                                          });
-
-                                                          curObj[rowKey] = colVal;
-                                                          updated[matrixValKey] = colVal;
-                                                          updated[q.id] = curObj;
-                                                          return updated;
-                                                        });
-                                                      }
-                                                    } else {
-                                                      // Standard matrix option selection
-                                                      updateCustomField({ id: matrixValKey }, colVal);
-                                                      setData(prev => {
-                                                        const curObj = (typeof prev[q.id] === 'object' && prev[q.id] !== null) ? prev[q.id] : {};
-                                                        return {
-                                                          ...prev,
-                                                          [matrixValKey]: colVal,
-                                                          [q.id]: {
-                                                            ...curObj,
-                                                            [rowKey]: colVal
-                                                          }
-                                                        };
-                                                      });
-                                                    }
-                                                  }}
+                                                  htmlFor={inputId}
+                                                  onClick={(e) => e.stopPropagation()}
                                                   className={`inline-flex items-center justify-center p-2 rounded-full border transition-all cursor-pointer ${
                                                     isChecked 
-                                                      ? 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs ring-2 ring-amber-400' 
+                                                      ? 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs ring-2 ring-amber-400 scale-105' 
                                                       : 'bg-white border-slate-300 text-slate-400 hover:bg-slate-50 hover:text-slate-700'
                                                   }`}
                                                 >
                                                   <input
+                                                    id={inputId}
                                                     type="radio"
                                                     name={`${q.id}_${rowKey}`}
                                                     checked={isChecked}
-                                                    onChange={() => {}}
-                                                    className="w-4 h-4 text-amber-600 focus:ring-0 cursor-pointer"
+                                                    onChange={handleSelectMatrixCell}
+                                                    className="w-4 h-4 text-amber-600 focus:ring-2 focus:ring-amber-400 cursor-pointer"
                                                   />
                                                 </label>
                                               </td>
@@ -4636,6 +4747,10 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                           onClick={(e) => {
                             e.preventDefault();
                             setQPage(p => Math.max(0, p - 1));
+                            if (mainContainerRef.current) {
+                              mainContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+                            }
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
                           }} 
                           className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 border border-slate-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
                         >
@@ -4648,6 +4763,10 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                           onClick={(e) => {
                             e.preventDefault();
                             setStep(0);
+                            if (mainContainerRef.current) {
+                              mainContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+                            }
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
                           }} 
                           className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer text-center"
                         >
@@ -4674,6 +4793,10 @@ export function DynamicSurveyForm({ participant, onCancel, onSubmit, notify }) {
                           e.preventDefault();
                           if (!validateCurrentPageQuestions()) return;
                           setQPage(p => Math.min(totalQPages - 1, p + 1));
+                          if (mainContainerRef.current) {
+                            mainContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+                          }
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
                         }} 
                         className="px-6 py-2.5 rounded-xl text-xs font-black bg-[#f5d40b] text-[#4a4a4c] hover:bg-[#e0c20a] transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer border border-[#e5c40a]"
                       >

@@ -307,16 +307,17 @@ export function UserManagement({ notify, onOpenMobileMenu }) {
   };
 
   const filteredUsers = users.filter(u => {
-    const matchesTenant = selectedTenant === "All" || (u.location || u.loc_code || "").toLowerCase() === selectedTenant.toLowerCase();
-    const matchesRole = selectedRoleFilter === "All" || (u.role || "").toLowerCase() === selectedRoleFilter.toLowerCase();
-    const matchesStatus = selectedStatusFilter === "All" || String(u.status) === selectedStatusFilter;
+    const matchesTenant = selectedTenant === "All" || String(u.location || u.loc_code || "").toLowerCase() === String(selectedTenant).toLowerCase();
+    const matchesRole = selectedRoleFilter === "All" || String(u.role || "").toLowerCase() === String(selectedRoleFilter).toLowerCase();
+    const matchesStatus = selectedStatusFilter === "All" || String(u.status) === String(selectedStatusFilter);
+    const term = String(searchTerm || "").toLowerCase().trim();
     const matchesSearch = 
-      !searchTerm ||
-      (u.username && u.username.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (u.full_name && u.full_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (u.email && u.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (u.role && u.role.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (u.location && u.location.toLowerCase().includes(searchTerm.toLowerCase()));
+      !term ||
+      (u.username && String(u.username).toLowerCase().includes(term)) ||
+      (u.full_name && String(u.full_name).toLowerCase().includes(term)) ||
+      (u.email && String(u.email).toLowerCase().includes(term)) ||
+      (u.role && String(u.role).toLowerCase().includes(term)) ||
+      (u.location && String(u.location).toLowerCase().includes(term));
     return matchesTenant && matchesRole && matchesStatus && matchesSearch;
   });
 

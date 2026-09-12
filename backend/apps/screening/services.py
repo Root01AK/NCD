@@ -113,10 +113,11 @@ class ScreeningSubmissionService:
         cls.ensure_table_exists()
 
         now = int(time.time())
-        payload['mem_scrn_part_id'] = part_id
+        part_id_clean = str(part_id).strip()
+        payload['mem_scrn_part_id'] = part_id_clean
         payload['record_date'] = now
 
-        existing = CmsScreening.objects.filter(mem_scrn_part_id=part_id).first()
+        existing = CmsScreening.objects.filter(mem_scrn_part_id__iexact=part_id_clean).first()
 
         if existing:
             old_json = {}
@@ -139,6 +140,10 @@ class ScreeningSubmissionService:
             existing.mem_scrn_q2 = '1' if gender_val in ('Male', '1', 'm') else '2'
             existing.mem_scrn_q17 = merged.get('location') or merged.get('mem_scrn_q17') or existing.mem_scrn_q17
             existing.mem_scrn_loc = merged.get('location') or existing.mem_scrn_loc
+            if payload.get('eligible') is not None:
+                existing.mem_scrn_q24 = 1 if payload.get('eligible') else 0
+            if payload.get('enrolled') is not None:
+                existing.mem_scrn_q25 = 1 if payload.get('enrolled') else 0
             existing.update_time = now
             existing.save()
         else:

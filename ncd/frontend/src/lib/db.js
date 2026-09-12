@@ -29,9 +29,34 @@ export const saveToQueue = async (record) => {
     // Stamp the record with a timestamp before saving
     record.timestamp = new Date().toISOString();
     
-    const request = store.put(record);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    const pid = record.participant_id || record.mem_scrn_part_id;
+    if (pid && !record.local_id) {
+      const getAllReq = store.getAll();
+      getAllReq.onsuccess = () => {
+        const all = getAllReq.result || [];
+        const existing = all.find(r => (r.participant_id || r.mem_scrn_part_id) === pid);
+        if (existing && existing.local_id) {
+          record.local_id = existing.local_id;
+          const merged = { ...existing, ...record };
+          const putReq = store.put(merged);
+          putReq.onsuccess = () => resolve(putReq.result);
+          putReq.onerror = () => reject(putReq.error);
+        } else {
+          const putReq = store.put(record);
+          putReq.onsuccess = () => resolve(putReq.result);
+          putReq.onerror = () => reject(putReq.error);
+        }
+      };
+      getAllReq.onerror = () => {
+        const putReq = store.put(record);
+        putReq.onsuccess = () => resolve(putReq.result);
+        putReq.onerror = () => reject(putReq.error);
+      };
+    } else {
+      const request = store.put(record);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    }
   });
 };
 

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { Wifi, WifiOff, FileText, ArrowRight, LogOut, Loader2, Home, FolderSync, ClipboardCheck, UserCircle2, RefreshCw, MapPin, Database, Award, Shield, UserCheck, CheckCircle2, AlertCircle, Search, Download, Eye, X, Menu, Trash2 } from "lucide-react";
+import { Wifi, WifiOff, FileText, ArrowRight, LogOut, Loader2, Home, FolderSync, ClipboardCheck, UserCircle2, RefreshCw, MapPin, Database, Award, Shield, UserCheck, CheckCircle2, AlertCircle, Search, Download, Eye, X, Menu, Trash2, Calendar, Filter, Activity, Heart, Stethoscope, User, AlertTriangle, Check, ChevronRight } from "lucide-react";
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { getQueue, deleteFromQueue } from "../../lib/db";
 import { Mark } from "../../components/ui/Mark";
+import { GenderBadge } from "../admin/ParticipantManagement";
 
 export const SECTION_NAMES = {
   1: "Demographics (Sec 1)",
@@ -39,6 +40,39 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
   const [syncGenderFilter, setSyncGenderFilter] = useState("All");
   const [selectedSyncIds, setSelectedSyncIds] = useState([]);
   const [selectedQaModalItem, setSelectedQaModalItem] = useState(null);
+
+  // States for Completed Screening Records Redesign
+  const [completedSearch, setCompletedSearch] = useState("");
+  const [completedRiskFilter, setCompletedRiskFilter] = useState("All");
+  const [completedStatusFilter, setCompletedStatusFilter] = useState("All");
+  const [selectedCompletedDetail, setSelectedCompletedDetail] = useState(null);
+
+  const exportCompletedRecordsCSV = (recordsToExport) => {
+    if (!recordsToExport || recordsToExport.length === 0) {
+      if (notify) notify("error", "No Records", "No completed screening records available to export.");
+      return;
+    }
+    const headers = ["Participant ID", "Full Name", "Age", "Gender", "Date", "Location", "Risk Level", "Status"];
+    const rows = recordsToExport.map(r => [
+      `"${r.participant_id || ''}"`,
+      `"${r.fullName || ''}"`,
+      r.age || '',
+      `"${r.gender || ''}"`,
+      `"${r.date || ''}"`,
+      `"${r.location || ''}"`,
+      `"${r.risk || 'Standard Risk'}"`,
+      `"${r.status || 'Completed'}"`
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Completed_Screenings_${activeLocation || 'Dharavi'}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    if (notify) notify("success", "Exported CSV", `Exported ${recordsToExport.length} completed screening records.`);
+  };
 
   const exportSyncQueueCSV = (customList = null) => {
     let listToExport = customList;
@@ -271,75 +305,87 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
 
         // Check if this record is completed by current role (or general completed)
         const isNurseDone = Boolean(
-          full.staff_nurse_completed || 
-          full.completed_by_staff_nurse || 
-          full.sections_2_8_completed || 
-          full.current_queue === "Doctor Queue" ||
-          full.current_queue === "Case Coordinator Queue" ||
-          full.current_queue === "Counselor Queue" ||
-          full.current_queue === "Section 16 Queue" ||
-          full.current_queue === "Completed" ||
-          full.current_stage === "Doctor Review Queue (Sec 12-13)" ||
-          full.current_stage === "Case Coordinator Queue (Sec 14)" ||
-          full.current_stage === "Counselor Queue (Sec 15)" ||
-          full.current_stage === "Section 16 Queue (Field Supervisor)" ||
-          full.current_stage === "Fully Completed" ||
-          full.q9 !== undefined || 
-          full.q17 !== undefined ||
-          full.q25 !== undefined ||
-          full.bp_systolic !== undefined ||
-          full.bp_sys !== undefined
+          full.staff_nurse_completed === true || 
+          full.completed_by_staff_nurse === true || 
+          Boolean(full.nurse_timestamp) ||
+          (full.bp_sys && String(full.bp_sys) !== '0' && full.height)
         );
 
         const isDoctorDone = Boolean(
-          full.doctor_completed || 
-          full.completed_by_doctor || 
-          full.sections_9_15_completed || 
-          full.q89 !== undefined ||
-          full.q90 !== undefined ||
-          full.q93 !== undefined
+          full.doctor_completed === true || 
+          full.completed_by_doctor === true || 
+          Boolean(full.doctor_timestamp) ||
+          Boolean(full.doctor_user) ||
+          (full.doctor_notes && String(full.doctor_notes).trim() !== "")
         );
 
-        const isCoordDone = Boolean(full.coordinator_completed || full.completed_by_coordinator || full.q97 !== undefined);
-        const isCounselDone = Boolean(full.counselor_sec15_completed || full.completed_by_counselor || full.q107 !== undefined);
-        const isSec16Done = Boolean(full.section_16_completed || full.sec_16_done || full.q112 !== undefined);
+        const isSec8Done = Boolean(
+          full.counselor_section_completed === true || 
+          full.counselor_sec8_completed === true ||
+          (full.gad7_score !== undefined && String(full.gad7_score) !== "") ||
+          (full.phq9_score !== undefined && String(full.phq9_score) !== "") ||
+          (full.answers && (full.answers.q58 || full.answers.q61 || full.answers.q65))
+        );
 
-        const isSupervisor = (user.role_name || user.role || "").toLowerCase().includes("supervisor");
-        const isNurseRole = (user.role_name || user.role || "").toLowerCase().includes("nurse");
-        const isDoctorRole = (user.role_name || user.role || "").toLowerCase().includes("doctor");
-        const isCoordRole = (user.role_name || user.role || "").toLowerCase().includes("coordinator");
-        const isCounselRole = (user.role_name || user.role || "").toLowerCase().includes("counselor");
+        const isCoordDone = Boolean(
+          full.coordinator_completed === true || 
+          full.completed_by_coordinator === true || 
+          Boolean(full.coordinator_timestamp) ||
+          (full.linkage_status && String(full.linkage_status).trim() !== "")
+        );
 
-        let isCompletedForThisRole = false;
-        if (isNurseRole) {
-          isCompletedForThisRole = isNurseDone;
-        } else if (isDoctorRole) {
-          isCompletedForThisRole = isDoctorDone;
-        } else if (isCoordRole) {
-          isCompletedForThisRole = isCoordDone;
-        } else if (isCounselRole) {
-          isCompletedForThisRole = isCounselDone;
-        } else if (isSupervisor) {
-          isCompletedForThisRole = isSec16Done || isNurseDone || Boolean(full.demographics_completed);
-        } else {
-          isCompletedForThisRole = isNurseDone || isDoctorDone || isSec16Done;
-        }
+        const isCounselDone = Boolean(
+          full.counselor_sec15_completed === true || 
+          full.completed_by_counselor === true || 
+          Boolean(full.counselor_timestamp) ||
+          (full.counseling_notes && String(full.counseling_notes).trim() !== "") ||
+          isSec8Done
+        );
 
-        if (!isCompletedForThisRole) return;
+        const isSec16Done = Boolean(
+          (full.section_16_completed === true || full.completed_by_section16 === true || full.sec_16_done === true) &&
+          isNurseDone && isDoctorDone && isCoordDone && isCounselDone
+        );
 
         const prev = recordMap.get(pid);
         const merged = prev ? { ...prev.raw, ...full } : full;
 
-        let statusText = "Completed";
-        if (isSec16Done) statusText = "Fully Completed (All 16 Sec)";
-        else if (isCounselDone) statusText = "Counseling Completed";
-        else if (isCoordDone) statusText = "Linkages Completed";
-        else if (isDoctorDone) statusText = "Doctor Review Completed";
-        else if (isNurseDone) statusText = "Staff Nurse Screening Done";
+        // Clean name resolution
+        const rawName = merged.fullName || merged.mem_scrn_q16 || merged.full_name || merged.name || "";
+        let cleanName = "";
+        if (typeof rawName === 'string') {
+          const t = rawName.trim();
+          const l = t.toLowerCase();
+          if (
+            t.length > 0 &&
+            l !== "participant record" &&
+            l !== "participant" &&
+            l !== "unnamed participant" &&
+            l !== "unnamed" &&
+            l !== "null" &&
+            l !== "undefined" &&
+            l !== "n/a" &&
+            l !== "na" &&
+            l !== "p"
+          ) {
+            cleanName = t;
+          }
+        }
+
+        let statusText = "Field Supervisor Completed (Sec 1)";
+        if (isSec16Done) statusText = "Fully Completed (All 16)";
+        else if (isCounselDone && isSec8Done) statusText = "Counselor Completed (Sec 8, 15)";
+        else if (isCounselDone) statusText = "Counselor Completed (Sec 15)";
+        else if (isCoordDone) statusText = "Case Coordinator Completed (Sec 14)";
+        else if (isDoctorDone) statusText = "Doctor Completed (Sec 12-13)";
+        else if (isSec8Done) statusText = "Counselor Completed (Sec 8)";
+        else if (isNurseDone) statusText = "Staff Nurse Completed (Sec 2-7, 9-11)";
+        else statusText = "Field Supervisor Completed (Sec 1)";
 
         recordMap.set(pid, {
           participant_id: pid,
-          fullName: merged.fullName || merged.mem_scrn_q16 || pid,
+          cleanName: cleanName,
+          fullName: cleanName || pid,
           age: String(merged.age || merged.mem_scrn_q1 || "45"),
           gender: merged.gender || (merged.mem_scrn_q2 === "1" ? "Male" : "Female"),
           date: merged.screening_date || (merged.record_date ? new Date(merged.record_date * 1000).toLocaleDateString() : new Date().toLocaleDateString()),
@@ -559,10 +605,10 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                   </span>
                 </div>
                 <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                  Welcome, {user.full_name || user.username || "Field Supervisor"}
+                  Welcome, {user.full_name || user.username || (user.role_name ? user.role_name : "Clinical Staff")}
                 </h1>
                 <p className="text-xs text-slate-500 font-medium mt-0.5">
-                  Operational Screening Workstation  •  Active Center: <strong className="text-slate-900 font-bold">{activeLocation} Center</strong>
+                  {user.role_name || "Operational Screening"} Workstation  •  Active Center: <strong className="text-slate-900 font-bold">{activeLocation} Center</strong>
                 </p>
               </div>
             </div>
@@ -613,7 +659,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                   const id = r.participant_id || r.mem_scrn_part_id || raw.participant_id;
                   if (id) pIds.add(String(id).toUpperCase().trim());
                 });
-                const totalInitiatedCount = Math.max(pIds.size, centerSyncQueue.length + centerCompleted.length);
+                const totalInitiatedCount = pIds.size;
 
                 return (
                   <>
@@ -731,7 +777,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
             </div>
 
             {/* Forms Section: Field Supervisor Section 16 (Community Perception Entry) */}
-            {Boolean(user?.role_name?.toLowerCase().includes("supervisor") || user?.role_id === 2 || userPrivileges.includes(16)) && (
+            {Boolean(user?.role_name?.toLowerCase().includes("supervisor") || user?.role_id === 2 || (userPrivileges.includes(16) && !user?.role_name?.toLowerCase().includes("nurse") && !user?.role_name?.toLowerCase().includes("doctor") && !user?.role_name?.toLowerCase().includes("counselor") && !user?.role_name?.toLowerCase().includes("coordinator"))) && (
               <div className="space-y-3 pt-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -757,65 +803,621 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
           </div>
         )}
 
-        {/* Tab: Completed Records (Shows Completed Screenings & Details) */}
-        {currentTab === "completed" && (
-          <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-200">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-4">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900">Completed Screening Records</h2>
-                <p className="text-xs text-slate-500 mt-0.5 font-medium">Completed participant screenings recorded for {user.assigned_location || "Dharavi"} Center.</p>
-              </div>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-900 text-white font-mono shadow-2xs">
-                Total Completed: {completedRecords.filter(matchesActiveCenter).length} {completedRecords.filter(matchesActiveCenter).length === 1 ? 'Record' : 'Records'}
-              </span>
-            </div>
+        {/* Tab: Completed Records (Redesigned Modern Clinical Records Hub) */}
+        {currentTab === "completed" && (() => {
+          const centerRecords = completedRecords.filter(matchesActiveCenter);
+          const totalCount = centerRecords.length;
+          const highRiskCount = centerRecords.filter(r => r.risk && r.risk.includes('High')).length;
+          const fullyCompletedCount = centerRecords.filter(r => 
+            (r.status && (r.status.includes('Fully') || r.status.includes('16'))) || 
+            (r.raw && (r.raw.section_16_completed || r.raw.sec_16_done))
+          ).length;
 
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xs overflow-hidden">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 border-b border-slate-200 font-mono text-[11px] uppercase tracking-wider text-slate-500">
-                  <tr>
-                    <th className="px-6 py-4 font-bold">Participant ID</th>
-                    <th className="px-6 py-4 font-bold">Participant Name</th>
-                    <th className="px-6 py-4 font-bold">Age / Gender</th>
-                    <th className="px-6 py-4 font-bold">Date</th>
-                    <th className="px-6 py-4 font-bold">Location</th>
-                    <th className="px-6 py-4 font-bold">Risk Level</th>
-                    <th className="px-6 py-4 font-bold text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {completedRecords.filter(matchesActiveCenter).length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-mono font-medium">
-                        No completed screening records found for {activeLocation || user.assigned_location || "Dharavi"} Center yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    completedRecords.filter(matchesActiveCenter).map((r, i) => (
-                      <tr key={i} className="hover:bg-slate-50/60 transition-colors">
-                        <td className="px-6 py-4 font-mono font-bold text-slate-900">{r.participant_id}</td>
-                        <td className="px-6 py-4 font-bold text-slate-800">{r.fullName}</td>
-                        <td className="px-6 py-4 text-slate-600">{r.age} yrs • {r.gender}</td>
-                        <td className="px-6 py-4 font-mono text-slate-500">{r.date}</td>
-                        <td className="px-6 py-4 text-slate-700">{r.location}</td>
-                        <td className="px-6 py-4">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${r.risk && r.risk.includes('High') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
-                            {r.risk || "Standard Risk"}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-[11px]">
-                            <CheckCircle2 size={12} /> {r.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
+          // Filter by search, risk, and status
+          const filteredRecords = centerRecords.filter(r => {
+            if (completedSearch.trim()) {
+              const q = completedSearch.toLowerCase().trim();
+              const pid = String(r.participant_id || "").toLowerCase();
+              const name = String(r.fullName || "").toLowerCase();
+              const loc = String(r.location || "").toLowerCase();
+              const age = String(r.age || "").toLowerCase();
+              const phone = String(r.raw?.contact_number || r.raw?.q5 || "").toLowerCase();
+              if (!pid.includes(q) && !name.includes(q) && !loc.includes(q) && !age.includes(q) && !phone.includes(q)) {
+                return false;
+              }
+            }
+            if (completedRiskFilter !== "All") {
+              if (completedRiskFilter === "High") {
+                if (!r.risk || !r.risk.includes("High")) return false;
+              } else if (completedRiskFilter === "Standard") {
+                if (r.risk && r.risk.includes("High")) return false;
+              }
+            }
+            if (completedStatusFilter !== "All") {
+              if (completedStatusFilter === "FullyCompleted") {
+                const isFull = (r.status && (r.status.includes('Fully') || r.status.includes('16'))) || (r.raw && (r.raw.section_16_completed || r.raw.sec_16_done));
+                if (!isFull) return false;
+              } else if (completedStatusFilter === "ScreeningDone") {
+                const isFull = (r.status && (r.status.includes('Fully') || r.status.includes('16'))) || (r.raw && (r.raw.section_16_completed || r.raw.sec_16_done));
+                if (isFull) return false;
+              }
+            }
+            return true;
+          });
+
+          return (
+            <div className="max-w-6xl mx-auto space-y-5 animate-in fade-in duration-200">
+              
+              {/* Header & Action Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono flex items-center gap-1">
+                      <CheckCircle2 size={11} /> Phase II Transmitted
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 font-mono">
+                      {activeLocation || user.assigned_location || "Dharavi"} Center
+                    </span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                    Completed Screening Records
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5 font-medium">
+                    Verified participant screening profiles, health vitals &amp; completed clinical sections for {activeLocation || user.assigned_location || "Dharavi"} Center.
+                  </p>
+                </div>
+                
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => exportCompletedRecordsCSV(filteredRecords)}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:border-slate-300 shadow-2xs transition-all cursor-pointer"
+                    title="Export currently filtered completed screening records to CSV"
+                  >
+                    <Download size={13} className="text-slate-500" />
+                    <span>Export CSV</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 3-Card Summary Stats Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="bg-white rounded-2xl p-3.5 px-4 border border-slate-200/90 shadow-2xs flex items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 shrink-0">
+                    <CheckCircle2 size={20} />
+                  </div>
+                  <div className="space-y-0.5">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 font-mono">Total Completed</p>
+                    <p className="text-2xl font-black text-slate-900 font-mono tracking-tight">{totalCount}</p>
+                    <span className="text-[9px] font-bold text-emerald-900 bg-emerald-100/70 px-1.5 py-0.5 rounded font-mono inline-block">
+                      Screenings Recorded
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl p-3.5 px-4 border border-slate-200/90 shadow-2xs flex items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-600 shrink-0">
+                    <AlertTriangle size={20} />
+                  </div>
+                  <div className="space-y-0.5">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 font-mono">High Risk Screenings</p>
+                    <p className="text-2xl font-black text-slate-900 font-mono tracking-tight">{highRiskCount}</p>
+                    <span className="text-[9px] font-bold text-rose-900 bg-rose-100/70 px-1.5 py-0.5 rounded font-mono inline-block">
+                      Requires Priority Attention
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl p-3.5 px-4 border border-slate-200/90 shadow-2xs flex items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 shrink-0">
+                    <Award size={20} />
+                  </div>
+                  <div className="space-y-0.5">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 font-mono">Fully Completed</p>
+                    <p className="text-2xl font-black text-slate-900 font-mono tracking-tight">{fullyCompletedCount}</p>
+                    <span className="text-[9px] font-bold text-amber-900 bg-amber-100/70 px-1.5 py-0.5 rounded font-mono inline-block">
+                      All Modules Finished
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modern Filters & Search Bar */}
+              <div className="bg-white rounded-2xl p-3 border border-slate-200/90 shadow-2xs space-y-2.5">
+                <div className="flex flex-col sm:flex-row items-center gap-2.5">
+                  <div className="relative flex-1 w-full">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                    <input
+                      type="text"
+                      value={completedSearch}
+                      onChange={(e) => setCompletedSearch(e.target.value)}
+                      placeholder="Search by Participant ID (e.g. NCDDH0001), Name, Phone..."
+                      className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-all font-medium text-slate-800"
+                    />
+                    {completedSearch && (
+                      <button
+                        onClick={() => setCompletedSearch("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 flex-wrap sm:flex-nowrap">
+                    {/* Risk Filter */}
+                    <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200 text-xs">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase px-1.5 font-mono">Risk:</span>
+                      <button
+                        onClick={() => setCompletedRiskFilter("All")}
+                        className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${completedRiskFilter === 'All' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'}`}
+                      >
+                        All
+                      </button>
+                      <button
+                        onClick={() => setCompletedRiskFilter("High")}
+                        className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${completedRiskFilter === 'High' ? 'bg-rose-600 text-white shadow-xs' : 'text-rose-700 hover:bg-rose-50'}`}
+                      >
+                        High Risk
+                      </button>
+                      <button
+                        onClick={() => setCompletedRiskFilter("Standard")}
+                        className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${completedRiskFilter === 'Standard' ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'}`}
+                      >
+                        Standard
+                      </button>
+                    </div>
+
+                    {/* Status Filter */}
+                    <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200 text-xs">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase px-1.5 font-mono">Status:</span>
+                      <button
+                        onClick={() => setCompletedStatusFilter("All")}
+                        className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${completedStatusFilter === 'All' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'}`}
+                      >
+                        All
+                      </button>
+                      <button
+                        onClick={() => setCompletedStatusFilter("FullyCompleted")}
+                        className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${completedStatusFilter === 'FullyCompleted' ? 'bg-amber-600 text-white shadow-xs' : 'text-amber-800 hover:bg-amber-50'}`}
+                      >
+                        Fully Done
+                      </button>
+                      <button
+                        onClick={() => setCompletedStatusFilter("ScreeningDone")}
+                        className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${completedStatusFilter === 'ScreeningDone' ? 'bg-blue-600 text-white shadow-xs' : 'text-blue-800 hover:bg-blue-50'}`}
+                      >
+                        In Pipeline
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium px-1">
+                  <span>Showing <strong className="text-slate-800 font-bold">{filteredRecords.length}</strong> of <strong className="text-slate-800 font-bold">{totalCount}</strong> completed records</span>
+                  {(completedSearch || completedRiskFilter !== "All" || completedStatusFilter !== "All") && (
+                    <button
+                      onClick={() => {
+                        setCompletedSearch("");
+                        setCompletedRiskFilter("All");
+                        setCompletedStatusFilter("All");
+                      }}
+                      className="text-amber-700 hover:text-amber-800 font-bold text-[11px] hover:underline cursor-pointer"
+                    >
+                      Clear Filters
+                    </button>
                   )}
-                </tbody>
-              </table>
+                </div>
+              </div>
+
+              {/* Records Table */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+                {filteredRecords.length === 0 ? (
+                  <div className="py-16 px-4 text-center space-y-3">
+                    <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto text-slate-400 border border-slate-200">
+                      <ClipboardCheck size={28} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">No matching completed records found</p>
+                      <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                        {totalCount === 0 
+                          ? `No participant screening records have been completed for ${activeLocation || user.assigned_location || "Dharavi"} Center yet.`
+                          : "Try adjusting your search query or filter tags to find the participant record."}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50/80 border-b border-slate-200 font-mono text-[11px] uppercase tracking-wider text-slate-500">
+                        <tr>
+                          <th className="px-5 py-3.5 font-bold">Participant</th>
+                          <th className="px-5 py-3.5 font-bold">Demographics</th>
+                          <th className="px-5 py-3.5 font-bold">Date &amp; Location</th>
+                          <th className="px-5 py-3.5 font-bold">Risk Assessment</th>
+                          <th className="px-5 py-3.5 font-bold">Stage Status</th>
+                          <th className="px-5 py-3.5 font-bold text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredRecords.map((r, i) => {
+                          const isHighRisk = r.risk && r.risk.includes('High');
+                          const isFullyDone = r.status && r.status.includes('Fully Completed');
+                          const isFemale = String(r.gender).toLowerCase().includes('female');
+                          const isTrans = String(r.gender).toLowerCase().includes('trans');
+                          
+                          let seriesNumber = "";
+                          if (r.participant_id) {
+                            const match = String(r.participant_id).match(/(\d+)$/);
+                            if (match) {
+                              const num = parseInt(match[1], 10);
+                              seriesNumber = String(num).padStart(2, '0');
+                            }
+                          }
+                          if (!seriesNumber && r.cleanName) {
+                            const parts = r.cleanName.split(/\s+/).filter(Boolean);
+                            if (parts.length >= 2) seriesNumber = (parts[0][0] + parts[1][0]).toUpperCase();
+                            else if (parts.length === 1) seriesNumber = parts[0].slice(0, 2).toUpperCase();
+                          }
+                          if (!seriesNumber) seriesNumber = String(i + 1).padStart(2, '0');
+
+                          return (
+                            <tr key={i} className="hover:bg-slate-50/70 transition-colors group">
+                              
+                              {/* Participant Name & ID */}
+                              <td className="px-5 py-3.5">
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-8 h-8 rounded-full font-bold flex items-center justify-center text-xs shrink-0 shadow-2xs font-mono border ${
+                                    isHighRisk
+                                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                      : isFemale
+                                        ? 'bg-purple-50 text-purple-800 border-purple-200/80'
+                                        : isTrans
+                                          ? 'bg-teal-50 text-teal-800 border-teal-200/80'
+                                          : 'bg-slate-100 text-slate-700 border-slate-200'
+                                  }`}>
+                                    {seriesNumber}
+                                  </div>
+                                  <div>
+                                    {r.cleanName ? (
+                                      <>
+                                        <div className="font-bold text-slate-900 text-xs sm:text-[13px] group-hover:text-amber-800 transition-colors font-mono">
+                                          {r.cleanName}
+                                        </div>
+                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                          <span className="font-mono font-bold text-[10px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-full border border-slate-200/80">
+                                            {r.participant_id}
+                                          </span>
+                                          {r.raw?.contact_number && (
+                                            <span className="text-[10px] text-slate-400 font-mono">
+                                              • {r.raw.contact_number}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <div className="font-bold text-slate-900 text-xs sm:text-[13px] group-hover:text-amber-800 transition-colors font-mono">
+                                          {r.participant_id}
+                                        </div>
+                                        {r.raw?.contact_number ? (
+                                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                            • {r.raw.contact_number}
+                                          </div>
+                                        ) : (
+                                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                            {r.location || activeLocation} Center
+                                          </div>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Demographics */}
+                              <td className="px-5 py-3.5">
+                                <div className="space-y-0.5">
+                                  <div className="font-medium text-slate-800 flex items-center gap-1.5 flex-wrap font-mono">
+                                    <span>{r.age}y</span>
+                                    <span>•</span>
+                                    <GenderBadge gender={r.gender} />
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Date & Location */}
+                              <td className="px-5 py-3.5">
+                                <div className="space-y-1 font-mono">
+                                  <div className="flex items-center gap-1 text-slate-600 text-[11px]">
+                                    <Calendar size={11} className="text-slate-400" />
+                                    <span>{r.date}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium">
+                                    <MapPin size={10} className="text-slate-400" />
+                                    <span>{r.location || activeLocation} Center</span>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Risk Assessment */}
+                              <td className="px-5 py-3.5">
+                                {isHighRisk ? (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs font-mono">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                                    {r.risk || "High Risk Flagged"}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 font-mono">
+                                    <Check size={11} className="text-slate-500" />
+                                    {r.risk || "Standard Risk"}
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Stage Status */}
+                              <td className="px-5 py-3.5 font-mono">
+                                {isFullyDone ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-900 bg-amber-100/80 px-2.5 py-0.5 rounded-full border border-amber-300">
+                                    <Award size={11} className="text-amber-700" />
+                                    <span>Fully Completed (All 16)</span>
+                                  </span>
+                                ) : r.status && r.status.includes('Staff Nurse') ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-900 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+                                    <CheckCircle2 size={11} className="text-blue-600" />
+                                    <span>{r.status}</span>
+                                  </span>
+                                ) : r.status && r.status.includes('Doctor') ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-900 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200">
+                                    <CheckCircle2 size={11} className="text-purple-600" />
+                                    <span>{r.status}</span>
+                                  </span>
+                                ) : r.status && r.status.includes('Coordinator') ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-900 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
+                                    <CheckCircle2 size={11} className="text-indigo-600" />
+                                    <span>{r.status}</span>
+                                  </span>
+                                ) : r.status && r.status.includes('Counselor') ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-violet-900 bg-violet-50 px-2.5 py-0.5 rounded-full border border-violet-200">
+                                    <CheckCircle2 size={11} className="text-violet-600" />
+                                    <span>{r.status}</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                                    <CheckCircle2 size={11} className="text-emerald-600" />
+                                    <span>{r.status || "Field Supervisor Completed (Sec 1)"}</span>
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Action: View Modal */}
+                              <td className="px-5 py-3.5 text-right">
+                                <button
+                                  onClick={() => setSelectedCompletedDetail(r)}
+                                  className="w-7 h-7 rounded-full bg-slate-900 text-[#f5d40b] hover:bg-black transition-colors inline-flex items-center justify-center cursor-pointer shadow-2xs shrink-0"
+                                  title="View Details"
+                                >
+                                  <Eye size={13} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Detailed Participant Inspection Modal */}
+              {selectedCompletedDetail && (
+                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+                  <div className="bg-white rounded-3xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+                    
+                    {/* Modal Header */}
+                    <div className="p-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-start justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-white/20 text-white border border-white/30">
+                            {selectedCompletedDetail.participant_id}
+                          </span>
+                          <span className="text-xs px-2 py-0.5 rounded bg-amber-400 text-slate-950 font-bold">
+                            {selectedCompletedDetail.location || activeLocation} Center
+                          </span>
+                        </div>
+                        <h3 className="text-xl font-black tracking-tight text-white font-mono">
+                          {selectedCompletedDetail.cleanName || selectedCompletedDetail.participant_id}
+                        </h3>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium mt-1 font-mono">
+                          <span>{selectedCompletedDetail.age}y</span>
+                          <span>•</span>
+                          <GenderBadge gender={selectedCompletedDetail.gender} className="text-purple-300" />
+                          <span>•</span>
+                          <span>Screened on {selectedCompletedDetail.date}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => setSelectedCompletedDetail(null)}
+                        className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-200 hover:text-white transition-colors cursor-pointer"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+
+                    {/* Modal Scrollable Body */}
+                    <div className="p-6 space-y-5 overflow-y-auto flex-1">
+                      
+                      {/* Vitals Summary Strip */}
+                      <div>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 font-mono mb-2 flex items-center gap-1.5">
+                          <Activity size={13} className="text-amber-500" />
+                          Screening Vitals &amp; Key Measurements
+                        </h4>
+                        
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                          {/* BP */}
+                          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">Blood Pressure</span>
+                            <span className="text-base font-black text-slate-900 font-mono">
+                              {selectedCompletedDetail.raw?.bp_sys || selectedCompletedDetail.raw?.bp_systolic || selectedCompletedDetail.raw?.mem_scrn_q3 || "--"} / {selectedCompletedDetail.raw?.bp_dia || selectedCompletedDetail.raw?.bp_diastolic || selectedCompletedDetail.raw?.mem_scrn_q4 || "--"}
+                            </span>
+                            <span className="text-[10px] text-slate-500 block font-medium">mmHg</span>
+                          </div>
+
+                          {/* BMI / Weight */}
+                          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">BMI &amp; Weight</span>
+                            <span className="text-base font-black text-slate-900 font-mono">
+                              {selectedCompletedDetail.raw?.bmi || "--"} <span className="text-xs font-normal text-slate-500">({selectedCompletedDetail.raw?.weight || selectedCompletedDetail.raw?.mem_scrn_q5 || "--"}kg)</span>
+                            </span>
+                            <span className="text-[10px] text-slate-500 block font-medium">kg/m²</span>
+                          </div>
+
+                          {/* Glucose */}
+                          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">Blood Glucose</span>
+                            <span className="text-base font-black text-slate-900 font-mono">
+                              {selectedCompletedDetail.raw?.blood_glucose || selectedCompletedDetail.raw?.rbs || selectedCompletedDetail.raw?.mem_scrn_q6 || "--"}
+                            </span>
+                            <span className="text-[10px] text-slate-500 block font-medium">mg/dL</span>
+                          </div>
+
+                          {/* Risk Classification */}
+                          <div className={`p-3 rounded-2xl border ${
+                            selectedCompletedDetail.risk && selectedCompletedDetail.risk.includes('High')
+                              ? 'bg-rose-50 border-rose-200'
+                              : 'bg-emerald-50 border-emerald-200'
+                          }`}>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">Risk Flag</span>
+                            <span className={`text-xs font-black block mt-0.5 ${
+                              selectedCompletedDetail.risk && selectedCompletedDetail.risk.includes('High')
+                                ? 'text-rose-700'
+                                : 'text-emerald-700'
+                            }`}>
+                              {selectedCompletedDetail.risk || "Standard Risk"}
+                            </span>
+                            <span className="text-[10px] text-slate-500 block font-medium">Phase II Evaluated</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Clinical Pipeline Stage Checklist */}
+                      <div>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 font-mono mb-2 flex items-center gap-1.5">
+                          <ClipboardCheck size={13} className="text-blue-500" />
+                          Survey Module Completion Status
+                        </h4>
+
+                        <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200 space-y-2 text-xs">
+                          {/* Module 1 */}
+                          <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                            <span className="font-medium text-slate-800">Section 1: Demographics &amp; Consent</span>
+                            <span className="inline-flex items-center gap-1 font-bold text-emerald-700 text-[11px]">
+                              <CheckCircle2 size={12} /> Completed (Field Supervisor)
+                            </span>
+                          </div>
+
+                          {/* Module 2-11 */}
+                          <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                            <span className="font-medium text-slate-800">Sections 2–11: Clinical Screening &amp; Vitals</span>
+                            <span className={`inline-flex items-center gap-1 font-bold text-[11px] ${
+                              selectedCompletedDetail.raw?.staff_nurse_completed || selectedCompletedDetail.raw?.sections_2_8_completed || selectedCompletedDetail.raw?.bp_sys
+                                ? 'text-emerald-700'
+                                : 'text-slate-400'
+                            }`}>
+                              {selectedCompletedDetail.raw?.staff_nurse_completed || selectedCompletedDetail.raw?.sections_2_8_completed || selectedCompletedDetail.raw?.bp_sys ? (
+                                <><CheckCircle2 size={12} /> Completed (Staff Nurse)</>
+                              ) : (
+                                <>Pending Nurse Screening</>
+                              )}
+                            </span>
+                          </div>
+
+                          {/* Module 12-13 */}
+                          <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                            <span className="font-medium text-slate-800">Sections 12–13: Clinical Diagnosis &amp; Risk Categorisation</span>
+                            <span className={`inline-flex items-center gap-1 font-bold text-[11px] ${
+                              selectedCompletedDetail.raw?.doctor_completed || selectedCompletedDetail.raw?.q89 !== undefined
+                                ? 'text-emerald-700'
+                                : 'text-slate-400'
+                            }`}>
+                              {selectedCompletedDetail.raw?.doctor_completed || selectedCompletedDetail.raw?.q89 !== undefined ? (
+                                <><CheckCircle2 size={12} /> Completed (Medical Officer)</>
+                              ) : (
+                                <>Pending Doctor Review</>
+                              )}
+                            </span>
+                          </div>
+
+                          {/* Module 14 */}
+                          <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                            <span className="font-medium text-slate-800">Section 14: Linkages &amp; Referral Follow-up</span>
+                            <span className={`inline-flex items-center gap-1 font-bold text-[11px] ${
+                              selectedCompletedDetail.raw?.coordinator_completed || selectedCompletedDetail.raw?.q97 !== undefined
+                                ? 'text-emerald-700'
+                                : 'text-slate-400'
+                            }`}>
+                              {selectedCompletedDetail.raw?.coordinator_completed || selectedCompletedDetail.raw?.q97 !== undefined ? (
+                                <><CheckCircle2 size={12} /> Completed (Case Coordinator)</>
+                              ) : (
+                                <>Pending Linkages</>
+                              )}
+                            </span>
+                          </div>
+
+                          {/* Module 15 */}
+                          <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                            <span className="font-medium text-slate-800">Section 15: Health Counseling &amp; Lifestyle Guidance</span>
+                            <span className={`inline-flex items-center gap-1 font-bold text-[11px] ${
+                              selectedCompletedDetail.raw?.counselor_sec15_completed || selectedCompletedDetail.raw?.q107 !== undefined
+                                ? 'text-emerald-700'
+                                : 'text-slate-400'
+                            }`}>
+                              {selectedCompletedDetail.raw?.counselor_sec15_completed || selectedCompletedDetail.raw?.q107 !== undefined ? (
+                                <><CheckCircle2 size={12} /> Completed (Counselor)</>
+                              ) : (
+                                <>Pending Counseling</>
+                              )}
+                            </span>
+                          </div>
+
+                          {/* Module 16 */}
+                          <div className="flex items-center justify-between py-1">
+                            <span className="font-medium text-slate-800">Section 16: Community Perception &amp; Exit Feedback</span>
+                            <span className={`inline-flex items-center gap-1 font-bold text-[11px] ${
+                              selectedCompletedDetail.raw?.section_16_completed || selectedCompletedDetail.raw?.sec_16_done || selectedCompletedDetail.raw?.q112 !== undefined
+                                ? 'text-emerald-700'
+                                : 'text-amber-700'
+                            }`}>
+                              {selectedCompletedDetail.raw?.section_16_completed || selectedCompletedDetail.raw?.sec_16_done || selectedCompletedDetail.raw?.q112 !== undefined ? (
+                                <><CheckCircle2 size={12} /> Completed (Field Supervisor)</>
+                              ) : (
+                                <>Ready for Section 16</>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+
+                    {/* Modal Footer */}
+                    <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+                      <button
+                        onClick={() => setSelectedCompletedDetail(null)}
+                        className="px-5 py-2 rounded-xl text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 transition-all cursor-pointer shadow-2xs"
+                      >
+                        Close Details
+                      </button>
+                    </div>
+
+                  </div>
+                </div>
+              )}
+
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Tab: Sync Queue */}
         {currentTab === "sync" && (
@@ -981,9 +1583,9 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                 const phone = item.contact_number || raw.contact_number || "";
                 
                 const matchesSearch = !syncSearch || (
-                  pid.toLowerCase().includes(syncSearch.toLowerCase()) ||
-                  loc.toLowerCase().includes(syncSearch.toLowerCase()) ||
-                  phone.toLowerCase().includes(syncSearch.toLowerCase())
+                  String(pid || "").toLowerCase().includes(String(syncSearch).toLowerCase()) ||
+                  String(loc || "").toLowerCase().includes(String(syncSearch).toLowerCase()) ||
+                  String(phone || "").toLowerCase().includes(String(syncSearch).toLowerCase())
                 );
 
                 return matchesLoc && matchesGender && matchesAge && matchesSearch;
@@ -1153,12 +1755,27 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
                                 Pending Sync
                               </span>
                             </div>
-                            <p className="text-xs text-slate-500 font-mono">
-                              Center: <span className="font-bold text-slate-800">{loc}</span>
-                              {age ? ` • Age: ${age} yrs` : ''} 
-                              {gender ? ` • Gender: ${gender}` : ''}
-                              {phone && phone !== 'N/A' ? ` • Phone: ${phone}` : ''}
-                            </p>
+                            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-mono flex-wrap">
+                              <span>Center: <strong className="text-slate-800">{loc}</strong></span>
+                              {age && (
+                                <>
+                                  <span>•</span>
+                                  <span>Age: <strong className="text-slate-800">{age} yrs</strong></span>
+                                </>
+                              )}
+                              {gender && (
+                                <>
+                                  <span>•</span>
+                                  <span className="inline-flex items-center gap-1">Gender: <GenderBadge gender={gender} /></span>
+                                </>
+                              )}
+                              {phone && phone !== "N/A" && (
+                                <>
+                                  <span>•</span>
+                                  <span>Phone: <strong className="text-slate-800">{phone}</strong></span>
+                                </>
+                              )}
+                            </div>
                             {item.timestamp && (
                               <p className="text-[10px] text-slate-400 font-mono">
                                 Saved: {new Date(item.timestamp).toLocaleString()}
@@ -1443,86 +2060,135 @@ function FieldSupervisorSection16Card({ syncQueue = [], completedRecords = [], a
   }, []);
 
   const getPendingSec16Participants = () => {
-    const list = [];
-    const seenPids = new Set();
+    const candidateMap = new Map();
+    let localCompletedSet = new Set();
+    try {
+      const cStr = localStorage.getItem('ncd_sec16_completed_pids');
+      if (cStr) {
+        const arr = JSON.parse(cStr);
+        if (Array.isArray(arr)) localCompletedSet = new Set(arr.map(x => String(x).toUpperCase().trim()));
+      }
+    } catch (e) {}
 
-    const addCandidate = (item) => {
+    const mergeCandidate = (item) => {
       if (!item) return;
       let raw = {};
       if (item.mem_scrn_q30) {
         try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
       }
-      const pId = String(item.participant_id || item.mem_scrn_part_id || raw.participant_id || raw.mem_scrn_part_id || "").trim();
-      if (!pId || pId === "N/A" || seenPids.has(pId.toUpperCase())) return;
+      let surData = {};
+      if (item.survey_data) {
+        try { surData = typeof item.survey_data === 'string' ? JSON.parse(item.survey_data) : item.survey_data; } catch (e) {}
+      } else if (raw.survey_data) {
+        try { surData = typeof raw.survey_data === 'string' ? JSON.parse(raw.survey_data) : raw.survey_data; } catch (e) {}
+      }
 
-      // Location match check for active center
-      const loc = item.location || raw.location || item.mem_scrn_q17 || "";
+      const pId = String(item.participant_id || item.mem_scrn_part_id || raw.participant_id || raw.mem_scrn_part_id || "").trim();
+      if (!pId || pId === "N/A" || pId.includes("undefined")) return;
+
+      const pIdKey = pId.toUpperCase();
+      const existing = candidateMap.get(pIdKey) || {};
+      const merged = { ...existing, ...item, ...raw, ...surData };
+      merged.participant_id = pId;
+      candidateMap.set(pIdKey, merged);
+    };
+
+    // Merge from all sources: Server records -> Completed records -> Sync Queue -> Local Initiated
+    serverRecords.forEach(mergeCandidate);
+    completedRecords.forEach(mergeCandidate);
+    syncQueue.forEach(mergeCandidate);
+    try {
+      const locStr = localStorage.getItem('ncd_local_initiated_participants');
+      if (locStr) {
+        const locArr = JSON.parse(locStr);
+        if (Array.isArray(locArr)) locArr.forEach(mergeCandidate);
+      }
+    } catch (e) {}
+
+    const list = [];
+    candidateMap.forEach((merged, pIdKey) => {
+      // 1. Location match check for active center
+      const loc = merged.location || merged.mem_scrn_q17 || "";
       const locLower = String(loc).toLowerCase();
       const activeLocLower = String(activeLocation).toLowerCase().trim();
       let matchLoc = true;
       if (activeLocLower && activeLocLower !== "all") {
         if (activeLocLower.includes("malvani") || activeLocLower.includes("ml")) {
-          matchLoc = locLower.includes("malvani") || locLower.includes("ml") || pId.toUpperCase().includes("ML");
+          matchLoc = locLower.includes("malvani") || locLower.includes("ml") || pIdKey.includes("ML");
         } else if (activeLocLower.includes("dharavi") || activeLocLower.includes("dh")) {
-          matchLoc = locLower.includes("dharavi") || locLower.includes("dh") || pId.toUpperCase().includes("DH");
+          matchLoc = locLower.includes("dharavi") || locLower.includes("dh") || pIdKey.includes("DH");
         } else if (activeLocLower.includes("vashi") || activeLocLower.includes("va")) {
-          matchLoc = locLower.includes("vashi") || locLower.includes("va") || pId.toUpperCase().includes("VA");
+          matchLoc = locLower.includes("vashi") || locLower.includes("va") || pIdKey.includes("VA");
         } else {
           matchLoc = locLower.includes(activeLocLower) || activeLocLower.includes(locLower);
         }
       }
       if (!matchLoc) return;
 
-      // EXCLUSION LOGIC: Check if Section 16 is already completed
-      const surData = typeof item.survey_data === 'object' ? item.survey_data : {};
+      // 2. EXCLUSION: If Section 16 is completed, do NOT show in dropdown
       const isSec16Completed = Boolean(
-        item.section_16_completed ||
-        item.community_perception_completed ||
-        item.sec_16_done ||
-        item.community_perception ||
-        raw.section_16_completed ||
-        raw.community_perception ||
-        surData.section_16_completed ||
-        surData.community_perception ||
-        item.mem_scrn_q16_done
+        localCompletedSet.has(pIdKey) ||
+        merged.section_16_completed === true ||
+        merged.completed_by_section16 === true ||
+        merged.sec_16_done === true ||
+        merged.community_perception_completed === true ||
+        merged.community_perception === true ||
+        merged.mem_scrn_q16_done === true ||
+        merged.status === "Completed (All 16 Sections Done)" ||
+        merged.status === "Section 16 Completed" ||
+        merged.current_stage === "Fully Completed" ||
+        merged.current_queue === "Completed" ||
+        merged.q112 !== undefined ||
+        merged.q113 !== undefined ||
+        merged.q114 !== undefined ||
+        merged.q115 !== undefined ||
+        merged.custom_q112 !== undefined
       );
 
-      // If user completed Section 16, exclude from dropdown!
       if (isSec16Completed) return;
 
-      const fullName = item.fullName || raw.fullName || item.mem_scrn_q16 || raw.mem_scrn_q16 || "Participant Record";
-      const age = item.age || raw.age || item.mem_scrn_q1 || "";
-      const gender = item.gender || raw.gender || (item.mem_scrn_q2 == "1" ? "Male" : "Female");
+      const rawName = merged.fullName || merged.mem_scrn_q16 || merged.full_name || merged.name || "";
+      let cleanName = "";
+      if (typeof rawName === 'string') {
+        const t = rawName.trim();
+        const l = t.toLowerCase();
+        if (
+          t.length > 0 &&
+          l !== "participant record" &&
+          l !== "participant" &&
+          l !== "unnamed participant" &&
+          l !== "unnamed" &&
+          l !== "null" &&
+          l !== "undefined" &&
+          l !== "n/a" &&
+          l !== "na" &&
+          l !== "p"
+        ) {
+          cleanName = t;
+        }
+      }
+      const fullName = cleanName || `Participant ${pIdKey}`;
+      const age = merged.age || merged.mem_scrn_q1 || "";
+      const rawGender = merged.gender || merged.mem_scrn_q2;
+      let cleanGender = "Male";
+      if (rawGender) {
+        const gStr = String(rawGender).toLowerCase().trim();
+        if (gStr.includes("female") || gStr === "2") cleanGender = "Female";
+        else if (gStr.includes("trans") || gStr === "3") cleanGender = "Transgender";
+        else if (gStr.includes("male") || gStr === "1") cleanGender = "Male";
+        else cleanGender = String(rawGender);
+      }
 
-      seenPids.add(pId.toUpperCase());
       list.push({
-        ...item,
-        ...raw,
-        participant_id: pId,
+        ...merged,
+        participant_id: merged.participant_id,
         fullName,
+        cleanName,
         age,
-        gender,
+        gender: cleanGender,
         location: loc || activeLocation
       });
-    };
-
-    // 1. Local sync queue items
-    syncQueue.forEach(addCandidate);
-
-    // 2. Initiated local participants from localStorage
-    try {
-      const locStr = localStorage.getItem('ncd_local_initiated_participants');
-      if (locStr) {
-        const locArr = JSON.parse(locStr);
-        if (Array.isArray(locArr)) locArr.forEach(addCandidate);
-      }
-    } catch (e) {}
-
-    // 3. Completed records list
-    completedRecords.forEach(addCandidate);
-
-    // 4. Server records
-    serverRecords.forEach(addCandidate);
+    });
 
     return list;
   };
@@ -1574,12 +2240,12 @@ function FieldSupervisorSection16Card({ syncQueue = [], completedRecords = [], a
           <select
             value={selectedPid}
             onChange={(e) => setSelectedPid(e.target.value)}
-            className="flex-1 md:w-64 px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-semibold text-slate-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 shadow-2xs font-mono cursor-pointer"
+            className="flex-1 md:w-72 px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-semibold text-slate-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 shadow-2xs font-mono cursor-pointer"
           >
             <option value="">-- Select Participant ID --</option>
             {pendingParticipants.map((p) => (
               <option key={p.participant_id} value={p.participant_id}>
-                {p.participant_id} — {p.fullName} ({p.gender}, {p.age}y)
+                {p.participant_id} {p.cleanName ? `— ${p.cleanName}` : ''} ({p.gender || 'Participant'}{p.age ? `, ${p.age}y` : ''})
               </option>
             ))}
           </select>
@@ -1602,24 +2268,50 @@ function FieldSupervisorSection16Card({ syncQueue = [], completedRecords = [], a
   );
 }
 
-function extractCandidateData(item) {
-  if (!item || typeof item !== 'object') return {};
+function extractCandidateData(item, depth = 0) {
+  if (!item || typeof item !== 'object' || depth > 3) return {};
   let extra = {};
   if (item.mem_scrn_q30) {
     try {
-      extra = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30;
+      extra = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : (item.mem_scrn_q30 || {});
+    } catch (e) {}
+  }
+  let surveyData = {};
+  if (item.survey_data) {
+    try {
+      surveyData = typeof item.survey_data === 'string' ? JSON.parse(item.survey_data) : (item.survey_data || {});
     } catch (e) {}
   }
   let payloadData = (item.data && typeof item.data === 'object') ? item.data : {};
   let payloadInner = (item.payload && typeof item.payload === 'object') ? item.payload : {};
   let rawData = (item.raw && typeof item.raw === 'object') ? item.raw : {};
+  let rawPayload = (item.rawPayload && typeof item.rawPayload === 'object') ? item.rawPayload : {};
+  let formData = (item.formData && typeof item.formData === 'object') ? item.formData : {};
+  let computedScores = (item._computed_scores && typeof item._computed_scores === 'object') ? item._computed_scores : {};
+  let skipLogic = (item._skip_logic_evaluation && typeof item._skip_logic_evaluation === 'object') ? item._skip_logic_evaluation : {};
+
+  const nestedExtra = (typeof extra === 'object' && extra) ? extractCandidateData(extra, depth + 1) : {};
+  const nestedSurvey = (typeof surveyData === 'object' && surveyData) ? extractCandidateData(surveyData, depth + 1) : {};
+  const nestedPayloadData = (typeof payloadData === 'object' && payloadData) ? extractCandidateData(payloadData, depth + 1) : {};
+  const nestedPayloadInner = (typeof payloadInner === 'object' && payloadInner) ? extractCandidateData(payloadInner, depth + 1) : {};
+  const nestedRawPayload = (typeof rawPayload === 'object' && rawPayload) ? extractCandidateData(rawPayload, depth + 1) : {};
 
   return {
     ...item,
     ...(typeof extra === 'object' && extra ? extra : {}),
+    ...nestedExtra,
+    ...(typeof surveyData === 'object' && surveyData ? surveyData : {}),
+    ...nestedSurvey,
     ...(typeof payloadData === 'object' && payloadData ? payloadData : {}),
+    ...nestedPayloadData,
     ...(typeof payloadInner === 'object' && payloadInner ? payloadInner : {}),
-    ...(typeof rawData === 'object' && rawData ? rawData : {})
+    ...nestedPayloadInner,
+    ...(typeof rawData === 'object' && rawData ? rawData : {}),
+    ...(typeof rawPayload === 'object' && rawPayload ? rawPayload : {}),
+    ...nestedRawPayload,
+    ...(typeof formData === 'object' && formData ? formData : {}),
+    ...(typeof computedScores === 'object' && computedScores ? computedScores : {}),
+    ...(typeof skipLogic.computed_scores === 'object' && skipLogic.computed_scores ? skipLogic.computed_scores : {})
   };
 }
 
@@ -1725,9 +2417,9 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
     if (!searchQuery.trim()) return participantsList;
     const q = searchQuery.toLowerCase().trim();
     return participantsList.filter(p => 
-      p.pid.toLowerCase().includes(q) || 
-      p.name.toLowerCase().includes(q) || 
-      p.loc.toLowerCase().includes(q)
+      String(p.pid || "").toLowerCase().includes(q) || 
+      String(p.name || "").toLowerCase().includes(q) || 
+      String(p.loc || "").toLowerCase().includes(q)
     );
   }, [participantsList, searchQuery]);
 
@@ -1763,16 +2455,18 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
     return () => { isCancelled = true; };
   }, [selectedPid]);
 
-  const selectedParticipant = filteredParticipants.find(p => p.pid === selectedPid) || filteredParticipants[0];
-  const fetchedData = selectedParticipant ? (fetchedDetails[selectedParticipant.pid] || {}) : {};
+  const selectedParticipant = filteredParticipants.find(p => p.pid === selectedPid) || filteredParticipants.find(p => p.pid.toUpperCase() === String(selectedPid).toUpperCase()) || filteredParticipants[0];
+  const fetchedData = selectedParticipant ? (fetchedDetails[selectedParticipant.pid] || fetchedDetails[selectedParticipant.pid.toUpperCase()] || {}) : {};
 
   // Deep merged dictionary for the selected participant
   const combinedData = React.useMemo(() => {
     if (!selectedParticipant) return {};
     const baseItemData = extractCandidateData(selectedParticipant.item);
+    const participantData = extractCandidateData(selectedParticipant.data);
     const fetchedExtracted = extractCandidateData(fetchedData);
     return {
       ...(selectedParticipant.data || {}),
+      ...participantData,
       ...baseItemData,
       ...fetchedData,
       ...fetchedExtracted
@@ -1850,30 +2544,30 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
   const displayLoc = getVal(combinedData, "location", "mem_scrn_loc", "mem_scrn_q17") || selectedParticipant?.loc || "Dharavi";
 
   // Anthropometry & BMI
-  const height = getFloat(combinedData, "q67", "height", "ht", "height_cm", "ht_cm", "custom_q67", "q67_height");
-  const weight = getFloat(combinedData, "q68", "weight", "wt", "weight_kg", "wt_kg", "custom_q68", "q68_weight", "q5", "mem_scrn_q5");
-  let bmi = getFloat(combinedData, "q69", "bmi", "calculated_bmi", "custom_bmi", "custom_q69", "q69_bmi");
+  const height = getFloat(combinedData, "q67", "height", "ht", "height_cm", "ht_cm", "custom_q67", "q67_height", "Q67");
+  const weight = getFloat(combinedData, "q68", "weight", "wt", "weight_kg", "wt_kg", "custom_q68", "q68_weight", "q5", "mem_scrn_q5", "Q68");
+  let bmi = getFloat(combinedData, "q69", "bmi", "calculated_bmi", "custom_bmi", "custom_q69", "q69_bmi", "Q69");
   if (bmi === 0 && height > 0 && weight > 0) {
     const hM = height / 100;
     bmi = parseFloat((weight / (hM * hM)).toFixed(1));
   }
 
   // Abdominal Obesity & WHR
-  const waist = getFloat(combinedData, "q70", "waist", "waist_cm", "waist_circumference", "custom_q70", "q70_waist");
-  const hip = getFloat(combinedData, "q71", "hip", "hip_cm", "hip_circumference", "custom_q71", "q71_hip");
-  let whr = getFloat(combinedData, "q72", "whr", "waist_hip_ratio", "custom_whr", "custom_q72", "q72_whr");
+  const waist = getFloat(combinedData, "q70", "waist", "waist_cm", "waist_circumference", "custom_q70", "q70_waist", "Q70");
+  const hip = getFloat(combinedData, "q71", "hip", "hip_cm", "hip_circumference", "custom_q71", "q71_hip", "Q71");
+  let whr = getFloat(combinedData, "q72", "whr", "waist_hip_ratio", "custom_whr", "custom_q72", "q72_whr", "Q72");
   if (whr === 0 && waist > 0 && hip > 0) {
     whr = parseFloat((waist / hip).toFixed(2));
   }
 
   // Hemodynamics & Vitals
-  const pulse = getFloat(combinedData, "q74", "pulse", "pulse_rate", "heart_rate", "pr", "custom_q74");
-  const sys1 = getFloat(combinedData, "sys_bp_1", "q75_sys", "sys_bp", "systolic", "sbp", "custom_sys_bp", "q3", "mem_scrn_q3", "bp_sys");
-  const dia1 = getFloat(combinedData, "dia_bp_1", "q75_dia", "dia_bp", "diastolic", "dbp", "custom_dia_bp", "q4", "mem_scrn_q4", "bp_dia");
-  const sys2 = getFloat(combinedData, "sys_bp_2", "q76_sys");
-  const dia2 = getFloat(combinedData, "dia_bp_2", "q76_dia");
-  let avgSys = getFloat(combinedData, "avg_sys_bp", "average_sys_bp", "avg_sys", "sys_bp_avg");
-  let avgDia = getFloat(combinedData, "avg_dia_bp", "average_dia_bp", "avg_dia", "dia_bp_avg");
+  const pulse = getFloat(combinedData, "q74", "pulse", "pulse_rate", "heart_rate", "pr", "custom_q74", "Q74");
+  const sys1 = getFloat(combinedData, "sys_bp_1", "q75_sys", "sys_bp", "systolic", "sbp", "sbp1", "custom_sys_bp", "q3", "mem_scrn_q3", "bp_sys", "Q75_SYS");
+  const dia1 = getFloat(combinedData, "dia_bp_1", "q75_dia", "dia_bp", "diastolic", "dbp", "dbp1", "custom_dia_bp", "q4", "mem_scrn_q4", "bp_dia", "Q75_DIA");
+  const sys2 = getFloat(combinedData, "sys_bp_2", "q76_sys", "sbp2", "Q76_SYS");
+  const dia2 = getFloat(combinedData, "dia_bp_2", "q76_dia", "dbp2", "Q76_DIA");
+  let avgSys = getFloat(combinedData, "avg_sys_bp", "average_sys_bp", "avg_sys", "sys_bp_avg", "avg_bp_sys", "q77_sys");
+  let avgDia = getFloat(combinedData, "avg_dia_bp", "average_dia_bp", "avg_dia", "dia_bp_avg", "avg_bp_dia", "q77_dia");
 
   if (avgSys === 0) {
     if (sys1 > 0 && sys2 > 0) {
@@ -1890,17 +2584,51 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
     }
   }
 
-  const spo2 = getFloat(combinedData, "q78", "spo2", "oxygen_saturation", "oximeter", "custom_q78");
+  const spo2 = getFloat(combinedData, "q78", "spo2", "oxygen_saturation", "oximeter", "custom_q78", "Q78");
 
   // Point-of-Care Lab Tests
-  const rbs = getFloat(combinedData, "q79", "rbs", "blood_sugar", "random_blood_sugar", "custom_rbs", "custom_q79", "sugar");
-  const hb = getFloat(combinedData, "q80", "hb", "haemoglobin", "hemoglobin", "custom_hb", "custom_q80");
+  const rbs = getFloat(combinedData, "q79", "rbs", "blood_sugar", "random_blood_sugar", "custom_rbs", "custom_q79", "sugar", "Q79");
+  const hb = getFloat(combinedData, "q80", "hb", "haemoglobin", "hemoglobin", "custom_hb", "custom_q80", "Q80");
 
   // Psychosocial & Addiction Risk Scores
-  const phq9 = getInt(combinedData, "phq9", "phq_9", "phq9_score", "phq_score", "q64", "custom_q64", "q64_score", "phq_total");
-  const gad7 = getInt(combinedData, "gad7", "gad_7", "gad7_score", "gad_score", "q61", "custom_q61", "q61_score", "gad_total");
-  const hsi = getInt(combinedData, "hsi", "hsi_score", "nicotine_hsi", "q23", "custom_q23", "q23_score", "hsi_total");
+  let phq9 = getInt(combinedData, "phq9", "phq_9", "phq9_score", "phq_score", "q64", "custom_q64", "q64_score", "phq_total", "phq9_total", "Q64");
+  let gad7 = getInt(combinedData, "gad7", "gad_7", "gad7_score", "gad_score", "q61", "custom_q61", "q61_score", "gad_total", "gad7_total", "Q61");
+  let hsi = getInt(combinedData, "hsi", "hsi_score", "nicotine_hsi", "q23", "custom_q23", "q23_score", "hsi_total", "Q23");
 
+  // Dynamic sum computation if direct total scores aren't present
+  if (phq9 === 0) {
+    let sumPhq = 0;
+    let foundAny = false;
+    for (let i = 1; i <= 9; i++) {
+      const v = getInt(combinedData, `q64_phq9_q${i}`, `q64_${i}`, `phq9_q${i}`, `phq_${i}`, `q62_${i}`);
+      if (v > 0) {
+        sumPhq += v;
+        foundAny = true;
+      }
+    }
+    if (foundAny) phq9 = sumPhq;
+  }
+
+  if (gad7 === 0) {
+    let sumGad = 0;
+    let foundAny = false;
+    for (let i = 1; i <= 7; i++) {
+      const v = getInt(combinedData, `q60_gad7_q${i}`, `q61_gad7_q${i}`, `q60_${i}`, `q61_${i}`, `gad7_q${i}`, `gad_${i}`);
+      if (v > 0) {
+        sumGad += v;
+        foundAny = true;
+      }
+    }
+    if (foundAny) gad7 = sumGad;
+  }
+
+  if (hsi === 0) {
+    const q21 = getInt(combinedData, "q21", "custom_q21", "q21_time_to_first");
+    const q22 = getInt(combinedData, "q22", "custom_q22", "q22_cigarettes_per_day");
+    if (q21 > 0 || q22 > 0) {
+      hsi = Math.min(Math.max(q21 + q22, 0), 6);
+    }
+  }
   return (
     <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-purple-200/90 shadow-2xs space-y-3">
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 pb-3 border-b border-purple-100 bg-gradient-to-r from-purple-50/60 via-purple-50/20 to-white -mx-3.5 -mt-3.5 p-3.5 px-4 rounded-t-2xl">
