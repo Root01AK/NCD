@@ -180,68 +180,9 @@ export function registerContactNumber(contactDigits, participantId) {
 }
 
 
-const DEFAULT_SURVEY_QUESTIONS = [
-  // Section 1: Demographics
-  { id: "sec_1", title: "SECTION 1 · DEMOGRAPHICS — FIELD SUPERVISOR", type: "section_header", section: 1 },
-  { id: "q1", title: "Q1. Age", type: "number", required: true, section: 1 },
-  { id: "q2", title: "Q2. Gender", type: "single_choice", options: ["Male", "Female", "Transgender women", "Transgender man", "Prefer not to say"], required: true, section: 1 },
-  { id: "q3", title: "Q3. Site", type: "dropdown", options: ["Dharavi", "Malvani", "Vashi"], required: true, section: 1 },
-  { id: "q4", title: "Q4. Primary Occupation", type: "dropdown", options: ["Unemployed, seeking work", "Unemployed, not seeking work", "Daily wage labourer", "Construction worker", "Domestic worker", "Street vendor / hawker", "Shop assistant / retail", "Driver / transport worker", "Artisan / craft worker", "Tailor / garment worker", "Factory / industrial worker", "Waste picker / sanitation worker", "Security guard", "Cook / food service", "Salaried, private sector", "Salaried, government", "Self-employed / small business", "Housewife / home-based work", "Student", "Retired", "Unable to work due to illness or disability", "Sex work", "Not stated"], required: false, section: 1 },
-  { id: "q5", title: "Q5. Education Level", type: "dropdown", options: ["No formal education", "Primary (classes 1 to 5)", "Middle (classes 6 to 8)", "Secondary (classes 9 to 10)", "Higher secondary (classes 11 to 12)", "ITI / diploma / vocational", "Graduate", "Postgraduate", "Not stated"], required: false, section: 1 },
-  { id: "q6", title: "Q6. Current Monthly Household Income (₹)", type: "dropdown", options: ["No income", "10,000 or below", "10,001 to 20,000", "20,001 to 30,000", "Above 30,000", "Not stated"], required: false, section: 1 },
-  { id: "q7", title: "Q7. Type of Housing", type: "dropdown", options: ["Pavement / open space", "Temporary shelter or tarpaulin structure", "Dormitory / shared labour accommodation", "Chawl room", "Single-room tenement, kutcha", "Single-room tenement, pucca", "Flat / apartment", "Individual house", "Hostel", "Institutional accommodation", "Not stated"], required: false, section: 1 },
-  { id: "q8", title: "Q8. How long have you lived at this address?", type: "dropdown", options: ["Less than 6 months", "6 months to 2 years", "2 to 5 years", "More than 5 years", "Not stated"], required: false, section: 1 },
+import phase2Questions from "../admin/phase2_questions.json";
 
-  // Section 2: Medical History
-  { id: "sec_2", title: "SECTION 2 · MEDICAL HISTORY — STAFF NURSE", type: "section_header", section: 2 },
-  { id: "q9", title: "Q9. Have you ever been told by a doctor that you have any of the following? (check all that apply)", type: "multi_choice", options: ["Diabetes", "Hypertension", "Heart disease", "Stroke / paralysis", "Chronic respiratory disease", "Chronic kidney disease", "Chronic liver disease", "Chronic gastrointestinal disease", "Thyroid disorder", "Tuberculosis", "Cancer", "Epilepsy / seizure disorder", "Arthritis / joint disease", "Anaemia", "Mental health condition", "None of the above"], required: true, section: 2 },
-  { id: "q10", title: "Q10. If cancer, which type?", type: "dropdown", options: ["Oral / head and neck", "Breast", "Cervical", "Lung", "Stomach / oesophageal", "Colorectal", "Blood / lymphatic", "Other solid organs", "Not known to participant"], required: false, section: 2 },
-  { id: "q11", title: "Q11. Family history of NCDs", type: "single_choice", options: ["Yes", "No", "Don't know"], required: false, section: 2 },
-  { id: "q12", title: "Q12. If yes, which?", type: "multi_choice", options: ["Diabetes", "Hypertension", "Heart disease", "Stroke", "Chronic respiratory disease", "Chronic kidney disease", "Cancer", "Mental health condition", "Not known which"], required: false, section: 2 },
-  { id: "q13", title: "Q13. Have you been told before that you have high blood pressure or high blood sugar?", type: "single_choice", options: ["Yes, blood pressure only", "Yes, blood sugar only", "Yes, both", "No", "Don't know"], required: false, section: 2 },
-  { id: "q14", title: "Q14. Do you take any medication regularly?", type: "single_choice", options: ["Yes", "No"], required: false, section: 2 },
-  { id: "q15", title: "Q15. If yes, for which conditions?", type: "multi_choice", options: ["Diabetes", "Blood pressure", "Heart", "Respiratory", "Cholesterol", "Obesity", "Corticosteroids", "Antacids / PPIs", "Thyroid", "Tuberculosis", "Mental health", "Pain relief", "Traditional or alternative medicine", "Not known to participant"], required: false, section: 2 },
-  { id: "q16", title: "Q16. In the last month, have you missed your medication for more than three days together?", type: "single_choice", options: ["No", "Yes, cost", "Yes, medicine not available", "Yes, side effects", "Yes, felt better", "Yes, forgot", "Yes, could not reach facility", "Not stated"], required: false, section: 2 },
-
-  // Section 3: Tobacco Use
-  { id: "sec_3", title: "SECTION 3 · TOBACCO USE — STAFF NURSE", type: "section_header", section: 3 },
-  { id: "q17", title: "Q17. Which best describes your tobacco use?", type: "single_choice", options: ["Never used", "Used in the past, stopped completely", "Currently use"], required: true, section: 3 },
-  { id: "q18", title: "Q18. How long ago did you stop? (Former users only)", type: "dropdown", options: ["Less than 6 months", "6 to 12 months", "1 to 5 years", "More than 5 years"], required: false, section: 3 },
-  { id: "q19", title: "Q19. For how many years did you use tobacco before stopping?", type: "dropdown", options: ["Less than 1 year", "1 to 5 years", "6 to 10 years", "11 to 20 years", "More than 20 years"], required: false, section: 3 },
-  { id: "q20", title: "Q20. Which products do you currently use? (Current users only)", type: "multi_choice", options: ["Cigarette", "Bidi", "Hookah", "Cigar / pipe", "E-cigarette", "Gutkha", "Khaini", "Zarda", "Paan with tobacco", "Paan masala with tobacco", "Snuff", "Mishri / gul"], required: false, section: 3 },
-  { id: "q21", title: "Q21. How soon after waking do you first use tobacco?", type: "dropdown", options: [{ label: "Within 5 minutes (3 pts)", code: "3" }, { label: "6 to 30 minutes (2 pts)", code: "2" }, { label: "31 to 60 minutes (1 pt)", code: "1" }, { label: "After 60 minutes (0 pts)", code: "0" }], required: false, section: 3 },
-  { id: "q22", title: "Q22. How many times do you use tobacco in a day, all products together?", type: "dropdown", options: [{ label: "10 or fewer (0 pts)", code: "0" }, { label: "11 to 20 (1 pt)", code: "1" }, { label: "21 to 30 (2 pts)", code: "2" }, { label: "31 or more (3 pts)", code: "3" }], required: false, section: 3 },
-  { id: "q23", title: "Q23. Heaviness of Smoking Index total (Q21 + Q22):", type: "number", required: false, section: 3 },
-  { id: "q24", title: "Q24. Is anyone else in your household a current tobacco user?", type: "single_choice", options: ["Yes, smoked", "Yes, smokeless", "Yes, both", "No", "Don't know"], required: false, section: 3 },
-
-  // Section 4: Alcohol Use
-  { id: "sec_4", title: "Section 4 · Alcohol use (AUDIT-C, with full AUDIT on a positive screen)", type: "section_header", section: 4 },
-  { id: "q25", title: "Q25. Which best describes your alcohol use?", type: "single_choice", options: ["Never consumed", "Consumed in the past, stopped completely", "Currently consume"], required: true, section: 4 },
-  { id: "q26", title: "Q26. If you stopped, how long ago?", type: "dropdown", options: ["Less than 6 months", "6 to 12 months", "1 to 5 years", "More than 5 years"], required: false, section: 4 },
-  { id: "q27", title: "Q27. How often do you have a drink containing alcohol?", type: "dropdown", options: [{ label: "Never (Option 1 = 1)", code: "1" }, { label: "Monthly or less (Option 2 = 2)", code: "2" }, { label: "Two to four times a month (Option 3 = 3)", code: "3" }, { label: "Two to three times a week (Option 4 = 4)", code: "4" }, { label: "Four or more times a week (Option 5 = 5)", code: "5" }], required: false, section: 4 },
-  { id: "q28", title: "Q28. How many standard drinks on a typical drinking day?", type: "dropdown", options: [{ label: "1 or 2 (Option 1 = 1)", code: "1" }, { label: "3 or 4 (Option 2 = 2)", code: "2" }, { label: "5 or 6 (Option 3 = 3)", code: "3" }, { label: "7 to 9 (Option 4 = 4)", code: "4" }, { label: "10 or more (Option 5 = 5)", code: "5" }], required: false, section: 4 },
-  { id: "q29", title: "Q29. How often do you have six or more standard drinks on one occasion?", type: "dropdown", options: [{ label: "Never (Option 1 = 1)", code: "1" }, { label: "Less than monthly (Option 2 = 2)", code: "2" }, { label: "Monthly (Option 3 = 3)", code: "3" }, { label: "Weekly (Option 4 = 4)", code: "4" }, { label: "Daily or almost daily (Option 5 = 5)", code: "5" }], required: false, section: 4 },
-  { id: "q30", title: "Q30. AUDIT-C Total Score (Auto-calculated)", type: "number", required: false, section: 4 },
-
-  // Section 8: Mental Health Screen
-  { id: "sec_8", title: "SECTION 8 · MENTAL HEALTH SCREEN — STAFF NURSE", type: "section_header", section: 8 },
-  { id: "q58", title: "Q58. Over the last 2 weeks, how often have you been bothered by feeling down, depressed, or hopeless?", type: "dropdown", options: [{ label: "0 - Not at all", code: "0" }, { label: "1 - Several days", code: "1" }, { label: "2 - More than half the days", code: "2" }, { label: "3 - Nearly every day", code: "3" }], required: false, section: 8 },
-  { id: "q59", title: "Q59. Over the last 2 weeks, how often have you been bothered by feeling nervous, anxious, or on edge?", type: "dropdown", options: [{ label: "0 - Not at all (Code 0)", code: "0" }, { label: "1 - Several days (Code 1)", code: "1" }, { label: "2 - More than half the days (Code 2)", code: "2" }, { label: "3 - Nearly every day (Code 3)", code: "3" }, { label: "4 - Almost daily (Code 4)", code: "4" }], required: false, section: 8 },
-  { id: "q60", title: "Q60. GAD-7 Anxiety Scale (Matrix)", type: "matrix", required: false, section: 8 },
-  { id: "q61", title: "Q61. GAD-7 Total Score (Auto-calculated)", type: "number", required: false, section: 8 },
-  { id: "q63", title: "Q63. Over the last 2 weeks, how often have you been bothered by any of the following depression symptoms?", type: "dropdown", options: [{ label: "0 - Not at all (Code 0)", code: "0" }, { label: "1 - Several days (Code 1)", code: "1" }, { label: "2 - More than half the days (Code 2)", code: "2" }, { label: "3 - Nearly every day (Code 3)", code: "3" }, { label: "4 - Almost daily (Code 4)", code: "4" }], required: false, section: 8 },
-  { id: "q64", title: "Q64. Patient Health Questionnaire (PHQ-9) (Matrix)", type: "matrix", required: false, section: 8 },
-  { id: "q65", title: "Q65. PHQ-9 Total Score (Auto-calculated)", type: "number", required: false, section: 8 },
-
-  // Section 16: Community Perceptions (Field Supervisor)
-  { id: "sec_16", title: "SECTION 16 · COMMUNITY PERCEPTIONS — FIELD SUPERVISOR", type: "section_header", section: 16 },
-  { id: "q112", title: "Q112. What are the biggest health problems in your community? (check all that apply)", type: "multi_choice", options: ["Malnutrition", "Obesity", "Pollution", "Stress and mental health", "Diabetes", "Heart disease", "High blood pressure", "Tuberculosis", "Alcohol and substance use", "Poor sanitation and water", "Lack of access to healthcare", "Cost of healthcare", "Mosquito-borne illness", "Cannot say"], required: false, section: 16 },
-  { id: "q113", title: "Q113. Do you have access to clean drinking water and sanitation?", type: "single_choice", options: ["Yes", "No", "Partially"], required: false, section: 16 },
-  { id: "q114", title: "Q114. If a free NCD screening camp were held in your area, what would prevent you or your neighbours from attending? (check all that apply)", type: "multi_choice", options: ["Not knowing it is happening", "Cannot take time from work", "Cannot take time from family duties", "Distance to the camp", "Cost of travel", "Need family permission", "Stigma or fear of what others will say", "Fear of the diagnosis itself", "Do not trust free camps", "Physical difficulty attending", "Nothing would prevent attendance"], required: false, section: 16 },
-  { id: "q115", title: "Q115. How do you prefer to receive health information? (check all that apply)", type: "multi_choice", options: ["WhatsApp", "Community health worker in person", "Local community meetings", "Pamphlets", "Instagram", "Facebook", "YouTube", "Public address system", "Health facility staff", "Television or radio", "Religious or community leader", "No preference"], required: false, section: 16 },
-  { id: "q116", title: "Q116. How easy is it for you to prioritise your own health?", type: "single_choice", options: ["Very easy", "Somewhat easy", "Neither easy nor difficult", "Somewhat difficult", "Very difficult"], required: false, section: 16 },
-  { id: "q117", title: "Q117. What would most help you look after your health better? (check all that apply)", type: "multi_choice", options: ["Care closer to home", "Free or cheaper medicines", "Services open outside working hours", "Someone to remind and follow up", "Better information about my condition", "Support from family", "Help with travel", "Shorter waiting times", "Staff who speak my language", "Nothing would change things"], required: false, section: 16 }
-];
+const DEFAULT_SURVEY_QUESTIONS = phase2Questions;
 
 
 

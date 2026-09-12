@@ -33,6 +33,7 @@ const Q_TYPES = [
 ];
 
 import { getDefaultSkipRulesForQuestion } from "../../lib/logicEngine";
+import phase2Questions from "./phase2_questions.json";
 
 function QuestionSkipRulesEditor({ q, questions, updateQ }) {
   const defaultRules = getDefaultSkipRulesForQuestion(q.title || q.id);
@@ -98,9 +99,9 @@ function QuestionSkipRulesEditor({ q, questions, updateQ }) {
                   type="button" 
                   onClick={() => removeRuleItem(rIdx)}
                   className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-                  title="Remove Rule"
+                  title="Delete Rule"
                 >
-                  <Trash2 size={12} />
+                  <Trash2 size={13} />
                 </button>
               </div>
 
@@ -110,17 +111,17 @@ function QuestionSkipRulesEditor({ q, questions, updateQ }) {
                     <strong>⚡ Active Rule:</strong> {rule.description}
                   </div>
                 )}
+                {/* Dependent Source Question */}
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-mono">
-                    If Question
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1 font-mono">
+                    When Condition On (Source Question):
                   </label>
                   <select
                     value={rule.dependsOn || ""}
                     onChange={(e) => updateRuleItem(rIdx, "dependsOn", e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-800 outline-none"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-mono text-slate-800 outline-none cursor-pointer focus:ring-1 focus:ring-amber-400"
                   >
-                    <option value="">-- Choose Dependent / Source Question --</option>
-                    <option value={q.id}>Self / This Question ({q.title ? q.title.split('.')[0] : q.id})</option>
+                    <option value="">-- Always Evaluated / Default --</option>
                     {questions.filter(other => other.id !== q.id && other.type !== "section_header").map(other => (
                       <option key={other.id} value={other.id}>
                         {other.title || other.id}
@@ -129,43 +130,49 @@ function QuestionSkipRulesEditor({ q, questions, updateQ }) {
                   </select>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {/* Operator */}
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-mono">
-                      Condition
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1 font-mono">
+                      Operator:
                     </label>
                     <select
                       value={rule.condition || "equals"}
                       onChange={(e) => updateRuleItem(rIdx, "condition", e.target.value)}
-                      className="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-medium text-slate-800 outline-none"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-mono text-slate-800 outline-none cursor-pointer"
                     >
-                      <option value="equals">Equals (Code)</option>
-                      <option value="in">In (2, 3...)</option>
-                      <option value="not_equals">Not Equals</option>
+                      <option value="equals">Equals ( = )</option>
+                      <option value="not_equals">Not Equals ( != )</option>
+                      <option value="contains">Contains</option>
+                      <option value="not_contains">Does Not Contain</option>
+                      <option value="gt">Greater Than ( &gt; )</option>
+                      <option value="lt">Less Than ( &lt; )</option>
                     </select>
                   </div>
 
+                  {/* Matching Option / Value */}
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-mono">
-                      Value / Code
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1 font-mono">
+                      Target Value:
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. 2, 3"
+                      placeholder="e.g. 1, Yes, Dharavi"
                       value={rule.value || ""}
                       onChange={(e) => updateRuleItem(rIdx, "value", e.target.value)}
-                      className="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-mono font-bold text-slate-900 outline-none"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-mono text-slate-800 outline-none"
                     />
                   </div>
 
+                  {/* Action */}
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-mono">
-                      Action
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1 font-mono">
+                      Then Action:
                     </label>
                     <select
                       value={rule.action || "hide"}
                       onChange={(e) => updateRuleItem(rIdx, "action", e.target.value)}
-                      className="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 outline-none"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-mono font-bold text-amber-700 outline-none cursor-pointer"
                     >
                       <option value="hide">Hide / Skip Question(s)</option>
                       <option value="show">Show Question(s)</option>
@@ -212,7 +219,7 @@ function QuestionSkipRulesEditor({ q, questions, updateQ }) {
 
 export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
   const [surveyTitle, setSurveyTitle] = useState(() => {
-    return selectedSurvey ? selectedSurvey.sur_title : "New Survey Form";
+    return selectedSurvey ? selectedSurvey.sur_title : "MUMBAI NCD SURVEY — PHASE II (Comprehensive 16 Sections)";
   });
   const [questions, setQuestions] = useState(() => {
     if (selectedSurvey) {
@@ -232,7 +239,7 @@ export function SurveyBuilder({ notify, selectedSurvey, onBack }) {
         }
       } catch (e) {}
     }
-    return [];
+    return phase2Questions;
   });
   const [expandedIds, setExpandedIds] = useState({});
   const [importing, setImporting] = useState(false);

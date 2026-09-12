@@ -3,13 +3,14 @@ import { Search, Plus, FileText, Play, BarChart2, Copy, Loader2, Settings, Trash
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { getDefaultSkipRulesForQuestion } from "../../lib/logicEngine";
+import phase2Questions from "./phase2_questions.json";
 
 export const DEFAULT_MASTER_SURVEYS = [
   {
     sur_id: 1,
     sur_code: "NCD-P2-2026",
     sur_title: "MUMBAI NCD SURVEY — PHASE II (Comprehensive 16 Sections)",
-    sur_url: "[]",
+    sur_url: JSON.stringify(phase2Questions),
     sur_onlne_id: "NCD-ONL-2026",
     location: "All Locations",
     status: "1"
@@ -64,6 +65,9 @@ export function SurveyManagement({ notify, setNavTab, setSelectedSurvey, onOpenM
           if (Array.isArray(parsed)) schemaArr = parsed;
         }
       } catch (e) {}
+    }
+    if (schemaArr.length === 0) {
+      schemaArr = phase2Questions;
     }
     return {
       sur_title: s.sur_title || "Survey Schema",

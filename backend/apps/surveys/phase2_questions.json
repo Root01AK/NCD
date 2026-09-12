@@ -1,0 +1,2485 @@
+[
+  {
+    "id": "sec_1",
+    "type": "section_header",
+    "title": "Section 1 · Demographics",
+    "section": 1,
+    "required": false,
+    "options": []
+  },
+  {
+    "id": "q_0",
+    "q_code": "Q1",
+    "type": "short_text",
+    "title": "Q1. Age:",
+    "section": 1,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_1",
+    "q_code": "Q2",
+    "type": "single_choice",
+    "title": "Q2. Gender:",
+    "section": 1,
+    "required": true,
+    "options": [
+      "1 Male",
+      "2 Female",
+      "3 Transgender women",
+      "4 Transgender man",
+      "5 Prefer not to say"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_2",
+    "q_code": "Q3",
+    "type": "single_choice",
+    "title": "Q3. Site:",
+    "section": 1,
+    "required": true,
+    "options": [
+      "1 Dharavi",
+      "2 Malvani",
+      "3 Vashi",
+      "4 Other project site (pre-coded)"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_3",
+    "q_code": "Q4",
+    "type": "single_choice",
+    "title": "Q4. Occupation:",
+    "section": 1,
+    "required": true,
+    "options": [
+      "1 Unemployed, seeking work",
+      "2 Unemployed, not seeking work",
+      "3 Daily wage labourer",
+      "4 Construction worker",
+      "5 Domestic worker",
+      "6 Street vendor / hawker",
+      "7 Shop assistant / retail",
+      "8 Driver / transport worker",
+      "9 Artisan / craft worker",
+      "10 Tailor / garment worker",
+      "11 Factory / industrial worker",
+      "12 Waste picker / sanitation worker",
+      "13 Security guard",
+      "14 Cook / food service",
+      "15 Salaried, private sector",
+      "16 Salaried, government",
+      "17 Self-employed / small business",
+      "18 Housewife / home-based work",
+      "19 Student",
+      "20 Retired",
+      "21 Unable to work due to illness or disability",
+      "22 Sex work",
+      "23 Not stated"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_4",
+    "q_code": "Q5",
+    "type": "single_choice",
+    "title": "Q5. Education level:",
+    "section": 1,
+    "required": true,
+    "options": [
+      "1 No formal education",
+      "2 Primary (classes 1 to 5)",
+      "3 Middle (classes 6 to 8)",
+      "4 Secondary (classes 9 to 10)",
+      "5 Higher secondary (classes 11 to 12)",
+      "6 ITI / diploma / vocational",
+      "7 Graduate",
+      "8 Postgraduate",
+      "9 Not stated"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_5",
+    "q_code": "Q6",
+    "type": "single_choice",
+    "title": "Q6. Current monthly household income (₹):",
+    "section": 1,
+    "required": true,
+    "options": [
+      "1 No income",
+      "2 10,000 or below",
+      "3 10,001 to 20,000",
+      "4 20,001 to 30,000",
+      "5 Above 30,000",
+      "6 Not stated"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_6",
+    "q_code": "Q7",
+    "type": "single_choice",
+    "title": "Q7. Type of housing:",
+    "section": 1,
+    "required": true,
+    "options": [
+      "1 Pavement / open space",
+      "2 Temporary shelter or tarpaulin structure",
+      "3 Dormitory / shared labour accommodation",
+      "4 Chawl room",
+      "5 Single-room tenement, kutcha",
+      "6 Single-room tenement, pucca",
+      "7 Flat / apartment",
+      "8 Individual house",
+      "9 Hostel",
+      "10 Institutional accommodation",
+      "11 Not stated"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_7",
+    "q_code": "Q8",
+    "type": "single_choice",
+    "title": "Q8. How long have you lived at this address?",
+    "section": 1,
+    "required": true,
+    "options": [
+      "1 Less than 6 months",
+      "2 6 months to 2 years",
+      "3 2 to 5 years",
+      "4 More than 5 years",
+      "5 Not stated"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "sec_2",
+    "type": "section_header",
+    "title": "Section 2 · Medical history",
+    "section": 2,
+    "required": false,
+    "options": []
+  },
+  {
+    "id": "q_8",
+    "q_code": "Q9",
+    "type": "multi_choice",
+    "title": "Q9. Have you ever been told by a doctor that you have any of the following?   ☑ check all that apply",
+    "section": 2,
+    "required": true,
+    "options": [
+      "1 Diabetes",
+      "2 Hypertension",
+      "3 Heart disease",
+      "4 Stroke / paralysis",
+      "5 Chronic respiratory disease",
+      "6 Chronic kidney disease",
+      "7 Chronic liver disease",
+      "8 Chronic gastrointestinal disease",
+      "9 Thyroid disorder",
+      "10 Tuberculosis",
+      "11 Cancer",
+      "12 Epilepsy / seizure disorder",
+      "13 Arthritis / joint disease",
+      "14 Anaemia",
+      "15 Mental health condition",
+      "16 None of the above"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_9",
+    "q_code": "Q10",
+    "type": "single_choice",
+    "title": "Q10. If cancer, which type?",
+    "section": 2,
+    "required": true,
+    "options": [
+      "1 Oral / head and neck",
+      "2 Breast",
+      "3 Cervical",
+      "4 Lung",
+      "5 Stomach / oesophageal",
+      "6 Colorectal",
+      "7 Blood / lymphatic",
+      "8 Other solid organs",
+      "9 Not known to participant"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_10",
+    "q_code": "Q11",
+    "type": "single_choice",
+    "title": "Q11. Family history of NCDs:",
+    "section": 2,
+    "required": true,
+    "options": [
+      "1 Yes",
+      "2 No",
+      "3 Don't know"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_11",
+    "q_code": "Q12",
+    "type": "multi_choice",
+    "title": "Q12. If yes, which?   ☑ check all that apply",
+    "section": 2,
+    "required": true,
+    "options": [
+      "1 Diabetes",
+      "2 Hypertension",
+      "3 Heart disease",
+      "4 Stroke",
+      "5 Chronic respiratory disease",
+      "6 Chronic kidney disease",
+      "7 Cancer",
+      "8 Mental health condition",
+      "9 Not known which"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_12",
+    "q_code": "Q13",
+    "type": "single_choice",
+    "title": "Q13. Have you been told before that you have high blood pressure or high blood sugar?",
+    "section": 2,
+    "required": true,
+    "options": [
+      "1 Yes, blood pressure only",
+      "2 Yes, blood sugar only",
+      "3 Yes, both",
+      "4 No",
+      "5 Don't know"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_13",
+    "q_code": "Q14",
+    "type": "single_choice",
+    "title": "Q14. Do you take any medication regularly?",
+    "section": 2,
+    "required": true,
+    "options": [
+      "1 Yes",
+      "2 No"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_14",
+    "q_code": "Q15",
+    "type": "multi_choice",
+    "title": "Q15. If yes, for which conditions?   ☑ check all that apply",
+    "section": 2,
+    "required": true,
+    "options": [
+      "1 Diabetes",
+      "2 Blood pressure",
+      "3 Heart",
+      "4 Respiratory",
+      "5 Cholesterol",
+      "6 Obesity",
+      "7 Corticosteroids",
+      "8 Antacids / PPIs",
+      "9 Thyroid",
+      "10 Tuberculosis",
+      "11 Mental health",
+      "12 Pain relief",
+      "13 Traditional or alternative medicine",
+      "14 Not known to participant"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_15",
+    "q_code": "Q16",
+    "type": "single_choice",
+    "title": "Q16. In the last month, have you missed your medication for more than three days together?",
+    "section": 2,
+    "required": true,
+    "options": [
+      "1 No",
+      "2 Yes, cost",
+      "3 Yes, medicine not available",
+      "4 Yes, side effects",
+      "5 Yes, felt better",
+      "6 Yes, forgot",
+      "7 Yes, could not reach the facility",
+      "8 Not stated"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "sec_3",
+    "type": "section_header",
+    "title": "Section 3 · Tobacco use",
+    "section": 3,
+    "required": false,
+    "options": []
+  },
+  {
+    "id": "q_16",
+    "q_code": "Q17",
+    "type": "single_choice",
+    "title": "Q17. Which best describes your tobacco use?",
+    "section": 3,
+    "required": true,
+    "options": [
+      "1 Never used",
+      "2 Used in the past, stopped completely",
+      "3 Currently use"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_17",
+    "q_code": "Q18",
+    "type": "single_choice",
+    "title": "Q18. How long ago did you stop?",
+    "section": 3,
+    "required": true,
+    "options": [
+      "1 Less than 6 months",
+      "2 6 to 12 months",
+      "3 1 to 5 years",
+      "4 More than 5 years"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_18",
+    "q_code": "Q19",
+    "type": "single_choice",
+    "title": "Q19. For how many years did you use tobacco before stopping?",
+    "section": 3,
+    "required": true,
+    "options": [
+      "1 Less than 1 year",
+      "2 1 to 5 years",
+      "3 6 to 10 years",
+      "4 11 to 20 years",
+      "5 More than 20 years"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_19",
+    "q_code": "Q20",
+    "type": "multi_choice",
+    "title": "Q20. Which products do you currently use?   ☑ check all that apply",
+    "section": 3,
+    "required": true,
+    "options": [
+      "1 Cigarette",
+      "2 Bidi",
+      "3 Hookah",
+      "4 Cigar / pipe",
+      "5 E-cigarette",
+      "6 Gutkha",
+      "7 Khaini",
+      "8 Zarda",
+      "9 Paan with tobacco",
+      "10 Paan masala with tobacco",
+      "11 Snuff",
+      "12 Mishri / gul"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_20",
+    "q_code": "Q21",
+    "type": "single_choice",
+    "title": "Q21. How soon after waking do you first use tobacco?",
+    "section": 3,
+    "required": true,
+    "options": [
+      "1 Within 5 minutes (3)",
+      "2 6 to 30 minutes (2)",
+      "3 31 to 60 minutes (1)",
+      "4 After 60 minutes (0)"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_21",
+    "q_code": "Q22",
+    "type": "single_choice",
+    "title": "Q22. How many times do you use tobacco in a day, all products together?",
+    "section": 3,
+    "required": true,
+    "options": [
+      "1 10 or fewer (0)",
+      "2 11 to 20 (1)",
+      "3 21 to 30 (2)",
+      "4 31 or more (3)"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_22",
+    "q_code": "Q23",
+    "type": "short_text",
+    "title": "Q23. Heaviness of Smoking Index total (Q21 + Q22):",
+    "section": 3,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_23",
+    "q_code": "Q24",
+    "type": "single_choice",
+    "title": "Q24. Is anyone else in your household a current tobacco user?",
+    "section": 3,
+    "required": true,
+    "options": [
+      "1 Yes, smoked",
+      "2 Yes, smokeless",
+      "3 Yes, both",
+      "4 No",
+      "5 Don't know"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "sec_4",
+    "type": "section_header",
+    "title": "Section 4 · Alcohol use (AUDIT-C, with full AUDIT on a positive screen)",
+    "section": 4,
+    "required": false,
+    "options": []
+  },
+  {
+    "id": "q_24",
+    "q_code": "Q25",
+    "type": "single_choice",
+    "title": "Q25. Which best describes your alcohol use?",
+    "section": 4,
+    "required": true,
+    "options": [
+      "1 Never consumed",
+      "2 Consumed in the past, stopped completely",
+      "3 Currently consume"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_25",
+    "q_code": "Q26",
+    "type": "single_choice",
+    "title": "Q26. If you stopped, how long ago?",
+    "section": 4,
+    "required": true,
+    "options": [
+      "1 Less than 6 months",
+      "2 6 to 12 months",
+      "3 1 to 5 years",
+      "4 More than 5 years"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_26",
+    "q_code": "Q27",
+    "type": "single_choice",
+    "title": "Q27. How often do you have a drink containing alcohol?",
+    "section": 4,
+    "required": true,
+    "options": [
+      "0 Never",
+      "1 Monthly or less",
+      "2 Two to four times a month",
+      "3 Two to three times a week",
+      "4 Four or more times a week"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_27",
+    "q_code": "Q28",
+    "type": "single_choice",
+    "title": "Q28. How many standard drinks on a typical drinking day?",
+    "section": 4,
+    "required": true,
+    "options": [
+      "0 One or two",
+      "1 Three or four",
+      "2 Five or six",
+      "3 Seven to nine",
+      "4 Ten or more"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_28",
+    "q_code": "Q29",
+    "type": "single_choice",
+    "title": "Q29. How often do you have six or more standard drinks on one occasion?",
+    "section": 4,
+    "required": true,
+    "options": [
+      "0 Never",
+      "1 Less than monthly",
+      "2 Monthly",
+      "3 Weekly",
+      "4 Daily or almost daily"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_29",
+    "q_code": "Q30",
+    "type": "short_text",
+    "title": "Q30. AUDIT-C total (Q27 + Q28 + Q29):",
+    "section": 4,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_30",
+    "q_code": "Q31",
+    "type": "single_choice",
+    "title": "Q31. Full AUDIT administered?",
+    "section": 4,
+    "required": true,
+    "options": [
+      "1 Yes",
+      "2 No, declined",
+      "3 No, time constraint"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_31",
+    "q_code": "Q32",
+    "type": "number",
+    "title": "Q32. Full AUDIT total score:",
+    "section": 4,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "sec_5",
+    "type": "section_header",
+    "title": "Section 5 · Other substance use",
+    "section": 5,
+    "required": false,
+    "options": []
+  },
+  {
+    "id": "q_32",
+    "q_code": "Q33",
+    "type": "single_choice",
+    "title": "Q33. Which best describes your use of any other drugs, including for pleasure?",
+    "section": 5,
+    "required": true,
+    "options": [
+      "1 Never used",
+      "2 Used in the past, stopped",
+      "3 Used in the last 12 months but not the last month",
+      "4 Used in the last month",
+      "5 Prefer not to say"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_33",
+    "q_code": "Q34",
+    "type": "multi_choice",
+    "title": "Q34. Which substances?   ☑ check all that apply",
+    "section": 5,
+    "required": true,
+    "options": [
+      "1 Cannabis / ganja / charas",
+      "2 Opioids (heroin, brown sugar, smack)",
+      "3 Prescription opioids without prescription",
+      "4 Stimulants (cocaine, amphetamine, MDMA)",
+      "5 Sedatives without prescription",
+      "6 Inhalants (glue, solvents, correction fluid)",
+      "7 Prefer not to say"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_34",
+    "q_code": "Q35",
+    "type": "single_choice",
+    "title": "Q35. How often in the last month?",
+    "section": 5,
+    "required": true,
+    "options": [
+      "1 Daily",
+      "2 Weekly",
+      "3 Monthly",
+      "4 Less than monthly",
+      "5 Prefer not to say"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_35",
+    "q_code": "Q36",
+    "type": "single_choice",
+    "title": "Q36. Have you ever injected any of these?",
+    "section": 5,
+    "required": true,
+    "options": [
+      "1 Never injected",
+      "2 Injected in the past",
+      "3 Injected in the last month",
+      "4 Prefer not to say"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "sec_6",
+    "type": "section_header",
+    "title": "Section 6 · Diet and physical activity",
+    "section": 6,
+    "required": false,
+    "options": []
+  },
+  {
+    "id": "q_36",
+    "q_code": "Q37",
+    "type": "single_choice",
+    "title": "Q37. Reduced food intake, about half your usual need or less, for two weeks or more?",
+    "section": 6,
+    "required": true,
+    "options": [
+      "1 Yes",
+      "2 No"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_37",
+    "q_code": "Q38",
+    "type": "single_choice",
+    "title": "Q38. Servings of vegetables daily:",
+    "section": 6,
+    "required": true,
+    "options": [
+      "1 \tLess than 1",
+      "2 \t1 to 2",
+      "3 \t3 to 4",
+      "4 \t5 or more"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_38",
+    "q_code": "Q39",
+    "type": "single_choice",
+    "title": "Q39. Servings of fruit daily:",
+    "section": 6,
+    "required": true,
+    "options": [
+      "1 \tLess than 1",
+      "2 \t1 to 2",
+      "3 \t3 to 4",
+      "4 \t5 or more"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_39",
+    "q_code": "Q40",
+    "type": "single_choice",
+    "title": "Q40. Do you add salt or a salty sauce to food just before or while eating?",
+    "section": 6,
+    "required": true,
+    "options": [
+      "1 Yes",
+      "2 No"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_40",
+    "q_code": "Q41",
+    "type": "single_choice",
+    "title": "Q41. If yes, how often?",
+    "section": 6,
+    "required": true,
+    "options": [
+      "1 Daily",
+      "2 Sometimes",
+      "3 Rarely"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_41",
+    "q_code": "Q42",
+    "type": "single_choice",
+    "title": "Q42. Do you eat processed food high in salt?",
+    "section": 6,
+    "required": true,
+    "options": [
+      "1 Yes",
+      "2 No"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_42",
+    "q_code": "Q43",
+    "type": "single_choice",
+    "title": "Q43. If yes, how often?",
+    "section": 6,
+    "required": true,
+    "options": [
+      "1 Daily",
+      "2 Sometimes",
+      "3 Rarely"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_43",
+    "q_code": "Q44",
+    "type": "single_choice",
+    "title": "Q44. Do you eat processed food high in sugar?",
+    "section": 6,
+    "required": true,
+    "options": [
+      "1 Yes",
+      "2 No"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_44",
+    "q_code": "Q45",
+    "type": "single_choice",
+    "title": "Q45. If yes, how often?",
+    "section": 6,
+    "required": true,
+    "options": [
+      "1 Daily",
+      "2 Sometimes",
+      "3 Rarely"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_45",
+    "q_code": "Q46",
+    "type": "single_choice",
+    "title": "Q46. Do you eat deep-fried food?",
+    "section": 6,
+    "required": true,
+    "options": [
+      "1 Yes",
+      "2 No"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_46",
+    "q_code": "Q47",
+    "type": "single_choice",
+    "title": "Q47. If yes, how often?",
+    "section": 6,
+    "required": true,
+    "options": [
+      "1 Daily",
+      "2 Sometimes",
+      "3 Rarely"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_47",
+    "q_code": "Q48",
+    "type": "single_choice",
+    "title": "Q48. How often do you eat food prepared outside your home?",
+    "section": 6,
+    "required": true,
+    "options": [
+      "1 \tEvery day",
+      "2 \tMost days (4 to 6 a week)",
+      "3 \tSome days (1 to 3 a week)",
+      "4 \tLess than once a week",
+      "5 \tNever"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_48",
+    "q_code": "Q49",
+    "type": "single_choice",
+    "title": "Q49. In a typical 24 hours, how much water do you drink? (1 glass = 250 to 300 ml)",
+    "section": 6,
+    "required": true,
+    "options": [
+      "1 \t2 glasses or fewer",
+      "2 \t3 to 4",
+      "3 \t5 to 6",
+      "4 \t7 to 8",
+      "5 \tMore than 8"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_49",
+    "q_code": "Q50",
+    "type": "single_choice",
+    "title": "Q50. Days last week with at least 30 minutes of physical activity:",
+    "section": 6,
+    "required": true,
+    "options": [
+      "1 \tNone",
+      "2 \t1 to 2",
+      "3 \t3 to 4",
+      "4 \t5 or more"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "sec_7",
+    "type": "section_header",
+    "title": "Section 7 · Symptom screen",
+    "section": 7,
+    "required": false,
+    "options": []
+  },
+  {
+    "id": "q_50",
+    "q_code": "Q51",
+    "type": "single_choice",
+    "title": "Q51. Unexplained weight loss in the past 6 months?",
+    "section": 7,
+    "required": true,
+    "options": [
+      "1 Yes",
+      "2 No",
+      "3 Don't know"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_51",
+    "q_code": "Q52",
+    "type": "single_choice",
+    "title": "Q52. Unexplained weight gain in the past 6 months?",
+    "section": 7,
+    "required": true,
+    "options": [
+      "1 Yes",
+      "2 No",
+      "3 Don't know"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_52",
+    "q_code": "Q53",
+    "type": "single_choice",
+    "title": "Q53. Shortness of breath or chest pain during routine activity?",
+    "section": 7,
+    "required": true,
+    "options": [
+      "1 Yes",
+      "2 No"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_53",
+    "q_code": "Q54",
+    "type": "single_choice",
+    "title": "Q54. Excessive thirst in the past 4 weeks?",
+    "section": 7,
+    "required": true,
+    "options": [
+      "1 Yes",
+      "2 No"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_54",
+    "q_code": "Q55",
+    "type": "single_choice",
+    "title": "Q55. Over the past 4 weeks, how many times do you usually pass urine in 24 hours?",
+    "section": 7,
+    "required": true,
+    "options": [
+      "1 \t3 or fewer",
+      "2 \t4 to 6",
+      "3 \t7 to 9",
+      "4 \t10 or more"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_55",
+    "q_code": "Q56",
+    "type": "single_choice",
+    "title": "Q56. How many times do you wake at night to pass urine?",
+    "section": 7,
+    "required": true,
+    "options": [
+      "1 Never",
+      "2 Once",
+      "3 Twice",
+      "4 Three or more"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_56",
+    "q_code": "Q57",
+    "type": "single_choice",
+    "title": "Q57. Do you get a sudden strong urge to pass urine that is hard to control?",
+    "section": 7,
+    "required": true,
+    "options": [
+      "1 Never",
+      "2 Rarely",
+      "3 Occasionally",
+      "4 Frequently",
+      "5 Always"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "sec_8",
+    "type": "section_header",
+    "title": "Section 8 · Mental health screen",
+    "section": 8,
+    "required": false,
+    "options": []
+  },
+  {
+    "id": "q_57",
+    "q_code": "Q58",
+    "type": "single_choice",
+    "title": "Q58. Feeling nervous or anxious, or unable to stop worrying:",
+    "section": 8,
+    "required": true,
+    "options": [
+      "0 Not at all",
+      "1 Several days",
+      "2 More than half the days",
+      "3 Nearly every day"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_58",
+    "q_code": "Q59",
+    "type": "single_choice",
+    "title": "Q59. Little interest or pleasure in doing things, or feeling down or hopeless:",
+    "section": 8,
+    "required": true,
+    "options": [
+      "0 Not at all",
+      "1 Several days",
+      "2 More than half the days",
+      "3 Nearly every day"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_59",
+    "q_code": "Q60",
+    "type": "single_choice",
+    "title": "Q60. GAD-7 administered?",
+    "section": 8,
+    "required": true,
+    "options": [
+      "1 Yes",
+      "2 No, declined",
+      "3 No, time constraint"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_60",
+    "q_code": "Q61",
+    "type": "number",
+    "title": "Q61. GAD-7 total score:",
+    "section": 8,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_61",
+    "q_code": "Q62",
+    "type": "single_choice",
+    "title": "Q62. PHQ-9 administered?",
+    "section": 8,
+    "required": true,
+    "options": [
+      "1 Yes",
+      "2 No, declined",
+      "3 No, time constraint"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_62",
+    "q_code": "Q63",
+    "type": "number",
+    "title": "Q63. PHQ-9 total score:",
+    "section": 8,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_63",
+    "q_code": "Q64",
+    "type": "single_choice",
+    "title": "Q64. PHQ-9 item 9 (thoughts of self-harm) response:",
+    "section": 8,
+    "required": true,
+    "options": [
+      "0 Not at all",
+      "1 Several days",
+      "2 More than half the days",
+      "3 Nearly every day"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_64",
+    "q_code": "Q65",
+    "type": "single_choice",
+    "title": "Q65. Escalation completed where Q64 was positive?",
+    "section": 8,
+    "required": true,
+    "options": [
+      "1 Yes, counsellor or doctor informed and referral made",
+      "2 Not applicable, Q64 was zero"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_65",
+    "q_code": "Q66",
+    "type": "single_choice",
+    "title": "Q66. Have you ever sought help for a mental health concern?",
+    "section": 8,
+    "required": true,
+    "options": [
+      "1 Never sought help",
+      "2 From a doctor or hospital",
+      "3 From a counsellor",
+      "4 From a traditional or faith healer",
+      "5 From family or friends only",
+      "6 Prefer not to say"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "sec_9",
+    "type": "section_header",
+    "title": "Section 9 · Anthropometry (numeric)",
+    "section": 9,
+    "required": false,
+    "options": []
+  },
+  {
+    "id": "q_66",
+    "q_code": "Q67",
+    "type": "number",
+    "title": "Q67. Height (cm):",
+    "section": 9,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_67",
+    "q_code": "Q68",
+    "type": "number",
+    "title": "Q68. Weight (kg):",
+    "section": 9,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_68",
+    "q_code": "Q69",
+    "type": "number",
+    "title": "Q69. BMI (kg/m²):",
+    "section": 9,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_69",
+    "q_code": "Q70",
+    "type": "number",
+    "title": "Q70. Waist circumference (cm):",
+    "section": 9,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_70",
+    "q_code": "Q71",
+    "type": "number",
+    "title": "Q71. Hip circumference (cm):",
+    "section": 9,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_71",
+    "q_code": "Q72",
+    "type": "short_text",
+    "title": "Q72. Waist-hip ratio:",
+    "section": 9,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "sec_10",
+    "type": "section_header",
+    "title": "Section 10 · Vitals (numeric)",
+    "section": 10,
+    "required": false,
+    "options": []
+  },
+  {
+    "id": "q_72",
+    "q_code": "Q73",
+    "type": "single_choice",
+    "title": "Q73. Temperature:",
+    "section": 10,
+    "required": true,
+    "options": [
+      "1 Normal",
+      "2 Febrile"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_73",
+    "q_code": "Q74",
+    "type": "number",
+    "title": "Q74. Pulse (bpm):",
+    "section": 10,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_74",
+    "q_code": "Q75",
+    "type": "short_text",
+    "title": "Q75. Blood pressure, reading 1:",
+    "section": 10,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_75",
+    "q_code": "Q76",
+    "type": "short_text",
+    "title": "Q76. Blood pressure, reading 2:",
+    "section": 10,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_76",
+    "q_code": "Q77",
+    "type": "short_text",
+    "title": "Q77. Average blood pressure:",
+    "section": 10,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_77",
+    "q_code": "Q78",
+    "type": "number",
+    "title": "Q78. SpO₂ (%):",
+    "section": 10,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "sec_11",
+    "type": "section_header",
+    "title": "Section 11 · Point-of-care tests (numeric)",
+    "section": 11,
+    "required": false,
+    "options": []
+  },
+  {
+    "id": "q_78",
+    "q_code": "Q79",
+    "type": "number",
+    "title": "Q79. Random blood sugar (mg/dL):",
+    "section": 11,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_79",
+    "q_code": "Q80",
+    "type": "short_text",
+    "title": "Q80. Haemoglobin (g/dL):",
+    "section": 11,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "sec_12",
+    "type": "section_header",
+    "title": "Section 12 · Clinical examination",
+    "section": 12,
+    "required": false,
+    "options": []
+  },
+  {
+    "id": "q_80",
+    "q_code": "Q81",
+    "type": "multi_choice",
+    "title": "Q81. General examination:   ☑ check all that apply",
+    "section": 12,
+    "required": true,
+    "options": [
+      "1 Pallor",
+      "2 Icterus",
+      "3 Clubbing",
+      "4 Cyanosis",
+      "5 Koilonychia",
+      "6 Lymphadenopathy",
+      "7 None of these"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_81",
+    "q_code": "Q82",
+    "type": "multi_choice",
+    "title": "Q82. Sites of lymphadenopathy:   ☑ check all that apply",
+    "section": 12,
+    "required": true,
+    "options": [
+      "1 Cervical",
+      "2 Axillary",
+      "3 Inguinal",
+      "4 Epitrochlear",
+      "5 Supraclavicular",
+      "6 Generalised"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_82",
+    "q_code": "Q83",
+    "type": "multi_choice",
+    "title": "Q83. Edema:   ☑ check all that apply",
+    "section": 12,
+    "required": true,
+    "options": [
+      "1 Ankle",
+      "2 Sacral",
+      "3 Ascites",
+      "4 None"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_83",
+    "q_code": "Q84",
+    "type": "multi_choice",
+    "title": "Q84. Micronutrient deficiency signs:   ☑ check all that apply",
+    "section": 12,
+    "required": true,
+    "options": [
+      "1 Seborrhoeic dermatitis",
+      "2 Bitot's spots or xerophthalmia",
+      "3 Cheilosis or glossitis",
+      "4 Bleeding gums",
+      "5 Perifollicular haemorrhage",
+      "6 Thyroid enlargement",
+      "7 None"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_84",
+    "q_code": "Q85",
+    "type": "multi_choice",
+    "title": "Q85. Oral cavity:   ☑ check all that apply",
+    "section": 12,
+    "required": true,
+    "options": [
+      "1 Cold sores",
+      "2 Oral thrush",
+      "3 Gingivitis",
+      "4 Periodontitis",
+      "5 Erythroplakia",
+      "6 Leukoplakia",
+      "7 Submucous fibrosis",
+      "8 Dental caries",
+      "9 None"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_85",
+    "q_code": "Q86",
+    "type": "single_choice",
+    "title": "Q86. Fat loss assessment per row",
+    "section": 12,
+    "required": true,
+    "options": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_86",
+    "q_code": "Q87",
+    "type": "single_choice",
+    "title": "Q87. Muscle loss assessment per row",
+    "section": 12,
+    "required": true,
+    "options": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_87",
+    "q_code": "Q88",
+    "type": "number",
+    "title": "Q88. Hand-grip strength (kg):",
+    "section": 12,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_88",
+    "q_code": "Q89",
+    "type": "multi_choice",
+    "title": "Q89. Auscultation findings:   ☑ check all that apply",
+    "section": 12,
+    "required": true,
+    "options": [
+      "1 Normal heart sounds",
+      "2 Systolic murmur",
+      "3 Diastolic murmur",
+      "4 Added sounds (S3 or S4)",
+      "5 Irregular rhythm",
+      "6 Normal breath sounds",
+      "7 Wheeze",
+      "8 Fine crackles",
+      "9 Coarse crackles",
+      "10 Reduced air entry",
+      "11 Bronchial breathing",
+      "12 Not assessable"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "sec_13",
+    "type": "section_header",
+    "title": "Section 13 · Risk categorisation and referral",
+    "section": 13,
+    "required": false,
+    "options": []
+  },
+  {
+    "id": "q_89",
+    "q_code": "Q90",
+    "type": "short_text",
+    "title": "Q90. Assign a category. Any single parameter can place the participant in a band, and the most severe band triggered wins.",
+    "section": 13,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_90",
+    "q_code": "Q91",
+    "type": "multi_choice",
+    "title": "Q91. Reason for referral:   ☑ check all that apply",
+    "section": 13,
+    "required": true,
+    "options": [
+      "1 Raised blood pressure",
+      "2 Raised blood sugar",
+      "3 Anaemia",
+      "4 Undernutrition",
+      "5 Obesity",
+      "6 Precancerous oral lesion",
+      "7 Mental health, self-harm risk",
+      "8 Mental health, other",
+      "9 Alcohol use disorder",
+      "10 Substance use",
+      "11 Cardiovascular finding",
+      "12 Respiratory finding",
+      "13 Symptomatic, cause undetermined"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_91",
+    "q_code": "Q92",
+    "type": "single_choice",
+    "title": "Q92. Referred to which facility:",
+    "section": 13,
+    "required": true,
+    "options": [
+      "1 Urban Primary Health Centre",
+      "2 Urban Community Health Centre",
+      "3 Municipal hospital",
+      "4 Government tertiary hospital",
+      "5 Project partner clinic",
+      "6 Mental health facility",
+      "7 De-addiction centre",
+      "8 Dental or oral surgery unit",
+      "9 Referral declined by participant"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_92",
+    "q_code": "Q93",
+    "type": "short_text",
+    "title": "Q93. Review date for Amber participants:",
+    "section": 13,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "sec_14",
+    "type": "section_header",
+    "title": "Section 14 · Linkage and follow-up tracking",
+    "section": 14,
+    "required": false,
+    "options": []
+  },
+  {
+    "id": "q_93",
+    "q_code": "Q94",
+    "type": "single_choice",
+    "title": "Q94. Referral or linkage required for this participant?",
+    "section": 14,
+    "required": true,
+    "options": [
+      "1 Yes",
+      "2 No, Green with no referral"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_94",
+    "q_code": "Q95",
+    "type": "short_text",
+    "title": "Q95. Scheduled date:",
+    "section": 14,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_95",
+    "q_code": "Q96",
+    "type": "single_choice",
+    "title": "Q96. Mode of contact:",
+    "section": 14,
+    "required": true,
+    "options": [
+      "1 Phone call",
+      "2 Home visit",
+      "3 Community meeting point",
+      "4 Through peer educator",
+      "5 Not attempted"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_96",
+    "q_code": "Q97",
+    "type": "single_choice",
+    "title": "Q97. Outcome of attempt 1:",
+    "section": 14,
+    "required": true,
+    "options": [
+      "1 Linked, attended facility",
+      "2 Contacted, appointment agreed",
+      "3 Contacted, deferred",
+      "4 Contacted, refused",
+      "5 Not reached, phone unanswered or off",
+      "6 Not reached, address not found",
+      "7 Not reached, away"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_97",
+    "q_code": "Q98",
+    "type": "short_text",
+    "title": "Q98. Scheduled date:",
+    "section": 14,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_98",
+    "q_code": "Q99",
+    "type": "single_choice",
+    "title": "Q99. Mode of contact:",
+    "section": 14,
+    "required": true,
+    "options": [
+      "1 Phone call",
+      "2 Home visit",
+      "3 Community meeting point",
+      "4 Through peer educator",
+      "5 Not attempted"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_99",
+    "q_code": "Q100",
+    "type": "single_choice",
+    "title": "Q100. Outcome of attempt 2:",
+    "section": 14,
+    "required": true,
+    "options": [
+      "1 Linked, attended facility",
+      "2 Contacted, appointment agreed",
+      "3 Contacted, deferred",
+      "4 Contacted, refused",
+      "5 Not reached, phone unanswered or off",
+      "6 Not reached, address not found",
+      "7 Not reached, away"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_100",
+    "q_code": "Q101",
+    "type": "short_text",
+    "title": "Q101. Scheduled date:",
+    "section": 14,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_101",
+    "q_code": "Q102",
+    "type": "single_choice",
+    "title": "Q102. Mode of contact:",
+    "section": 14,
+    "required": true,
+    "options": [
+      "1 Phone call",
+      "2 Home visit",
+      "3 Community meeting point",
+      "4 Through peer educator",
+      "5 Not attempted"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_102",
+    "q_code": "Q103",
+    "type": "single_choice",
+    "title": "Q103. Outcome of attempt 3:",
+    "section": 14,
+    "required": true,
+    "options": [
+      "1 Linked, attended facility",
+      "2 Contacted, appointment agreed",
+      "3 Contacted, deferred",
+      "4 Contacted, refused",
+      "5 Not reached, phone unanswered or off",
+      "6 Not reached, address not found",
+      "7 Not reached, away"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_103",
+    "q_code": "Q104",
+    "type": "single_choice",
+    "title": "Q104. Loss to follow-up reason (compulsory, one code only)",
+    "section": 14,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_104",
+    "q_code": "Q105",
+    "type": "single_choice",
+    "title": "Q105. If code 6 (died), source of information:",
+    "section": 14,
+    "required": true,
+    "options": [
+      "1 Family member",
+      "2 Neighbour",
+      "3 Community health worker",
+      "4 Health facility",
+      "5 Peer educator"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_105",
+    "q_code": "Q106",
+    "type": "single_choice",
+    "title": "Q106. If code 5, has the programme manager log entry been completed?",
+    "section": 14,
+    "required": true,
+    "options": [
+      "1 Yes",
+      "2 Pending"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_106",
+    "q_code": "Q107",
+    "type": "short_text",
+    "title": "Q107. Date linked:",
+    "section": 14,
+    "required": true,
+    "options": [],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_107",
+    "q_code": "Q108",
+    "type": "single_choice",
+    "title": "Q108. Linked to which facility:",
+    "section": 14,
+    "required": true,
+    "options": [
+      "1 Urban Primary Health Centre",
+      "2 Urban Community Health Centre",
+      "3 Municipal hospital",
+      "4 Government tertiary hospital",
+      "5 Project partner clinic",
+      "6 Mental health facility",
+      "7 De-addiction centre",
+      "8 Dental or oral surgery unit"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_108",
+    "q_code": "Q109",
+    "type": "single_choice",
+    "title": "Q109. Linked to a community health worker or support group?",
+    "section": 14,
+    "required": true,
+    "options": [
+      "1 Yes",
+      "2 No"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_109",
+    "q_code": "Q110",
+    "type": "single_choice",
+    "title": "Q110. Was an appointment card or referral slip issued?",
+    "section": 14,
+    "required": true,
+    "options": [
+      "1 Yes",
+      "2 No"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "sec_15",
+    "type": "section_header",
+    "title": "Section 15 · Health counselling",
+    "section": 15,
+    "required": false,
+    "options": []
+  },
+  {
+    "id": "q_110",
+    "q_code": "Q111",
+    "type": "multi_choice",
+    "title": "Q111. Health education provided on:   ☑ check all that apply",
+    "section": 15,
+    "required": true,
+    "options": [
+      "1 Health card and report explained",
+      "2 Diet and salt reduction",
+      "3 Physical activity",
+      "4 Tobacco cessation",
+      "5 Alcohol reduction",
+      "6 Substance use and harm reduction",
+      "7 Stress and mental wellbeing",
+      "8 Medication adherence",
+      "9 Warning signs needing urgent care",
+      "10 None provided"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "sec_16",
+    "type": "section_header",
+    "title": "Section 16 · Community perceptions",
+    "section": 16,
+    "required": false,
+    "options": []
+  },
+  {
+    "id": "q_111",
+    "q_code": "Q112",
+    "type": "multi_choice",
+    "title": "Q112. What are the biggest health problems in your community?   ☑ check all that apply",
+    "section": 16,
+    "required": true,
+    "options": [
+      "1 Malnutrition",
+      "2 Obesity",
+      "3 Pollution",
+      "4 Stress and mental health",
+      "5 Diabetes",
+      "6 Heart disease",
+      "7 High blood pressure",
+      "8 Tuberculosis",
+      "9 Alcohol and substance use",
+      "10 Poor sanitation and water",
+      "11 Lack of access to healthcare",
+      "12 Cost of healthcare",
+      "13 Mosquito-borne illness",
+      "14 Cannot say"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_112",
+    "q_code": "Q113",
+    "type": "single_choice",
+    "title": "Q113. Do you have access to clean drinking water and sanitation?",
+    "section": 16,
+    "required": true,
+    "options": [
+      "1 Yes",
+      "2 No",
+      "3 Partially"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_113",
+    "q_code": "Q114",
+    "type": "multi_choice",
+    "title": "Q114. If a free NCD screening camp were held in your area, what would prevent you or your neighbours from attending?   ☑ check all that apply",
+    "section": 16,
+    "required": true,
+    "options": [
+      "1 Not knowing it is happening",
+      "2 Cannot take time from work",
+      "3 Cannot take time from family duties",
+      "4 Distance to the camp",
+      "5 Cost of travel",
+      "6 Need family permission",
+      "7 Stigma or fear of what others will say",
+      "8 Fear of the diagnosis itself",
+      "9 Do not trust free camps",
+      "10 Physical difficulty attending",
+      "11 Nothing would prevent attendance"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_114",
+    "q_code": "Q115",
+    "type": "multi_choice",
+    "title": "Q115. How do you prefer to receive health information?   ☑ check all that apply",
+    "section": 16,
+    "required": true,
+    "options": [
+      "1 WhatsApp",
+      "2 Community health worker in person",
+      "3 Local community meetings",
+      "4 Pamphlets",
+      "5 Instagram",
+      "6 Facebook",
+      "7 YouTube",
+      "8 Public address system",
+      "9 Health facility staff",
+      "10 Television or radio",
+      "11 Religious or community leader",
+      "12 No preference"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_115",
+    "q_code": "Q116",
+    "type": "single_choice",
+    "title": "Q116. How easy is it for you to prioritise your own health?",
+    "section": 16,
+    "required": true,
+    "options": [
+      "1 Very easy",
+      "2 Somewhat easy",
+      "3 Neither easy nor difficult",
+      "4 Somewhat difficult",
+      "5 Very difficult"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  },
+  {
+    "id": "q_116",
+    "q_code": "Q117",
+    "type": "multi_choice",
+    "title": "Q117. What would most help you look after your health better?   ☑ check all that apply",
+    "section": 16,
+    "required": true,
+    "options": [
+      "1 Care closer to home",
+      "2 Free or cheaper medicines",
+      "3 Services open outside working hours",
+      "4 Someone to remind and follow up",
+      "5 Better information about my condition",
+      "6 Support from family",
+      "7 Help with travel",
+      "8 Shorter waiting times",
+      "9 Staff who speak my language",
+      "10 Nothing would change things"
+    ],
+    "skipRule": {
+      "dependsOn": "",
+      "value": "",
+      "action": "show"
+    },
+    "skipRules": []
+  }
+]

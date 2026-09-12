@@ -1,3 +1,4 @@
+import os
 import time
 import json
 from rest_framework.views import APIView
@@ -6,12 +7,21 @@ from rest_framework import status
 from django.db import connection
 from .models import CmsSurveymaster, CmsFieldmaster
 
+QUESTIONS_FILE = os.path.join(os.path.dirname(__file__), 'phase2_questions.json')
+PHASE2_SCHEMA_JSON = '[]'
+if os.path.exists(QUESTIONS_FILE):
+    try:
+        with open(QUESTIONS_FILE, 'r', encoding='utf-8') as f:
+            PHASE2_SCHEMA_JSON = f.read()
+    except Exception:
+        pass
+
 DEFAULT_SURVEYS = [
     {
         'sur_id': 1,
         'sur_code': 'NCD-P2-2026',
         'sur_title': 'MUMBAI NCD SURVEY — PHASE II (Comprehensive 16 Sections)',
-        'sur_url': '[]',
+        'sur_url': PHASE2_SCHEMA_JSON,
         'sur_onlne_id': 'NCD-ONL-2026',
         'sur_pri_db_name': 'ncd',
         'sur_pri_db_server': 'localhost',
@@ -58,6 +68,13 @@ def ensure_survey_table_and_defaults():
                     INSERT INTO cms_surveymaster (sur_code, sur_title, sur_url, sur_onlne_id, sur_pri_db_name, sur_pri_db_server, sur_pri_db_usrnme, status, create_time, record_date)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 """, [s['sur_code'], s['sur_title'], s['sur_url'], s['sur_onlne_id'], s['sur_pri_db_name'], s['sur_pri_db_server'], s['sur_pri_db_usrnme'], s['status'], s['create_time'], s['record_date']])
+        else:
+            # Check if existing survey records have empty or placeholder schemas, and populate with full Phase 2 schema
+            cursor.execute("SELECT sur_id, sur_url FROM cms_surveymaster WHERE sur_code = 'NCD-P2-2026' OR sur_id = 1;")
+            rows = cursor.fetchall()
+            for r in rows:
+                if not r[1] or r[1].strip() in ['[]', '', '{}']:
+                    cursor.execute("UPDATE cms_surveymaster SET sur_url = %s WHERE sur_id = %s;", [PHASE2_SCHEMA_JSON, r[0]])
 
 
 class SurveymasterIndexView(APIView):
@@ -70,6 +87,9 @@ class SurveymasterIndexView(APIView):
         surveys = CmsSurveymaster.objects.filter(status='1').order_by('sur_id')
         data = []
         for s in surveys:
+            sur_url = s.sur_url or '[]'
+            if not sur_url or sur_url.strip() in ['[]', '', '{}']:
+                sur_url = PHASE2_SCHEMA_JSON
             data.append({
                 'sur_id': s.sur_id,
                 'id': s.sur_id,
@@ -77,7 +97,7 @@ class SurveymasterIndexView(APIView):
                 'code': s.sur_code,
                 'sur_title': s.sur_title,
                 'title': s.sur_title,
-                'sur_url': s.sur_url or '[]',
+                'sur_url': sur_url,
                 'sur_onlne_id': s.sur_onlne_id or 'NCD-ONL',
                 'status': s.status,
                 'create_time': s.create_time,
