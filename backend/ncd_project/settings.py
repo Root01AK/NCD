@@ -191,21 +191,42 @@ WSGI_APPLICATION = 'ncd_project.wsgi.application'
 ASGI_APPLICATION = 'ncd_project.asgi.application'
 
 # Database Configuration (MySQL)
+def resolve_db_host(primary_host):
+    if not primary_host:
+        return '127.0.0.1'
+    import socket
+    candidates = [primary_host, 'p138a3kj8bawyy4sdde415qe', 'ncddb', 'db', 'ncd-db', '127.0.0.1', 'localhost']
+    seen = set()
+    for h in candidates:
+        if not h or h in seen:
+            continue
+        seen.add(h)
+        try:
+            socket.gethostbyname(h)
+            return h
+        except (socket.gaierror, OSError):
+            continue
+    return primary_host
+
+
 DATABASE_URL = os.getenv('DATABASE_URL') or os.getenv('DB_URL') or os.getenv('MYSQL_URL')
 if DATABASE_URL:
     from urllib.parse import urlparse, unquote
     parsed_db = urlparse(DATABASE_URL)
-    DB_HOST = parsed_db.hostname or '127.0.0.1'
+    raw_host = parsed_db.hostname or '127.0.0.1'
+    DB_HOST = resolve_db_host(raw_host)
     DB_PORT = str(parsed_db.port or 3306)
     DB_NAME = parsed_db.path.lstrip('/') or 'ncd'
     DB_USER = unquote(parsed_db.username) if parsed_db.username else 'root'
     DB_PASSWORD = unquote(parsed_db.password) if parsed_db.password else ''
 else:
-    DB_HOST = os.getenv('DB_HOST', '127.0.0.1')
+    raw_host = os.getenv('DB_HOST', '127.0.0.1')
+    DB_HOST = resolve_db_host(raw_host)
     DB_PORT = os.getenv('DB_PORT', '3306')
     DB_NAME = os.getenv('DB_NAME', os.getenv('MYSQL_DATABASE', 'ncd'))
     DB_USER = os.getenv('DB_USER', os.getenv('MYSQL_USER', 'root'))
     DB_PASSWORD = os.getenv('DB_PASSWORD', os.getenv('MYSQL_PASSWORD', 'Kirub@2001'))
+
 
 DATABASES = {
     'default': {
