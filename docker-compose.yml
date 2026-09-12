@@ -1,4 +1,7 @@
 services:
+  # ==============================================================================
+  # 1. React Frontend SPA (Vite + Nginx) -> https://ncd.yrgmerf.in
+  # ==============================================================================
   frontend:
     build:
       context: ./ncd/frontend
@@ -9,9 +12,18 @@ services:
     depends_on:
       - backend
     restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ncd-frontend.rule=Host(`ncd.yrgmerf.in`)"
+      - "traefik.http.routers.ncd-frontend.entrypoints=websecure"
+      - "traefik.http.routers.ncd-frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.ncd-frontend.loadbalancer.server.port=80"
     networks:
       - ncd_net
 
+  # ==============================================================================
+  # 2. Django Unfold Admin & REST API -> https://ncdadmin.yrgmerf.in
+  # ==============================================================================
   backend:
     build:
       context: ./backend
@@ -20,28 +32,69 @@ services:
     ports:
       - "8080:8080"
     environment:
+      # Database
       - DATABASE_URL=${DATABASE_URL:-mysql://${DB_USER:-ncd_app}:${DB_PASSWORD:-ncd@2@26Yrg}@${DB_HOST:-db}:${DB_PORT:-3306}/${DB_NAME:-default}}
       - DB_HOST=${DB_HOST:-db}
       - DB_PORT=${DB_PORT:-3306}
       - DB_NAME=${DB_NAME:-default}
       - DB_USER=${DB_USER:-ncd_app}
       - DB_PASSWORD=${DB_PASSWORD:-ncd@2@26Yrg}
+      # Django Production Settings
       - DJANGO_SETTINGS_MODULE=ncd_project.settings
       - DJANGO_DEBUG=${DJANGO_DEBUG:-False}
-      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-django-insecure-ncd-yrgcare-platform-secret-key-2026}
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-django-insecure-ncd-yrgcare-platform-production-key-2026}
+      # Allowed Hosts & Domains (Django Default Admin URL space)
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-ncdadmin.yrgmerf.in,ncdapi.yrgmerf.in,ncd.yrgmerf.in,ncdbsql.yrgmerf.in,localhost,127.0.0.1,0.0.0.0,*}
+      # CORS & CSRF Trusted Origins
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-https://ncd.yrgmerf.in,https://ncdadmin.yrgmerf.in,https://ncdapi.yrgmerf.in}
+      - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-https://ncdadmin.yrgmerf.in,https://ncdapi.yrgmerf.in,https://ncd.yrgmerf.in,https://ncdbsql.yrgmerf.in}
     restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ncd-backend.rule=Host(`ncdadmin.yrgmerf.in`) || Host(`ncdapi.yrgmerf.in`)"
+      - "traefik.http.routers.ncd-backend.entrypoints=websecure"
+      - "traefik.http.routers.ncd-backend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.ncd-backend.loadbalancer.server.port=8080"
     networks:
       - ncd_net
 
+  # ==============================================================================
+  # 3. phpMyAdmin Database Web GUI -> https://ncdbsql.yrgmerf.in
+  # ==============================================================================
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    restart: always
+    environment:
+      - PMA_HOST=${DB_HOST:-db}
+      - PMA_PORT=${DB_PORT:-3306}
+      - PMA_USER=${DB_USER:-ncd_app}
+      - PMA_PASSWORD=${DB_PASSWORD:-ncd@2@26Yrg}
+      - UPLOAD_LIMIT=128M
+    ports:
+      - "8081:80"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ncd-pma.rule=Host(`ncdbsql.yrgmerf.in`)"
+      - "traefik.http.routers.ncd-pma.entrypoints=websecure"
+      - "traefik.http.routers.ncd-pma.tls.certresolver=letsencrypt"
+      - "traefik.http.services.ncd-pma.loadbalancer.server.port=80"
+    depends_on:
+      - db
+    networks:
+      - ncd_net
+
+  # ==============================================================================
+  # 4. MySQL Database (Local Dev fallback)
+  # ==============================================================================
   db:
     image: mysql:8.0
     restart: always
     command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     environment:
       - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-rootchangeme}
-      - MYSQL_DATABASE=${DB_NAME:-ncd}
-      - MYSQL_USER=${DB_USER:-ncd_user}
-      - MYSQL_PASSWORD=${DB_PASSWORD:-changeme}
+      - MYSQL_DATABASE=${DB_NAME:-default}
+      - MYSQL_USER=${DB_USER:-ncd_app}
+      - MYSQL_PASSWORD=${DB_PASSWORD:-ncd@2@26Yrg}
     volumes:
       - mysql_data:/var/lib/mysql
       - ./ncd/DB/ncd.sql:/docker-entrypoint-initdb.d/01-ncd.sql:ro
