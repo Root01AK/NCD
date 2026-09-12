@@ -7,8 +7,8 @@ services:
       context: ./ncd/frontend
       dockerfile: Dockerfile
     image: ncd-frontend-react:latest
-    ports:
-      - "3000:80"
+    expose:
+      - "80"
     depends_on:
       - backend
     restart: always
@@ -29,8 +29,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     image: ncd-backend-django:latest
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     environment:
       # Database
       - DATABASE_URL=${DATABASE_URL:-mysql://${DB_USER:-ncd_app}:${DB_PASSWORD:-ncd@2@26Yrg}@${DB_HOST:-db}:${DB_PORT:-3306}/${DB_NAME:-default}}
@@ -70,8 +70,8 @@ services:
       - PMA_USER=${DB_USER:-ncd_app}
       - PMA_PASSWORD=${DB_PASSWORD:-ncd@2@26Yrg}
       - UPLOAD_LIMIT=128M
-    ports:
-      - "8081:80"
+    expose:
+      - "80"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.ncd-pma.rule=Host(`ncdbsql.yrgmerf.in`)"
