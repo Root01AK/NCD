@@ -241,7 +241,7 @@ export function ClientDashboard({ notify, openSurvey, logout }) {
           await deleteFromQueue(rec.local_id);
         }
         await loadQueue();
-        notify("success", "Sync complete", "All records successfully transmitted to Admin verification queue.");
+        notify("success", "Sync complete", "All records successfully synchronized with the central database.");
       } catch (err) {
         notify("error", "Sync failed", err.message || "An error occurred during sync.");
       } finally {
@@ -1602,11 +1602,34 @@ function FieldSupervisorSection16Card({ syncQueue = [], completedRecords = [], a
   );
 }
 
+function extractCandidateData(item) {
+  if (!item || typeof item !== 'object') return {};
+  let extra = {};
+  if (item.mem_scrn_q30) {
+    try {
+      extra = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30;
+    } catch (e) {}
+  }
+  let payloadData = (item.data && typeof item.data === 'object') ? item.data : {};
+  let payloadInner = (item.payload && typeof item.payload === 'object') ? item.payload : {};
+  let rawData = (item.raw && typeof item.raw === 'object') ? item.raw : {};
+
+  return {
+    ...item,
+    ...(typeof extra === 'object' && extra ? extra : {}),
+    ...(typeof payloadData === 'object' && payloadData ? payloadData : {}),
+    ...(typeof payloadInner === 'object' && payloadInner ? payloadInner : {}),
+    ...(typeof rawData === 'object' && rawData ? rawData : {})
+  };
+}
+
 function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSurvey }) {
   const [selectedPid, setSelectedPid] = useState("");
   const [serverRecords, setServerRecords] = useState([]);
   const [loadingServer, setLoadingServer] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [fetchedDetails, setFetchedDetails] = useState({});
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   const fetchLiveRecords = async () => {
     setLoadingServer(true);
@@ -1614,6 +1637,11 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
       const res = await api.get("/api/v1/dashboard/screeninglist");
       if (res && res.status === 'success' && Array.isArray(res.data)) {
         setServerRecords(res.data);
+      } else {
+        const qRes = await api.get("/api/v1/screening/queue");
+        if (qRes && qRes.status === 'success' && Array.isArray(qRes.data)) {
+          setServerRecords(qRes.data);
+        }
       }
     } catch (e) {
       try {
@@ -1633,28 +1661,62 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
 
   const participantsList = React.useMemo(() => {
     const map = new Map();
-    [...syncQueue, ...completedRecords, ...serverRecords].forEach(item => {
-      let raw = {};
-      if (item.mem_scrn_q30) {
-        try { raw = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
-      }
-      const pid = item.participant_id || item.mem_scrn_part_id || raw.participant_id || raw.mem_scrn_part_id || item.mem_scrn_id;
-      if (pid && !map.has(String(pid).toUpperCase().trim())) {
-        const name = item.fullName || raw.fullName || item.mem_scrn_q16 || raw.mem_scrn_q16 || item.full_name || "Participant";
-        const age = item.age || raw.age || item.mem_scrn_q1 || raw.mem_scrn_q1 || "—";
-        const gender = item.gender || raw.gender || (item.mem_scrn_q2 == '1' ? 'Male' : item.mem_scrn_q2 == '2' ? 'Female' : '—') || "—";
-        const loc = item.location || raw.location || item.mem_scrn_q17 || "Dharavi";
-        map.set(String(pid).toUpperCase().trim(), {
-          pid: String(pid).toUpperCase().trim(),
+
+    const addCandidate = (rawItem) => {
+      if (!rawItem || typeof rawItem !== 'object') return;
+      const merged = extractCandidateData(rawItem);
+      const pidRaw = merged.participant_id || merged.mem_scrn_part_id || merged.pid || rawItem.participant_id || rawItem.mem_scrn_part_id || rawItem.mem_scrn_id;
+      if (!pidRaw) return;
+
+      const pid = String(pidRaw).toUpperCase().trim();
+      const name = merged.fullName || merged.full_name || merged.name || merged.mem_scrn_q16 || rawItem.fullName || "Participant";
+      const age = merged.age || merged.mem_scrn_q1 || rawItem.age || "—";
+      const gender = merged.gender || (merged.mem_scrn_q2 == '1' ? 'Male' : merged.mem_scrn_q2 == '2' ? 'Female' : merged.mem_scrn_q2 == '3' ? 'Transgender' : '—') || "—";
+      const loc = merged.location || merged.mem_scrn_loc || merged.mem_scrn_q17 || rawItem.location || localStorage.getItem('ncd_active_location') || "Dharavi";
+
+      if (map.has(pid)) {
+        const existing = map.get(pid);
+        map.set(pid, {
+          ...existing,
+          name: (existing.name === "Participant" && name !== "Participant") ? name : existing.name,
+          age: (existing.age === "—" && age !== "—") ? age : existing.age,
+          gender: (existing.gender === "—" && gender !== "—") ? gender : existing.gender,
+          loc: existing.loc || loc,
+          data: { ...existing.data, ...merged },
+          item: { ...existing.item, ...rawItem }
+        });
+      } else {
+        map.set(pid, {
+          pid,
           name,
           age,
           gender,
           loc,
-          item,
-          raw
+          data: merged,
+          item: rawItem
         });
       }
-    });
+    };
+
+    (syncQueue || []).forEach(addCandidate);
+    (completedRecords || []).forEach(addCandidate);
+    (serverRecords || []).forEach(addCandidate);
+
+    try {
+      const locStr = localStorage.getItem('ncd_local_initiated_participants');
+      if (locStr) {
+        const locArr = JSON.parse(locStr);
+        if (Array.isArray(locArr)) locArr.forEach(addCandidate);
+      }
+    } catch (e) {}
+
+    try {
+      const offStr = localStorage.getItem('ncd_offline_queue');
+      if (offStr) {
+        const offArr = JSON.parse(offStr);
+        if (Array.isArray(offArr)) offArr.forEach(addCandidate);
+      }
+    } catch (e) {}
 
     return Array.from(map.values());
   }, [syncQueue, completedRecords, serverRecords]);
@@ -1675,30 +1737,169 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
     }
   }, [filteredParticipants, selectedPid]);
 
+  // Fetch full detailed participant record from server whenever selectedPid changes
+  useEffect(() => {
+    if (!selectedPid) return;
+    let isCancelled = false;
+
+    const loadDetail = async () => {
+      try {
+        setLoadingDetail(true);
+        const res = await api.get(`/api/v1/screening/detail?id=${encodeURIComponent(selectedPid)}`);
+        if (!isCancelled && res && res.status === 'success' && res.data) {
+          setFetchedDetails(prev => ({
+            ...prev,
+            [selectedPid.toUpperCase().trim()]: res.data
+          }));
+        }
+      } catch (err) {
+        // Fallback silently if offline or cached
+      } finally {
+        if (!isCancelled) setLoadingDetail(false);
+      }
+    };
+
+    loadDetail();
+    return () => { isCancelled = true; };
+  }, [selectedPid]);
+
   const selectedParticipant = filteredParticipants.find(p => p.pid === selectedPid) || filteredParticipants[0];
-  const dData = selectedParticipant?.raw || selectedParticipant?.item || {};
+  const fetchedData = selectedParticipant ? (fetchedDetails[selectedParticipant.pid] || {}) : {};
 
-  const height = parseFloat(dData.q67 || dData.height || dData.custom_q67 || 0);
-  const weight = parseFloat(dData.q68 || dData.weight || dData.custom_q68 || 0);
-  const bmi = parseFloat(dData.q69 || dData.bmi || dData.custom_q69 || 0);
+  // Deep merged dictionary for the selected participant
+  const combinedData = React.useMemo(() => {
+    if (!selectedParticipant) return {};
+    const baseItemData = extractCandidateData(selectedParticipant.item);
+    const fetchedExtracted = extractCandidateData(fetchedData);
+    return {
+      ...(selectedParticipant.data || {}),
+      ...baseItemData,
+      ...fetchedData,
+      ...fetchedExtracted
+    };
+  }, [selectedParticipant, fetchedData]);
 
-  const waist = parseFloat(dData.q70 || dData.waist || dData.custom_q70 || 0);
-  const hip = parseFloat(dData.q71 || dData.hip || dData.custom_q71 || 0);
-  const whr = parseFloat(dData.q72 || dData.whr || dData.custom_q72 || 0);
+  // Resilient value extraction helper
+  const getVal = (dict, ...keys) => {
+    if (!dict || typeof dict !== 'object') return null;
+    const allDictKeys = Object.keys(dict);
 
-  const pulse = parseFloat(dData.q74 || dData.pulse || dData.custom_q74 || 0);
-  const sys1 = parseFloat(dData.sys_bp_1 || dData.q75_sys || 0);
-  const dia1 = parseFloat(dData.dia_bp_1 || dData.q75_dia || 0);
-  const avgSys = parseFloat(dData.avg_sys_bp || 0);
-  const avgDia = parseFloat(dData.avg_dia_bp || 0);
-  const spo2 = parseFloat(dData.q78 || dData.spo2 || dData.custom_q78 || 0);
+    for (const k of keys) {
+      if (k === undefined || k === null) continue;
 
-  const rbs = parseFloat(dData.q79 || dData.rbs || dData.custom_q79 || 0);
-  const hb = parseFloat(dData.q80 || dData.hb || dData.custom_q80 || 0);
+      if (dict[k] !== undefined && dict[k] !== null && dict[k] !== "" && dict[k] !== "—") {
+        return dict[k];
+      }
 
-  const phq9 = parseInt(dData.q64 || dData.phq9 || dData.custom_q64 || 0, 10);
-  const gad7 = parseInt(dData.q61 || dData.gad7 || dData.custom_q61 || 0, 10);
-  const hsi = parseInt(dData.q23 || dData.hsi || dData.custom_q23 || 0, 10);
+      const variants = [
+        String(k).toLowerCase(),
+        String(k).toUpperCase(),
+        `custom_${k}`,
+        `custom_${String(k).toLowerCase()}`,
+        `custom_${String(k).toUpperCase()}`,
+        `mem_scrn_${k}`,
+        `mem_scrn_${String(k).toLowerCase()}`,
+        `mem_scrn_${String(k).toUpperCase()}`,
+        `q_${k}`,
+        `q${k}`
+      ];
+
+      for (const v of variants) {
+        if (dict[v] !== undefined && dict[v] !== null && dict[v] !== "" && dict[v] !== "—") {
+          return dict[v];
+        }
+      }
+
+      const cleanTarget = String(k).toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (cleanTarget) {
+        const foundKey = allDictKeys.find(dk => {
+          const cleanDk = dk.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return cleanDk === cleanTarget ||
+                 cleanDk === `custom${cleanTarget}` ||
+                 cleanDk === `memscrn${cleanTarget}` ||
+                 cleanDk === `q${cleanTarget}`;
+        });
+        if (foundKey && dict[foundKey] !== undefined && dict[foundKey] !== null && dict[foundKey] !== "" && dict[foundKey] !== "—") {
+          return dict[foundKey];
+        }
+      }
+    }
+    return null;
+  };
+
+  const getFloat = (dict, ...keys) => {
+    const val = getVal(dict, ...keys);
+    if (val === null || val === undefined) return 0;
+    const num = parseFloat(val);
+    return isNaN(num) ? 0 : num;
+  };
+
+  const getInt = (dict, ...keys) => {
+    const val = getVal(dict, ...keys);
+    if (val === null || val === undefined) return 0;
+    const num = parseInt(val, 10);
+    return isNaN(num) ? 0 : num;
+  };
+
+  // Header display details
+  const displayPid = selectedParticipant?.pid || getVal(combinedData, "participant_id", "mem_scrn_part_id") || "—";
+  const displayName = getVal(combinedData, "fullName", "full_name", "name", "mem_scrn_q16") || selectedParticipant?.name || "Participant";
+  const displayAge = getVal(combinedData, "age", "mem_scrn_q1") || selectedParticipant?.age || "—";
+  const displayGenderRaw = getVal(combinedData, "gender", "mem_scrn_q2");
+  const displayGender = (displayGenderRaw == '1' || displayGenderRaw === 'Male') ? 'Male' : (displayGenderRaw == '2' || displayGenderRaw === 'Female') ? 'Female' : (displayGenderRaw == '3' || displayGenderRaw === 'Transgender') ? 'Transgender' : (selectedParticipant?.gender || '—');
+  const displayLoc = getVal(combinedData, "location", "mem_scrn_loc", "mem_scrn_q17") || selectedParticipant?.loc || "Dharavi";
+
+  // Anthropometry & BMI
+  const height = getFloat(combinedData, "q67", "height", "ht", "height_cm", "ht_cm", "custom_q67", "q67_height");
+  const weight = getFloat(combinedData, "q68", "weight", "wt", "weight_kg", "wt_kg", "custom_q68", "q68_weight", "q5", "mem_scrn_q5");
+  let bmi = getFloat(combinedData, "q69", "bmi", "calculated_bmi", "custom_bmi", "custom_q69", "q69_bmi");
+  if (bmi === 0 && height > 0 && weight > 0) {
+    const hM = height / 100;
+    bmi = parseFloat((weight / (hM * hM)).toFixed(1));
+  }
+
+  // Abdominal Obesity & WHR
+  const waist = getFloat(combinedData, "q70", "waist", "waist_cm", "waist_circumference", "custom_q70", "q70_waist");
+  const hip = getFloat(combinedData, "q71", "hip", "hip_cm", "hip_circumference", "custom_q71", "q71_hip");
+  let whr = getFloat(combinedData, "q72", "whr", "waist_hip_ratio", "custom_whr", "custom_q72", "q72_whr");
+  if (whr === 0 && waist > 0 && hip > 0) {
+    whr = parseFloat((waist / hip).toFixed(2));
+  }
+
+  // Hemodynamics & Vitals
+  const pulse = getFloat(combinedData, "q74", "pulse", "pulse_rate", "heart_rate", "pr", "custom_q74");
+  const sys1 = getFloat(combinedData, "sys_bp_1", "q75_sys", "sys_bp", "systolic", "sbp", "custom_sys_bp", "q3", "mem_scrn_q3", "bp_sys");
+  const dia1 = getFloat(combinedData, "dia_bp_1", "q75_dia", "dia_bp", "diastolic", "dbp", "custom_dia_bp", "q4", "mem_scrn_q4", "bp_dia");
+  const sys2 = getFloat(combinedData, "sys_bp_2", "q76_sys");
+  const dia2 = getFloat(combinedData, "dia_bp_2", "q76_dia");
+  let avgSys = getFloat(combinedData, "avg_sys_bp", "average_sys_bp", "avg_sys", "sys_bp_avg");
+  let avgDia = getFloat(combinedData, "avg_dia_bp", "average_dia_bp", "avg_dia", "dia_bp_avg");
+
+  if (avgSys === 0) {
+    if (sys1 > 0 && sys2 > 0) {
+      avgSys = Math.round((sys1 + sys2) / 2);
+    } else if (sys1 > 0) {
+      avgSys = sys1;
+    }
+  }
+  if (avgDia === 0) {
+    if (dia1 > 0 && dia2 > 0) {
+      avgDia = Math.round((dia1 + dia2) / 2);
+    } else if (dia1 > 0) {
+      avgDia = dia1;
+    }
+  }
+
+  const spo2 = getFloat(combinedData, "q78", "spo2", "oxygen_saturation", "oximeter", "custom_q78");
+
+  // Point-of-Care Lab Tests
+  const rbs = getFloat(combinedData, "q79", "rbs", "blood_sugar", "random_blood_sugar", "custom_rbs", "custom_q79", "sugar");
+  const hb = getFloat(combinedData, "q80", "hb", "haemoglobin", "hemoglobin", "custom_hb", "custom_q80");
+
+  // Psychosocial & Addiction Risk Scores
+  const phq9 = getInt(combinedData, "phq9", "phq_9", "phq9_score", "phq_score", "q64", "custom_q64", "q64_score", "phq_total");
+  const gad7 = getInt(combinedData, "gad7", "gad_7", "gad7_score", "gad_score", "q61", "custom_q61", "q61_score", "gad_total");
+  const hsi = getInt(combinedData, "hsi", "hsi_score", "nicotine_hsi", "q23", "custom_q23", "q23_score", "hsi_total");
 
   return (
     <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-purple-200/90 shadow-2xs space-y-3">
@@ -1715,6 +1916,11 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
               <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-md bg-purple-100 text-purple-900 border border-purple-300 font-mono whitespace-nowrap shrink-0">
                 Doctor Module
               </span>
+              {loadingDetail && (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 animate-pulse font-mono">
+                  Loading Vitals...
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-slate-500 font-medium font-mono mt-0.5">
               Select any participant below to inspect historical Section 1–11 vitals &amp; anthropometry before Section 12 exam.
@@ -1768,23 +1974,23 @@ function DoctorVitalsCardGrid({ syncQueue = [], completedRecords = [], onOpenSur
           <div className="p-2.5 px-3 rounded-xl bg-purple-50/70 border border-purple-200/90 flex flex-wrap items-center justify-between gap-2 font-mono text-xs shadow-2xs">
             <div className="flex items-center gap-3 flex-wrap">
               <span className="font-black text-purple-950 bg-white px-2.5 py-0.5 rounded-lg border border-purple-300 shadow-2xs">
-                ID: {selectedParticipant.pid}
+                ID: {displayPid}
               </span>
               <span className="font-extrabold text-slate-900">
-                Name: {selectedParticipant.name}
+                Name: {displayName}
               </span>
               <span className="text-slate-700 font-bold">
-                Demographics: {selectedParticipant.gender}, {selectedParticipant.age} yrs
+                Demographics: {displayGender}, {displayAge} yrs
               </span>
               <span className="text-slate-700 font-bold">
-                Center: {selectedParticipant.loc}
+                Center: {displayLoc}
               </span>
             </div>
 
             {onOpenSurvey && (
               <button
                 type="button"
-                onClick={() => onOpenSurvey({ sur_id: 1, participant_id: selectedParticipant.pid })}
+                onClick={() => onOpenSurvey({ sur_id: 1, participant_id: displayPid })}
                 className="px-3 py-1 rounded-lg bg-purple-900 hover:bg-black text-white font-extrabold transition-colors text-xs flex items-center gap-1 cursor-pointer shadow-2xs font-sans"
               >
                 <span>Proceed to Section 12 Exam →</span>

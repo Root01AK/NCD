@@ -32,8 +32,9 @@ Once the Field Supervisor completed the Demographics section, in Staff Nurse log
 Workflow process Field Supervisor Start the survey where that is when a participant is create which will reflect in admin panel (we will store the entire data their), here the Field Supervisorhas access to Demographics section, here the workflow is once the Field Supervisor initiate the process and complete the Demographics section it will move two the queue in the Staff Nurse portal, where the staff nurse continue the survey from thier from the assigned section of them in the order and it move to the Doctor at section 12 & 13. & Case Management Coordinator section 14 & counselor 15 section and Field Supervisor login and in Queue it will have the participant -id which the Field Supervisor intiated and complete the section 16 this is lifecycle process please let me know if you have any doubts.
 
 
-cd /Users/kirubakaran/Desktop/NCD/ncd
-php -S 127.0.0.1:8080 -t web
+cd /Users/kirubakaran/Desktop/NCD/backend
+source venv/bin/activate
+python manage.py runserver 0.0.0.0:8001
 
 
 In Q9 Code 16 is exclusive. If ticked, no other box may be selected. and in Q9 If code 11 is not ticked, skip to Q11.If Q11 is 2 or 3 skip to Q13, and create a code book for every options, for every options it comes 1,2,3,4,5,6,7,8,9, so on. and in admin panel setup a proper code for every options.
@@ -184,3 +185,15 @@ S.No.	Section	Question Number	Minimum	Maximum	Remarks
 
 1. Without mobile number input the survey moves, fix this bug, need validation.
 2. Q30 is autocalculated answer which need to fetch by system and it need to calculate the score of Q27+Q28+Q29, here need to give values for the option as option 1 as 1, option 2 as 2, option 3 as 3, option 4 as 4, option 5 as 5 etc, where codebook is separate don't confuse it. need to calculate with option values and sum of total score need show in Q30 as autocalculated.
+
+
+
+### Production Deployment URLs & Routing:
+- **React Frontend Application**: [https://ncd.yrgmerf.in](https://ncd.yrgmerf.in)
+- **Django Admin (Unfold Suite & REST API)**: [https://ncdadmin.yrgmerf.in](https://ncdadmin.yrgmerf.in) *(Accessible at `/`, `/admin/`, and `/django-admin/`)*
+- **phpMyAdmin Database Master**: [https://ncdbsql.yrgmerf.in](https://ncdbsql.yrgmerf.in)
+
+### Production Allowed Hosts & CORS Configuration:
+- `ALLOWED_HOSTS`: `ncd.yrgmerf.in,ncdadmin.yrgmerf.in,ncdapi.yrgmerf.in,ncdbsql.yrgmerf.in,*`
+- `CSRF_TRUSTED_ORIGINS`: `https://ncd.yrgmerf.in,https://ncdadmin.yrgmerf.in,https://ncdapi.yrgmerf.in,https://ncdbsql.yrgmerf.in`
+- `CORS_ALLOWED_ORIGINS`: `https://ncd.yrgmerf.in,https://ncdadmin.yrgmerf.in,https://ncdapi.yrgmerf.in`

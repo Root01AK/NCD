@@ -8,7 +8,7 @@ export default function Dashboard({ token, user, onLogout }) {
   useEffect(() => {
     const fetchScreenings = async () => {
       try {
-        const response = await fetch('http://localhost:8080/index.php/api/v1/dashboard/screeninglist', {
+        const response = await fetch('/api/v1/dashboard/screeninglist', {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -22,7 +22,7 @@ export default function Dashboard({ token, user, onLogout }) {
           if (response.status === 401) onLogout() // Token expired
         }
       } catch (err) {
-        setError('Error connecting to API')
+        setError('Error connecting to Django REST API')
       } finally {
         setLoading(false)
       }
@@ -70,7 +70,7 @@ export default function Dashboard({ token, user, onLogout }) {
 
           {loading ? (
             <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
-              Loading data from Yii2 API...
+              Loading data from Django REST API...
             </div>
           ) : error ? (
             <div className="error-msg">{error}</div>

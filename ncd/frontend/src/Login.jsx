@@ -12,8 +12,7 @@ export default function Login({ onLoginSuccess }) {
     setError(null)
 
     try {
-      // We use the new pretty URL we set up in config/web.php
-      const response = await fetch('http://localhost:8080/index.php/api/v1/auth/login', {
+      const response = await fetch('/api/v1/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -29,7 +28,7 @@ export default function Login({ onLoginSuccess }) {
         setError(data.message || 'Login failed. Please check your credentials.')
       }
     } catch (err) {
-      setError('Could not connect to the API. Ensure Yii2 is running.')
+      setError('Could not connect to the API. Ensure Django backend is running.')
     } finally {
       setLoading(false)
     }

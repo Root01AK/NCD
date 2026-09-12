@@ -472,14 +472,9 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
       {/* Brand Header */}
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200 px-6 sm:px-8 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-2xs">
         <div>
-          <div className="flex items-center gap-2.5">
-            <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 22, color: T.charcoal900, letterSpacing: "-0.02em" }}>
-              Participant Directory & Multi-Role Audit
-            </h1>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black font-mono bg-[#f5d40b]/20 text-slate-900 border border-[#f5d40b]/40">
-              {participants.length} {participants.length === 1 ? 'Record' : 'Records'}
-            </span>
-          </div>
+          <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 22, color: T.charcoal900, letterSpacing: "-0.02em" }}>
+            Participant Directory & Multi-Role Audit
+          </h1>
           <p style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 13, color: T.charcoal500, marginTop: 2 }}>
             Real-time directory capturing all initiated & completed screening responses with multi-role audit history.
           </p>
@@ -492,7 +487,7 @@ export function ParticipantManagement({ notify, phase = "phase2", initialLocatio
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black bg-[#f5d40b] text-slate-950 hover:bg-[#e0c20a] transition-colors shadow-2xs cursor-pointer font-mono border border-[#e5c40a]"
           >
             <Plus size={15} className="text-slate-950 stroke-[2.5]" />
-            <span>+ Create Participant</span>
+            <span>Create Participant</span>
           </button>
 
           {/* Overall Export Button */}

@@ -1,57 +1,60 @@
 services:
-  app:
+  frontend:
     build:
-      context: ./ncd
+      context: ./ncd/frontend
       dockerfile: Dockerfile
-    image: ncd-app:latest
-    expose:
-      - "80"
-      - "8080"
-      - "3000"
-    environment:
-      - DB_HOST=db
-      - DB_PORT=3306
-      - DB_NAME=${DB_NAME:-ncd}
-      - DB_USER=${DB_USER:-ncd_user}
-      - DB_PASSWORD=${DB_PASSWORD:-changeme}
-      - YII_ENV=prod
-      - YII_DEBUG=false
+    image: ncd-frontend-react:latest
+    ports:
+      - "3000:80"
     depends_on:
-      - db
+      - backend
+    restart: always
+    networks:
+      - ncd_net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: ncd-backend-django:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-mysql://${DB_USER:-ncd_app}:${DB_PASSWORD:-ncd@2@26Yrg}@${DB_HOST:-db}:${DB_PORT:-3306}/${DB_NAME:-default}}
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME:-default}
+      - DB_USER=${DB_USER:-ncd_app}
+      - DB_PASSWORD=${DB_PASSWORD:-ncd@2@26Yrg}
+      - DJANGO_SETTINGS_MODULE=ncd_project.settings
+      - DJANGO_DEBUG=${DJANGO_DEBUG:-False}
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-django-insecure-ncd-yrgcare-platform-secret-key-2026}
     restart: always
     networks:
       - ncd_net
 
   db:
-    image: mariadb:10.11
+    image: mysql:8.0
     restart: always
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     environment:
       - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-rootchangeme}
       - MYSQL_DATABASE=${DB_NAME:-ncd}
       - MYSQL_USER=${DB_USER:-ncd_user}
       - MYSQL_PASSWORD=${DB_PASSWORD:-changeme}
     volumes:
-      - mariadb_data:/var/lib/mysql
+      - mysql_data:/var/lib/mysql
       - ./ncd/DB/ncd.sql:/docker-entrypoint-initdb.d/01-ncd.sql:ro
-    networks:
-      - ncd_net
-
-  phpmyadmin:
-    image: phpmyadmin/phpmyadmin:latest
-    restart: always
-    ports:
-      - "8088:80"
-    environment:
-      PMA_HOST: db
-      PMA_PORT: 3306
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootchangeme}
-    depends_on:
-      - db
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-rootchangeme}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - ncd_net
 
 volumes:
-  mariadb_data:
+  mysql_data:
 
 networks:
   ncd_net:

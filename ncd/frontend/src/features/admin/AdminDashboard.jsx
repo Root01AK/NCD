@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Search, ChevronDown, Filter, FileText, Settings, UserCircle2, ArrowUpRight, CheckCircle2, AlertCircle, LogOut, MapPin, Grid, Layers, PieChart, Bell, Download, Loader2, Users, Menu, X, Lock, Unlock, Database } from "lucide-react";
+import { Search, ChevronDown, Filter, Settings, UserCircle2, ArrowUpRight, CheckCircle2, AlertCircle, LogOut, MapPin, Grid, Layers, PieChart, Bell, Download, Loader2, Users, Menu, X, Lock, Unlock, Database, PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight } from "lucide-react";
 import { T } from "../../lib/theme";
 import { api } from "../../lib/api";
-import { getQueue } from "../../lib/db";
 import { SurveyBuilder } from "./SurveyBuilder";
 import { SurveyManagement } from "./SurveyManagement";
 import { Analytics } from "./Analytics";
@@ -16,6 +15,7 @@ import { DatabaseMastery } from "./DatabaseMastery";
 export function AdminDashboard({ notify, logout }) {
   const getInitialTab = () => {
     const hash = window.location.hash.replace("#", "");
+    if (hash === "queue") return "dashboard";
     return hash || "dashboard";
   };
 
@@ -24,6 +24,20 @@ export function AdminDashboard({ notify, logout }) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Sidebar Minimize State (persisted across sessions)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('ncd_sidebar_collapsed') === 'true';
+  });
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('ncd_sidebar_collapsed', String(next));
+      return next;
+    });
+  };
+
   const [selectedSurveyState, setSelectedSurveyState] = useState(() => {
     try {
       const saved = localStorage.getItem('ncd_selected_survey');
@@ -54,10 +68,6 @@ export function AdminDashboard({ notify, logout }) {
     return isUnlocked ? (localStorage.getItem('ncd_selected_phase') || "phase2") : "phase2";
   });
   const [selectedAdminLocation, setSelectedAdminLocation] = useState("All");
-
-  // Live Queue State
-  const [queueData, setQueueData] = useState([]);
-  const [loadingQueue, setLoadingQueue] = useState(false);
 
   useEffect(() => {
     window.location.hash = navTab;
@@ -92,83 +102,6 @@ export function AdminDashboard({ notify, logout }) {
       } catch (e) {}
     }
   }, []);
-
-  // Fetch Queue Data on initial mount, whenever tab/phase changes, and auto-poll every 15s
-  useEffect(() => {
-    fetchQueue();
-    const interval = setInterval(() => {
-      fetchQueue();
-    }, 15000);
-    return () => clearInterval(interval);
-  }, [navTab, selectedPhase]);
-
-  const fetchQueue = async () => {
-    setLoadingQueue(true);
-    try {
-      let apiList = [];
-      let apiResponded = false;
-      try {
-        const res = await api.get("/api/v1/dashboard/screeninglist");
-        if (res && res.status === 'success' && Array.isArray(res.data)) {
-          apiResponded = true;
-          apiList = res.data;
-        }
-      } catch (e) {}
-
-      let idbQueue = [];
-      try {
-        idbQueue = await getQueue();
-      } catch (e) {}
-
-      let localInitiated = [];
-      try {
-        const initStr = localStorage.getItem('ncd_local_initiated_participants') || localStorage.getItem('ncd_offline_queue');
-        if (initStr) {
-          const parsed = JSON.parse(initStr);
-          if (Array.isArray(parsed)) localInitiated = parsed;
-        }
-      } catch (e) {}
-
-      if (apiResponded && apiList.length === 0) {
-        localStorage.removeItem('ncd_local_initiated_participants');
-        localInitiated = [];
-      }
-
-      const combined = [...localInitiated, ...idbQueue, ...apiList];
-      const seenIds = new Set();
-      const dedupedQueue = [];
-
-      combined.forEach((item, idx) => {
-        let extra = {};
-        if (item.mem_scrn_q30) {
-          try { extra = typeof item.mem_scrn_q30 === 'string' ? JSON.parse(item.mem_scrn_q30) : item.mem_scrn_q30; } catch (e) {}
-        }
-        const realPId = item.participant_id || item.mem_scrn_part_id || extra.participant_id;
-        const hasData = Boolean(item.fullName || extra.fullName || item.mem_scrn_q16 || item.age || item.mem_scrn_q1 || extra.age);
-
-        // Exclude unpopulated empty DB stubs
-        if (!realPId && !hasData) return;
-        const pId = realPId || (item.mem_scrn_id ? `DH-MUM-${item.mem_scrn_id}` : `P-${idx + 1}`);
-        if (!pId || seenIds.has(pId)) return;
-        seenIds.add(pId);
-        
-        dedupedQueue.push({
-          ...item,
-          mem_scrn_part_id: pId,
-          mem_scrn_q16: item.fullName || extra.fullName || item.mem_scrn_q16 || pId,
-          mem_scrn_q17: item.location || extra.location || item.mem_scrn_q17 || "-",
-          mem_scrn_q24: extra.overall_risk_rating === "High Risk" || item.risk === "High Risk" || item.mem_scrn_q24 == 1 ? "1" : "0"
-        });
-      });
-
-      setQueueData(dedupedQueue);
-    } catch (error) {
-      console.error("Failed to fetch queue data:", error);
-      setQueueData([]);
-    } finally {
-      setLoadingQueue(false);
-    }
-  };
 
   const handleLogoutConfirm = () => {
     setShowLogoutConfirm(false);
@@ -292,7 +225,6 @@ export function AdminDashboard({ notify, logout }) {
     { id: "surveys", label: "Survey Management", icon: Layers },
     { id: "participants", label: "Participants", icon: Users },
     { id: "location", label: "Location Master", icon: MapPin },
-    { id: "queue", label: "Verification Queue", icon: FileText },
     { id: "export", label: "Data Export", icon: Download },
     { id: "users", label: "User Management", icon: UserCircle2 },
     { id: "profile", label: "My Profile", icon: Settings },
@@ -370,30 +302,75 @@ export function AdminDashboard({ notify, logout }) {
       )}
 
       {/* Floating Desktop Sidebar */}
-      <aside className="w-64 p-4 hidden md:flex flex-col z-50 shrink-0">
-        <div className="flex-1 flex flex-col rounded-3xl p-5 shadow-sm" style={{ background: T.paperRaised, border: `1px solid ${T.line}` }}>
-          <div className="mb-10 px-2 flex items-center gap-3">
-            <img src="/yrg-logo.png" alt="YRG Care" className="w-8 h-8 object-contain" />
-            <div>
-              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 20, color: T.ink, letterSpacing: "-0.02em" }}>
-                NCD
-              </span>
-              <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: T.charcoal500, letterSpacing: "0.05em", marginTop: -2 }}>
-                ADMIN PORTAL
-              </p>
+      <aside className={`${sidebarCollapsed ? "w-[84px]" : "w-64"} p-3.5 hidden md:flex flex-col z-50 shrink-0 transition-all duration-300 ease-in-out`}>
+        <div className={`flex-1 flex flex-col rounded-3xl ${sidebarCollapsed ? "p-3 items-center" : "p-5"} shadow-sm transition-all duration-300 ease-in-out`} style={{ background: T.paperRaised, border: `1px solid ${T.line}` }}>
+          
+          {/* Header & Minimize/Expand Button */}
+          {sidebarCollapsed ? (
+            <div className="mb-6 flex flex-col items-center gap-3">
+              <img src="/yrg-logo.png" alt="YRG Care" className="w-8 h-8 object-contain shrink-0" />
+              <button
+                onClick={toggleSidebar}
+                className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors cursor-pointer border border-slate-200 shadow-2xs group relative"
+                title="Expand Sidebar"
+              >
+                <PanelLeftOpen size={16} />
+                <div className="absolute left-full ml-2 px-2.5 py-1 bg-slate-900 text-white text-[11px] font-semibold rounded-lg whitespace-nowrap shadow-md opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 font-sans">
+                  Expand Sidebar
+                </div>
+              </button>
             </div>
-          </div>
+          ) : (
+            <div className="mb-8 px-1 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <img src="/yrg-logo.png" alt="YRG Care" className="w-8 h-8 object-contain shrink-0" />
+                <div>
+                  <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 20, color: T.ink, letterSpacing: "-0.02em" }}>
+                    NCD
+                  </span>
+                  <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: T.charcoal500, letterSpacing: "0.05em", marginTop: -2 }}>
+                    ADMIN PORTAL
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={toggleSidebar}
+                className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-800 transition-colors cursor-pointer border border-transparent hover:border-slate-200"
+                title="Minimize Sidebar"
+              >
+                <PanelLeftClose size={17} />
+              </button>
+            </div>
+          )}
 
-          <nav className="flex-1 space-y-1">
+          {/* Navigation Items */}
+          <nav className={`flex-1 space-y-1.5 ${sidebarCollapsed ? "w-full flex flex-col items-center" : ""}`}>
             {navigationItems.map((n) => {
               const isActive = n.id === navTab || (n.id === "surveys" && navTab === "survey-builder");
               const Icon = n.icon;
-              return (
+              return sidebarCollapsed ? (
                 <button
                   key={n.id}
                   onClick={() => setNavTab(n.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
-                    isActive ? "shadow-sm scale-[1.02]" : "hover:bg-gray-50"
+                  className={`w-11 h-11 flex items-center justify-center rounded-2xl transition-all cursor-pointer relative group ${
+                    isActive ? "shadow-sm scale-105" : "hover:bg-slate-100/80"
+                  }`}
+                  style={{
+                    background: isActive ? T.ink : "transparent",
+                  }}
+                  title={n.label}
+                >
+                  <Icon size={19} color={isActive ? T.gold : T.charcoal500} className="shrink-0" />
+                  <div className="absolute left-full ml-3 px-3 py-1.5 bg-slate-950 text-white text-xs font-semibold rounded-xl whitespace-nowrap shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 font-sans">
+                    {n.label}
+                  </div>
+                </button>
+              ) : (
+                <button
+                  key={n.id}
+                  onClick={() => setNavTab(n.id)}
+                  className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-2xl text-sm font-medium transition-all cursor-pointer ${
+                    isActive ? "shadow-sm scale-[1.02]" : "hover:bg-slate-50"
                   }`}
                   style={{
                     fontFamily: "'IBM Plex Sans', sans-serif",
@@ -408,23 +385,39 @@ export function AdminDashboard({ notify, logout }) {
             })}
           </nav>
 
-          <div className="mt-auto pt-6 border-t flex flex-col items-center gap-4" style={{ borderColor: T.line }}>
-            <button 
-              onClick={() => setShowLogoutConfirm(true)}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all hover:bg-gray-50"
-              style={{ fontFamily: "'IBM Plex Sans', sans-serif", color: T.charcoal700 }}
-            >
-              <LogOut size={18} color={T.charcoal500} />
-              Sign out
-            </button>
-            <div className="text-center">
-              <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: T.charcoal500 }}>
-                YRGMERF &copy; 2026.
-              </p>
-              <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: T.charcoal500 }}>
-                NCD Platform v2.4
-              </p>
-            </div>
+          {/* Footer Area */}
+          <div className={`mt-auto pt-4 border-t flex flex-col items-center gap-3 ${sidebarCollapsed ? "w-full" : ""}`} style={{ borderColor: T.line }}>
+            {sidebarCollapsed ? (
+              <button 
+                onClick={() => setShowLogoutConfirm(true)}
+                className="w-11 h-11 flex items-center justify-center rounded-2xl transition-all hover:bg-red-50 text-slate-600 hover:text-red-700 cursor-pointer group relative"
+                title="Sign out"
+              >
+                <LogOut size={18} className="shrink-0" />
+                <div className="absolute left-full ml-3 px-3 py-1.5 bg-red-950 text-white text-xs font-semibold rounded-xl whitespace-nowrap shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 font-sans">
+                  Sign out
+                </div>
+              </button>
+            ) : (
+              <>
+                <button 
+                  onClick={() => setShowLogoutConfirm(true)}
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-sm font-medium transition-all hover:bg-red-50 text-slate-700 hover:text-red-700 cursor-pointer group"
+                  style={{ fontFamily: "'IBM Plex Sans', sans-serif" }}
+                >
+                  <LogOut size={17} className="text-slate-500 group-hover:text-red-600 shrink-0" />
+                  <span>Sign out</span>
+                </button>
+                <div className="text-center">
+                  <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: T.charcoal500 }}>
+                    YRGMERF &copy; 2026
+                  </p>
+                  <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: T.charcoal500 }}>
+                    NCD Platform v2.4
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </aside>
@@ -479,110 +472,6 @@ export function AdminDashboard({ notify, logout }) {
         {navTab === "users" && <UserManagement notify={notify} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
         {navTab === "profile" && <AdminProfile notify={notify} user={user} phase1Unlocked={phase1Unlocked} togglePhase1Lock={togglePhase1Lock} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
         {navTab === "export" && <DataExport notify={notify} phase={selectedPhase} onOpenMobileMenu={() => setMobileMenuOpen(true)} />}
-
-        {navTab === "queue" && (
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <DashboardHeader title="Verification Queue" subtitle="Review incoming field survey entries requiring verification." />
-
-            <div className="flex-1 overflow-y-auto p-4 sm:p-8 pb-24 space-y-8">
-              <div className="rounded-3xl shadow-sm overflow-x-auto" style={{ background: T.paperRaised, border: `1px solid ${T.line}` }}>
-                <table className="w-full text-left border-collapse min-w-[650px]">
-                  <thead>
-                    <tr style={{ background: T.paper, borderBottom: `1px solid ${T.line}` }}>
-                      <th className="px-6 py-4 text-xs font-medium" style={{ fontFamily: "'IBM Plex Mono', monospace", color: T.charcoal500 }}>PARTICIPANT ID</th>
-                      <th className="px-6 py-4 text-xs font-medium" style={{ fontFamily: "'IBM Plex Mono', monospace", color: T.charcoal500 }}>LOCATION</th>
-                      <th className="px-6 py-4 text-xs font-medium" style={{ fontFamily: "'IBM Plex Mono', monospace", color: T.charcoal500 }}>LIFECYCLE STAGE</th>
-                      <th className="px-6 py-4 text-xs font-medium" style={{ fontFamily: "'IBM Plex Mono', monospace", color: T.charcoal500 }}>RISK FLAG</th>
-                      <th className="px-6 py-4 text-xs font-medium text-right" style={{ fontFamily: "'IBM Plex Mono', monospace", color: T.charcoal500 }}>ACTION</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loadingQueue ? (
-                      <tr>
-                        <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
-                          <Loader2 className="animate-spin mx-auto mb-2" size={24} />
-                          Loading queue data...
-                        </td>
-                      </tr>
-                    ) : queueData.length === 0 ? (
-                      <tr>
-                        <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
-                          No screening records pending verification.
-                        </td>
-                      </tr>
-                    ) : (
-                      queueData.map((r, i) => {
-                        let payload = {};
-                        if (r.mem_scrn_q30) {
-                          try { payload = JSON.parse(r.mem_scrn_q30); } catch (e) {}
-                        }
-                        
-                        let stageLabel = "1/6 Demographics Initiated";
-                        let stageStyle = "bg-slate-100 text-slate-800 border-slate-300";
-                        if (payload.community_perception) {
-                          stageLabel = "6/6 Fully Screened & Finalized";
-                          stageStyle = "bg-emerald-100 text-emerald-800 border-emerald-300";
-                        } else if (payload.health_counseling_notes || payload.phq9_depression_score) {
-                          stageLabel = "5/6 Counseling Completed";
-                          stageStyle = "bg-purple-100 text-purple-800 border-purple-300";
-                        } else if (payload.referral_confirmation_date || payload.treatment_adherence_status) {
-                          stageLabel = "4/6 Referral Linkages Set";
-                          stageStyle = "bg-indigo-100 text-indigo-800 border-indigo-300";
-                        } else if (payload.overall_risk_rating || payload.cvd_risk_assessment) {
-                          stageLabel = "3/6 Doctor Exam Completed";
-                          stageStyle = "bg-blue-100 text-blue-800 border-blue-300";
-                        } else if (payload.bp_systolic || payload.random_blood_glucose || payload.height_cm) {
-                          stageLabel = "2/6 Nurse Vitals & Labs";
-                          stageStyle = "bg-amber-100 text-amber-800 border-amber-300";
-                        }
-
-                        return (
-                          <tr 
-                            key={i} 
-                            className="hover:bg-gray-50 transition-colors"
-                            style={{ borderBottom: i === queueData.length - 1 ? "none" : `1px solid ${T.line}` }}
-                          >
-                            <td className="px-6 py-4 text-sm font-bold" style={{ fontFamily: "'IBM Plex Mono', monospace", color: T.goldDeep }}>
-                              {r.mem_scrn_part_id || r.participant_id || 'Unknown'}
-                            </td>
-                            <td className="px-6 py-4 text-sm font-medium" style={{ fontFamily: "'IBM Plex Sans', sans-serif", color: T.charcoal700 }}>
-                              {r.mem_scrn_q17 || r.location || 'Dharavi'}
-                            </td>
-                            <td className="px-6 py-4 text-xs font-semibold">
-                              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border ${stageStyle}`}>
-                                <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
-                                {stageLabel}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">
-                              {r.mem_scrn_q24 == 1 ? (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium" style={{ background: T.redTint, color: T.redDeep }}>
-                                  <span className="w-1.5 h-1.5 rounded-full bg-current"></span> High Risk
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium" style={{ background: T.paper, border: `1px solid ${T.line}`, color: T.charcoal500 }}>
-                                  <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Standard Risk
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                              <button 
-                                className="px-4 py-1.5 rounded-full text-xs font-medium transition-colors hover:bg-gray-100 cursor-pointer"
-                                style={{ fontFamily: "'IBM Plex Sans', sans-serif", border: `1px solid ${T.line}`, color: T.ink }}
-                              >
-                                View Details
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
     </div>
   );

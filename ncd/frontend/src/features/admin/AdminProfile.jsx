@@ -367,7 +367,7 @@ export function AdminProfile({ notify, user, phase1Unlocked, togglePhase1Lock })
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 font-mono">Engine & Version</span>
                 <Cpu size={14} className="text-blue-600" />
               </div>
-              <p className="text-sm font-bold text-slate-900 font-mono">MariaDB 10.11</p>
+              <p className="text-sm font-bold text-slate-900 font-mono">MySQL 8.0</p>
               <p className="text-[10px] text-slate-500 mt-0.5">InnoDB Storage Engine</p>
             </div>
 

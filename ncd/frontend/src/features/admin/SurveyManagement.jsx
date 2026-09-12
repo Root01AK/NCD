@@ -13,24 +13,6 @@ export const DEFAULT_MASTER_SURVEYS = [
     sur_onlne_id: "NCD-ONL-2026",
     location: "All Locations",
     status: "1"
-  },
-  {
-    sur_id: 2,
-    sur_code: "SWASTH-01",
-    sur_title: "SWASTH ABHIYAN NCD SCREENING (Primary Community Health Survey)",
-    sur_url: "[]",
-    sur_onlne_id: "NCD-ONL-01",
-    location: "Dharavi",
-    status: "1"
-  },
-  {
-    sur_id: 3,
-    sur_code: "NCD-FUP-2026",
-    sur_title: "NCD LINKAGE & 3-ATTEMPT FOLLOW-UP TRACKING SURVEY",
-    sur_url: "[]",
-    sur_onlne_id: "NCD-FUP",
-    location: "All Locations",
-    status: "1"
   }
 ];
 

@@ -7,10 +7,6 @@ import { DynamicSurveyForm } from "./features/client/DynamicSurveyForm";
 import { ToastProvider, useToasts } from "./components/ui/ToastProvider";
 import { T } from "./lib/theme";
 
-const fontImport = `
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
-`;
-
 class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
@@ -111,9 +107,7 @@ function MainApp() {
   };
 
   return (
-    <div style={{ fontFamily: "'IBM Plex Sans', sans-serif" }}>
-      <style>{fontImport}</style>
-
+    <div className="font-sans min-h-screen text-slate-900 bg-[#FAF7F0] antialiased">
       <div style={{ minHeight: '100vh' }}>
         {view === "landing" && (
           <Landing goLogin={() => setView("login")} notify={push} />
